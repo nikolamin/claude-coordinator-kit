@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd template for running bot.py as an always-on background service
+  (macOS). See SETUP.md section (e) for install instructions.
+
+  bot.py runs exactly ONE poll cycle per process invocation (a single
+  Telegram getUpdates long-poll, handle whatever messages came back, then
+  exit) instead of looping internally. KeepAlive below is therefore the
+  CORE polling loop mechanism, not just crash recovery: launchd relaunches
+  bot.py immediately after every exit, whether that exit followed a message
+  being handled or the long-poll simply timing out with nothing to do.
+  KeepAlive MUST stay the simple unconditional boolean form (<true/>) - not
+  the dictionary form with SuccessfulExit - since we want an unconditional
+  restart regardless of exit status, not "only restart on crash/non-zero
+  exit".
+
+  BEFORE INSTALLING, replace every <PLACEHOLDER> below:
+    <PYTHON3_PATH>    - absolute path to python3, e.g. output of `which python3`
+    <BRIDGE_DIR>      - absolute path to this telegram-bridge/ directory
+    <EXTRA_PATH_DIRS> - see the EnvironmentVariables/PATH note below
+
+  Rename the file (drop .template) and the Label to something specific to
+  your machine/setup before copying it into ~/Library/LaunchAgents/, e.g.
+  com.yourname.claude-telegram-bridge.plist - launchd Labels must be unique
+  across all loaded agents.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.claude-telegram-bridge</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string><PYTHON3_PATH></string>
+        <string><BRIDGE_DIR>/bot.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string><BRIDGE_DIR></string>
+
+    <!-- launchd jobs get a minimal default PATH that does NOT include
+         nvm/homebrew-managed bin dirs, so a bare "claude" command bot.py
+         shells out to (classic mode) would otherwise fail with "No such
+         file or directory" even though it resolves fine in an interactive
+         shell. Run `which claude` and `echo $PATH` in your normal shell to
+         find what to add here - typically your nvm Node version's bin dir
+         and/or /opt/homebrew/bin. Relay mode (RELAY_MODE=1) does not shell
+         out to `claude` from bot.py, so this matters less there, but
+         requests/python3 resolution can still depend on PATH. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string><EXTRA_PATH_DIRS>:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Unconditional restart-after-exit: this drives the poll loop itself. -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string><BRIDGE_DIR>/launchd-stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string><BRIDGE_DIR>/launchd-stderr.log</string>
+</dict>
+</plist>

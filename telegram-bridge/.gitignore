@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.log
+venv/
+.venv/
+env/
+
+# Local runtime state (not secret, just per-machine/per-run - regenerated
+# automatically, nothing to commit).
+.offset.json
+.offset.json.tmp
+.offset
+.last_report
+.last_report.tmp
+relay-inbox.jsonl

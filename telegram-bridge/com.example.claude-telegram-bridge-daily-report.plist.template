@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd template for running daily_report.py once a day at 8:00 AM local
+  (system) time (macOS). Optional - skip this file entirely if you don't
+  want a daily digest. See SETUP.md section (i).
+
+  Unlike com.example.claude-telegram-bridge.plist.template, this is a
+  scheduled one-shot job, not a restart-on-exit loop: it uses
+  StartCalendarInterval (Hour/Minute, evaluated in the system's local
+  timezone) and deliberately has NO KeepAlive key, since we want exactly
+  one run per day, not a relaunch immediately after each exit.
+
+  BEFORE INSTALLING, replace every <PLACEHOLDER> below (same values as
+  com.example.claude-telegram-bridge.plist.template - keep them consistent):
+    <PYTHON3_PATH>    - absolute path to python3, e.g. output of `which python3`
+    <BRIDGE_DIR>      - absolute path to this telegram-bridge/ directory
+    <EXTRA_PATH_DIRS> - see the EnvironmentVariables/PATH note in the other template
+
+  Rename the file (drop .template) and the Label before copying it into
+  ~/Library/LaunchAgents/, e.g. com.yourname.claude-telegram-bridge-daily-report.plist.
+
+  To change the run time, edit the <integer> values under Hour/Minute below
+  (24-hour clock, e.g. Hour=20, Minute=30 for 8:30 PM), then reload
+  (launchctl unload, then load again).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.claude-telegram-bridge-daily-report</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string><PYTHON3_PATH></string>
+        <string><BRIDGE_DIR>/daily_report.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string><BRIDGE_DIR></string>
+
+    <!-- Same PATH fix as com.example.claude-telegram-bridge.plist.template -
+         launchd's default PATH doesn't include the dir "claude" lives in. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string><EXTRA_PATH_DIRS>:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Runs once a day at 8:00 AM local time. Not a restart-on-exit loop. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string><BRIDGE_DIR>/launchd-daily-report-stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string><BRIDGE_DIR>/launchd-daily-report-stderr.log</string>
+</dict>
+</plist>

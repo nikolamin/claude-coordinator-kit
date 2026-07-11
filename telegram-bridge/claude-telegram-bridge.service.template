@@ -1,0 +1,50 @@
+# systemd --user unit template for running bot.py as an always-on background
+# service (Linux). Equivalent to com.example.claude-telegram-bridge.plist.template
+# on macOS. See SETUP.md section (e) for install instructions.
+#
+# bot.py runs exactly ONE poll cycle per process invocation (a single
+# Telegram getUpdates long-poll, handle whatever messages came back, then
+# exit) instead of looping internally. Restart=always below is therefore the
+# CORE polling loop mechanism, not just crash recovery: systemd relaunches
+# bot.py immediately after every exit, whether that exit was a message being
+# handled or the long-poll simply timing out with nothing to do. Restart
+# MUST stay "always" (not "on-failure") for the same reason KeepAlive must
+# stay the unconditional <true/> form in the launchd template.
+#
+# BEFORE INSTALLING, replace every <PLACEHOLDER> below:
+#   <PYTHON3_PATH>    - absolute path to python3, e.g. output of `which python3`
+#   <BRIDGE_DIR>      - absolute path to this telegram-bridge/ directory
+#   <EXTRA_PATH_DIRS> - directories to prepend to PATH so a bare `claude`
+#                       resolves (classic mode shells out to it; relay mode
+#                       does not, but python3 resolution can still depend on
+#                       PATH). Run `which claude` and `echo $PATH` in your
+#                       normal shell to find what to add - typically your
+#                       nvm Node version's bin dir.
+#
+# Install (rename the file, drop .template):
+#   mkdir -p ~/.config/systemd/user
+#   cp claude-telegram-bridge.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now claude-telegram-bridge.service
+#   loginctl enable-linger "$USER"   # so it keeps running after you log out
+#
+# Logs: journalctl --user -u claude-telegram-bridge -f
+
+[Unit]
+Description=Claude Telegram bridge (single poll cycle per run; relaunched by Restart=always)
+# Disable systemd's default restart-rate limiting - a normal poll cycle can
+# legitimately exit quickly and repeatedly (e.g. every long-poll timeout),
+# and that should never count against a burst limit the way crash-looping
+# would.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=<BRIDGE_DIR>
+Environment=PATH=<EXTRA_PATH_DIRS>:/usr/local/bin:/usr/bin:/bin
+ExecStart=<PYTHON3_PATH> <BRIDGE_DIR>/bot.py
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=default.target

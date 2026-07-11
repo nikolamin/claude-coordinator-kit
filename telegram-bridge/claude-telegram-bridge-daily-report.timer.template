@@ -1,0 +1,18 @@
+# systemd --user timer template that triggers claude-telegram-bridge-daily-report.service
+# once a day at 8:00 AM local time - the Linux equivalent of the launchd
+# template's StartCalendarInterval Hour=8/Minute=0. See SETUP.md section (i).
+#
+# To change the run time, edit the OnCalendar line below (systemd calendar
+# event syntax, e.g. "*-*-* 20:30:00" for 8:30 PM), then:
+#   systemctl --user daemon-reload
+#   systemctl --user restart claude-telegram-bridge-daily-report.timer
+
+[Unit]
+Description=Run the Claude Telegram bridge daily digest once a day
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
