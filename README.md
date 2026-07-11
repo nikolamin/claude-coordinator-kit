@@ -29,10 +29,8 @@ to actually stay in the coordinator role instead of drifting into doing work its
 
 ## Install into a new project
 
-This kit lives in a **private** GitHub repo: `nikolamin/claude-coordinator-kit`. Plain
-`raw.githubusercontent.com` curls won't authenticate against a private repo — you need `gh`
-(authenticated) or an SSH/HTTPS git clone with your own credentials. Both install paths below
-handle that.
+This kit lives in a public GitHub repo: `nikolamin/claude-coordinator-kit`. A plain `git clone`
+over HTTPS works — no GitHub authentication needed.
 
 ### Install with a prompt (recommended)
 
@@ -46,21 +44,12 @@ You're setting up the "coordinator kit" in this project, then booting it. Do thi
 stopping to ask me questions where noted. Don't do any of the coordinator's actual work yet —
 this message only covers installing the kit and then handing off to kickoff-prompt.md.
 
-1. Verify GitHub access: run `gh auth status`. If it fails or isn't logged in, stop and tell me —
-   don't attempt any login flow yourself. The kit's repo, `nikolamin/claude-coordinator-kit`, is
-   PRIVATE, so a plain `curl` against raw.githubusercontent.com will not work; you must fetch it
-   through `gh`, which carries my authentication.
+1. Fetch the kit into a scratch location and inspect it:
+   `git clone https://github.com/nikolamin/claude-coordinator-kit /tmp/coordinator-kit`
+   Confirm you can see CLAUDE.md, PROCESS.md, STATE.md, kickoff-prompt.md, codex-setup.md,
+   memory-seed/, and telegram-bridge/ in the clone before continuing.
 
-2. Fetch the kit into a scratch location and inspect it:
-   `gh repo clone nikolamin/claude-coordinator-kit /tmp/coordinator-kit-install`
-   (if `gh repo clone` is unavailable for some reason, fall back to
-   `gh api repos/nikolamin/claude-coordinator-kit/tarball --jq . > /tmp/kit.tar.gz` and extract it,
-   or `git clone https://github.com/nikolamin/claude-coordinator-kit.git /tmp/coordinator-kit-install`
-   using my existing git credentials). Confirm you can see CLAUDE.md, PROCESS.md, STATE.md,
-   kickoff-prompt.md, codex-setup.md, memory-seed/, and telegram-bridge/ in the clone before
-   continuing.
-
-3. Ask me, ONE question at a time, waiting for my answer before the next:
+2. Ask me, ONE question at a time, waiting for my answer before the next:
    a. "What should `<PROJECT>` be?" — the name of this project/product. No options needed, just
       take my answer.
    b. "What should `<NOTIFY_CHANNEL>` be — how do you want the coordinator to ping you?" Offer
@@ -70,7 +59,7 @@ this message only covers installing the kit and then handing off to kickoff-prom
       notification command — ask me for the exact invocation), (3) "just tell me in chat, no
       out-of-band channel." Wait for my answer.
 
-4. Place the files from /tmp/coordinator-kit-install into this project:
+3. Place the files from /tmp/coordinator-kit into this project:
    - `CLAUDE.md` → this project's root. If a `CLAUDE.md` already exists here, do NOT overwrite it —
      MERGE: append the coordinator-kit's rules (or a link to them) into the existing file, keeping
      every existing project convention already documented there. Read both fully before merging.
@@ -80,34 +69,33 @@ this message only covers installing the kit and then handing off to kickoff-prom
      into `~/.claude/projects/<slug>/memory/`, where `<slug>` is this project's absolute path with
      every `/` replaced by `-` (e.g. `/Users/me/code/my-app` → `-Users-me-code-my-app`). Create
      that directory if it doesn't exist yet.
-   - `telegram-bridge/` → optional, only if I chose it in step 3b. Copy the whole directory to a
+   - `telegram-bridge/` → optional, only if I chose it in step 2b. Copy the whole directory to a
      sibling tools location outside this project (it's a machine-level service meant to be reused
      across projects, e.g. `~/claude-telegram-bridge` or wherever I say), then follow its
      `SETUP.md` top to bottom for bot creation, `.env`, and OS service install. Never print or log
      the bot token; let me paste it into `.env` myself if a step calls for it.
 
-5. Substitute every placeholder in the files you just installed: replace all `<PROJECT>` with my
-   answer from 3a, and all `<NOTIFY_CHANNEL>` with my answer from 3b (a concrete invocation, e.g.
+4. Substitute every placeholder in the files you just installed: replace all `<PROJECT>` with my
+   answer from 2a, and all `<NOTIFY_CHANNEL>` with my answer from 2b (a concrete invocation, e.g.
    the notify.sh path, not the literal word). Then run
    `grep -rn '<PROJECT>\|<NOTIFY_CHANNEL>' CLAUDE.md docs/coordination/ 2>/dev/null` (and the
    memory-seed destination if you copied it) to confirm zero matches remain. Fix any you find.
 
-6. Now read `/tmp/coordinator-kit-install/kickoff-prompt.md` in full, and follow its instructions
+5. Now read `/tmp/coordinator-kit/kickoff-prompt.md` in full, and follow its instructions
    exactly as if I had pasted its contents as my next message to you — it will direct you through
    confirming/re-resolving `<NOTIFY_CHANNEL>`, running Bootstrap, branching on greenfield vs.
    existing-project (repo-analysis agents + `repo-map.md` for the latter, per PROCESS.md Phase
    0.5), and starting the Concept interview one question at a time. Do not skip or summarize any
    of its steps.
 
-7. Once kickoff-prompt.md's instructions are underway, clean up: remove
-   /tmp/coordinator-kit-install.
+6. Once kickoff-prompt.md's instructions are underway, clean up: remove
+   /tmp/coordinator-kit.
 ```
 
 ### Manual install
 
-1. Clone the repo somewhere scratch, e.g. `gh repo clone nikolamin/claude-coordinator-kit
-   /tmp/coordinator-kit-install` (private repo — requires `gh auth status` to be logged in first;
-   a plain `raw.githubusercontent.com` curl will not authenticate).
+1. Clone the repo somewhere scratch, e.g. `git clone https://github.com/nikolamin/claude-coordinator-kit
+   /tmp/coordinator-kit-install`.
 2. Copy `CLAUDE.md` to the new project's root directory.
 3. Create `docs/coordination/` in the new project; copy `PROCESS.md` and `STATE.md` into it.
 4. Open the copied `CLAUDE.md` and replace every `<PROJECT>` with the project's actual name, and
@@ -212,3 +200,7 @@ sequential-by-default rule); enumerating exhaustive numeric thresholds for terms
 coverage" (would over-specify and fight the terse, judgment-preserving register the source
 material uses — the "when unsure, treat it as non-trivial" heuristic addresses the worst of the
 rationalization risk without turning this into a rulebook).
+
+## License — MIT
+
+See `LICENSE`.
