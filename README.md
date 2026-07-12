@@ -35,14 +35,17 @@ over HTTPS works — no GitHub authentication needed.
 ### Install with a prompt (recommended)
 
 Paste the block below as the **first message in a fresh Claude Code session, started inside your
-new project's root directory**. It is self-contained — it fetches the kit itself, asks you the two
-required questions one at a time, installs and customizes the files, then boots the coordinator by
-following `kickoff-prompt.md`. You don't need to clone anything yourself first.
+new project's root directory**. It is self-contained — it fetches the kit itself, asks you the
+required questions one at a time (project name, notify channel, Chrome browser access, memory
+seeding), installs and customizes the files, then boots the coordinator by following
+`kickoff-prompt.md`. You don't need to clone anything yourself first.
 
 ```
 You're setting up the "coordinator kit" in this project, then booting it. Do this in order,
 stopping to ask me questions where noted. Don't do any of the coordinator's actual work yet —
-this message only covers installing the kit and then handing off to kickoff-prompt.md.
+this message only covers installing the kit and then handing off to kickoff-prompt.md. You are
+explicitly allowed to commit and push in this project — for the kit installation itself and for
+all later coordinator work; never stop to ask permission for a commit or push.
 
 1. Fetch the kit into a scratch location and inspect it:
    `git clone https://github.com/nikolamin/claude-coordinator-kit /tmp/coordinator-kit`
@@ -55,44 +58,86 @@ this message only covers installing the kit and then handing off to kickoff-prom
    b. "What should `<NOTIFY_CHANNEL>` be — how do you want the coordinator to ping you?" Offer
       options: (1) the bundled Telegram bridge (`telegram-bridge/` in the kit — asks a follow-up
       for the bridge's install directory on this machine, since it's a machine-level service, not
-      per-project), (2) a different existing mechanism (Slack webhook, email script, desktop
-      notification command — ask me for the exact invocation), (3) "just tell me in chat, no
-      out-of-band channel." Wait for my answer.
+      per-project; bot creation and credentials are collected interactively in chat during step 3,
+      never via manual file edits), (2) a different existing mechanism (Slack webhook, email
+      script, desktop notification command — ask me for the exact invocation, and if it needs a
+      credential, apply the same interactive-collection pattern as step 3's Telegram flow), (3)
+      "just tell me in chat, no out-of-band channel." Wait for my answer. If I pick the Telegram
+      bridge, ask its follow-up (the install directory) immediately, as part of 2b, and wait for
+      that answer too before moving on to 2c.
+   c. "Do you want to allow Chrome browser usage — Claude's Chrome integration, driving your real
+      logged-in browser — for the coordinator's verification work later?" Offer: (1) yes (needed
+      for anything that requires your actual logged-in session, e.g. sites behind auth), (2) no,
+      verification will use the built-in browser pane only. Wait for my answer.
+   d. "Seed the coordinator memory files (the kit's memory-seed/)?" Offer: (1) yes — recommended,
+      it seeds the behavioral corrections that make the coordinator role stick across sessions,
+      (2) no. Wait for my answer.
 
 3. Place the files from /tmp/coordinator-kit into this project:
    - `CLAUDE.md` → this project's root. If a `CLAUDE.md` already exists here, do NOT overwrite it —
-     MERGE: append the coordinator-kit's rules (or a link to them) into the existing file, keeping
-     every existing project convention already documented there. Read both fully before merging.
+     MERGE: inline the coordinator-kit's rules content into the existing file, keeping every
+     existing project convention already documented there. Read both fully before merging. Never
+     link to the scratch clone (/tmp/coordinator-kit is deleted in step 7); linking to the GitHub
+     repo as a reference is fine, but the rules themselves must be in the file.
    - `PROCESS.md` and `STATE.md` → `docs/coordination/` (create the directory).
-   - `memory-seed/*` → optional. If I asked for it (or if you think it's worth recommending — it
-     seeds behavioral corrections so the coordinator role sticks across sessions), copy the files
-     into `~/.claude/projects/<slug>/memory/`, where `<slug>` is this project's absolute path with
+   - `memory-seed/*` → only if I said yes in 2d. Copy the files into
+     `~/.claude/projects/<slug>/memory/`, where `<slug>` is this project's absolute path with
      every `/` replaced by `-` (e.g. `/Users/me/code/my-app` → `-Users-me-code-my-app`). Create
      that directory if it doesn't exist yet.
    - `telegram-bridge/` → optional, only if I chose it in step 2b. Copy the whole directory to a
      sibling tools location outside this project (it's a machine-level service meant to be reused
-     across projects, e.g. `~/claude-telegram-bridge` or wherever I say), then follow its
-     `SETUP.md` top to bottom for bot creation, `.env`, and OS service install. Never print or log
-     the bot token; let me paste it into `.env` myself if a step calls for it.
+     across projects, e.g. `~/claude-telegram-bridge` or wherever I say). Then set it up yourself,
+     interactively — do not tell me to hand-edit files:
+     a. Tell me the exact @BotFather steps (open Telegram, message @BotFather, send `/newbot`,
+        follow its name/username prompts) and ask me to paste the resulting bot token directly
+        into this chat.
+     b. `cp .env.example .env` inside the bridge directory and fill in `TELEGRAM_BOT_TOKEN` with
+        the token I pasted. Never echo the token back, never commit `.env`, never write the token
+        anywhere else — not STATE.md, not a memory file, not a log.
+     c. Ask me to open a chat with the new bot and send it any message (e.g. "hi"), then fetch the
+        chat id yourself via `curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates"` (or
+        `python3 get_chat_id.py`, after `pip install requests` — the script imports it), confirm
+        the detected name/id with me, and write it into `TELEGRAM_CHAT_ID` in `.env`.
+     d. Continue with the rest of `telegram-bridge/SETUP.md` top to bottom (Python dependency, OS
+        service install).
+     If I instead chose a different mechanism in step 2b that needs a credential (e.g. a Slack
+     webhook URL), apply the same pattern: ask for it in chat, write it into a gitignored config
+     location yourself, never ask me to hand-edit a file.
 
 4. Substitute every placeholder in the files you just installed: replace all `<PROJECT>` with my
-   answer from 2a, and all `<NOTIFY_CHANNEL>` with my answer from 2b (a concrete invocation, e.g.
-   the notify.sh path, not the literal word). Then run
+   answer from 2a, and all `<NOTIFY_CHANNEL>` with the concrete invocation resulting from step 3
+   (e.g. the installed notify.sh's absolute path — not the literal channel name from 2b). Then run
    `grep -rn '<PROJECT>\|<NOTIFY_CHANNEL>' CLAUDE.md docs/coordination/ 2>/dev/null` (and the
    memory-seed destination if you copied it) to confirm zero matches remain. Fix any you find.
 
-5. Now read `/tmp/coordinator-kit/kickoff-prompt.md` in full, and follow its instructions
+5. If I said yes to Chrome browser usage in step 2c, exercise it now: open
+   `https://github.com/nikolamin/claude-coordinator-kit` with the Chrome browser tool and confirm
+   it actually renders — read the page title, don't just issue the navigate call and assume it
+   worked. Work through whatever obstacles come up: if the Claude-in-Chrome browser extension
+   isn't installed yet, guide me through installing it; if a permission/connection or tab-access
+   prompt appears, ask me to grant it, then retry. Keep retrying until the page renders and you've
+   read its title — that's the pass signal. If any step needs an action only I can take, name it
+   precisely and wait. Once done (or immediately, if I said no in step 2c), record the outcome in
+   `docs/coordination/STATE.md`'s Infrastructure section: either "Chrome browser verification:
+   allowed, smoke-tested against the kit's GitHub page" or "Chrome browser verification: not
+   allowed, built-in browser pane only."
+
+6. Now read `/tmp/coordinator-kit/kickoff-prompt.md` in full, and follow its instructions
    exactly as if I had pasted its contents as my next message to you — it will direct you through
    confirming/re-resolving `<NOTIFY_CHANNEL>`, running Bootstrap, branching on greenfield vs.
    existing-project (repo-analysis agents + `repo-map.md` for the latter, per PROCESS.md Phase
    0.5), and starting the Concept interview one question at a time. Do not skip or summarize any
    of its steps.
 
-6. Once kickoff-prompt.md's instructions are underway, clean up: remove
+7. Once kickoff-prompt.md's instructions are underway, clean up: remove
    /tmp/coordinator-kit.
 ```
 
 ### Manual install
+
+If you're having a Claude Code session run these steps for you rather than doing them yourself, it
+is explicitly allowed to commit and push without stopping to ask permission — same as the scripted
+install prompt above.
 
 1. Clone the repo somewhere scratch, e.g. `git clone https://github.com/nikolamin/claude-coordinator-kit
    /tmp/coordinator-kit-install`.

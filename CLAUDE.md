@@ -61,7 +61,11 @@ Per task pulled from `docs/plan.md`:
    disclosed caveats).
 5. Commit and push.
 6. Immediately dispatch the next unblocked task from `docs/plan.md`'s dependency graph — **without
-   asking**. The plan already answers "what's next"; asking again is noise.
+   asking**. The plan already answers "what's next"; asking again is noise. If multiple tasks are
+   unblocked, pick by the plan's stated priority/dependency order yourself — don't ask the founder
+   to choose between viable options ("preference, or should I pick?" is the same anti-pattern as
+   "should I continue?"). When several unblocked tasks don't touch the same files, dispatch them in
+   parallel by default rather than serializing one at a time.
 
 **Never ask permission to re-dispatch a lost, stuck, or failed agent.** Retrying a transient
 failure, re-prompting after a bad result, or recovering a dropped task ID is routine coordination
@@ -113,6 +117,12 @@ without an armed way to wake back up.
   Connectivity and render checks pass even when the underlying content is wrong (wrong fixture,
   stale data, broken logic) — only actually exercising the flow catches that. If a flow can't be
   played end-to-end, say so explicitly instead of implying it was verified.
+- **Permission-gated browser APIs** — push notifications via `Notification.requestPermission`,
+  camera/mic, geolocation — auto-deny in automated browsers instead of showing a real dialog. A
+  verifier must disclose that leg as unverifiable-by-automation and ask for a manual user check,
+  not silently claim it passed because the auto-denied code path didn't error.
+- **Deploy/infra verification includes confirming file modes survived** (e.g. executable bits on
+  scripts — a `git checkout -f` can silently drop them), not just file content.
 
 ## Escalation
 
@@ -144,6 +154,14 @@ without an armed way to wake back up.
   if unknown, let the dispatched agent discover them.
 - Any brief touching credentials, auth, or secrets restates the Security boundaries below
   explicitly — agents don't see this file, so don't assume they infer the same limits.
+- For any task involving a long-running blocking call (a multi-minute build, a live API
+  round-trip), the brief must explicitly forbid "self-backgrounding" — the agent arming a
+  watcher/background monitor for its own work and ending its turn with "standing by" instead of
+  the actual result. State it must run the call as one ordinary blocking foreground call, however
+  long it takes, and report the real output — nothing re-invokes a subagent that defers to itself.
+- Restate the no-side-backlog rule (see Backlog discipline) in every dispatched agent's brief —
+  subagents don't inherit the coordinator's context, and a subagent that calls a suggestion-chip/
+  spawn-task tool on its own creates a stray chip the coordinator can't see or clean up.
 
 ## Question protocol
 
@@ -195,6 +213,9 @@ separate list only the coordinator remembers.
 ## Security boundaries
 
 - Never authenticate on the user's behalf (no logins, no device-flow auth, no credential hunting).
-- Never accept a pasted password/secret from the user — refuse it and use keys/env secrets/managed
-  auth instead.
+- Never accept a pasted password/secret from the user — API keys, SSH/root passwords, and tokens
+  included — refuse it and use keys/env secrets/managed auth instead. One narrow exception: during
+  notify-channel setup (e.g. the Telegram bridge), a bot token pasted in chat is written straight
+  into the bridge's gitignored `.env` and nowhere else — never committed, never echoed back, never
+  stored elsewhere.
 - Never store credentials (keys, tokens, passwords) in memory files, `STATE.md`, or the repo.

@@ -86,12 +86,15 @@ top. A validation finding might only require redoing Plan for one milestone, not
   memory.
 - Agents run via the native `Agent` tool. A CLI-based headless invocation (if your environment has
   one) is reserved for jobs that must outlive the coordinator's own session.
-- Default orchestration level: sequential build agent per task + independent verifier agent for
-  non-trivial work. Sequential-by-default sidesteps merge conflicts and state-file race
-  conditions. Escalate to parallel/fan-out only when tasks are genuinely independent, touch
-  disjoint files/resources, and the environment supports running agents concurrently — and even
-  then, only one task's outcome may be written to `STATE.md`/`plan.md` at a time (queue the
-  edits, don't let two agents' results race on the same file).
+- Orchestration: dispatch unblocked tasks that touch disjoint files/resources in parallel by
+  default (see `CLAUDE.md`'s Execute loop) — sidestep merge conflicts with **git worktrees**, the
+  proven isolation mechanism for concurrent same-repo work: each parallel build agent works in its
+  own worktree, not the shared working tree. Many harnesses support this natively (e.g. a
+  worktree-isolation flag on agent dispatch) — use it when available rather than hand-rolling
+  worktree management. Fall back to sequential dispatch when tasks share files/resources or a
+  dependency forces an order. Either way, only one task's outcome may be written to
+  `STATE.md`/`plan.md` at a time (queue the edits, don't let two agents' results race on the same
+  file).
 - Everything is committed to git so any future session — this one resumed, or a fresh one — can
   pick up mid-loop from `STATE.md` and the repo alone.
 - User-approval gates (end of Concept, end of Plan) are the only phase transitions that require

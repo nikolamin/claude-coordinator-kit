@@ -9,6 +9,13 @@ the bottom.
 
 Written for someone with no prior Telegram-bot experience — follow top to bottom.
 
+**If a Claude coordinator session is installing this for you:** it can do steps (a)-(c) itself.
+Run @BotFather's `/newbot` yourself, then paste the resulting token directly into the chat when
+the agent asks for it — the agent writes it straight into the gitignored `.env` and never echoes,
+logs, or commits it. Then send the new bot any message (e.g. "hi") when asked, and the agent
+fetches your chat id and confirms it with you before writing `TELEGRAM_CHAT_ID`. The walkthrough
+below is the fully-manual path, for a human running it themselves with no agent involved.
+
 ## Contents of this directory
 
 | File | Purpose |
@@ -65,7 +72,8 @@ Manual, one-time, from your own Telegram account:
 1. Open Telegram, start a chat with **@BotFather**.
 2. Send `/newbot`, follow the prompts (name + username for your bot).
 3. BotFather replies with a bot token, e.g. `123456789:AAExampleTokenExampleTokenExampleTok`.
-   Copy it — you'll paste it into `.env` in step (c).
+   Copy it — you'll paste it into `.env` in step (c). (If a Claude agent is doing this install,
+   paste it directly into the chat instead when it asks — it writes it to `.env` for you.)
 4. Send your new bot a message from your phone (any text, e.g. "hi"), so Telegram has an update
    for it to see.
 5. Find your chat id — any one of these three works:
@@ -288,8 +296,12 @@ Hour/Minute (launchd) or `OnCalendar` (systemd) values to change it.
 - **Never commit `.env`.** It holds your bot token; `.gitignore` in this directory already
   excludes it, `.offset.json`, `.last_report`, and `relay-inbox.jsonl` — verify with
   `git status --ignored` if unsure.
-- **Treat the bot token like a password.** Anyone with it can send/receive messages as your bot.
-  Never print it, never paste it into a chat message, log, or committed file.
+- **Treat the bot token like a password, with one narrow exception.** Anyone with it can
+  send/receive messages as your bot. Pasting it to the installing/coordinator agent in chat during
+  setup (step (a)/(c) above) is the intended flow — the agent writes it straight into the
+  gitignored `.env` and nowhere else: never committed, never echoed back, never logged, never
+  stored in a memory file or `STATE.md`. Outside that one setup moment, never print it, log it, or
+  put it in a committed file.
 - **Chat id allowlisting is the only auth.** `bot.py` compares every incoming message's chat id
   against the single `TELEGRAM_CHAT_ID` in `.env`; anything else is logged as rejected and never
   processed. There's no password/signature layer on top of that — keep `TELEGRAM_CHAT_ID` correct

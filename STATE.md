@@ -28,6 +28,19 @@ recovery mechanics, not a decision.
 
 - Phase: Bootstrap. No tasks dispatched yet.
 
+## Phase log
+
+<!--
+Lightweight dated list of phase transitions — Bootstrap complete, Concept started/approved,
+Objectives done, Plan approved, Execute started, Validate started, Iterate started — one line
+each, append-only, newest last. Lets a resumed session see phase timing at a glance without
+scanning the full Agent log below.
+-->
+
+<!-- Delete the EXAMPLE lines below once real phase transitions start landing. -->
+- EXAMPLE — 2026-07-07 Bootstrap complete.
+- EXAMPLE — 2026-07-08 Concept started.
+
 ## Durable decisions
 
 <!--

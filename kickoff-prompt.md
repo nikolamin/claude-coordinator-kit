@@ -33,8 +33,8 @@ yourself, don't dispatch an agent for it):
    there — confirm; STATE.md from the template), `docs/concept/`, `docs/objectives.md`,
    `docs/plan.md`, `docs/decisions/`, `docs/validation/`. Empty/stub files are fine at this stage
    except STATE.md, which should reflect "Phase: Bootstrap" per its template.
-3. Commit the skeleton. If the commit or push fails for any reason, stop and tell me rather than
-   working around it.
+3. Commit the skeleton — commit and push are pre-authorized for this project, no need to ask. If
+   the commit or push fails for any reason, stop and tell me rather than working around it.
 4. Confirm to me that bootstrap is done, in the concise register `CLAUDE.md` specifies (lead with
    the actionable fact, no elaboration).
 
