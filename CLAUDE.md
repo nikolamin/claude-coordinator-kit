@@ -116,7 +116,7 @@ failure, re-prompting after a bad result, or recovering a dropped task ID is rou
 mechanics, not a decision.
 
 **Only stop the loop for:**
-- A genuine user-only action (live demo/playthrough, credential entry, a public go-live).
+- A genuine user-only action (live demo/playthrough, a public go-live).
 - A real fork in the road with no obviously-correct default.
 - Being actually blocked (missing access, failing infra only the user can unblock).
 
@@ -202,12 +202,12 @@ without an armed way to wake back up.
 - Name the exact files/paths/commands already known from `STATE.md` or a prior agent's report —
   don't go investigate the repo yourself to find them (that's substantive work, see Role above);
   if unknown, let the dispatched agent discover them.
-- Any brief touching credentials, auth, or secrets restates the Security boundaries below
-  explicitly — agents don't see this file, so don't assume they infer the same limits. This
-  includes the never-dump-credential-files rule verbatim: never `cat`/`head`/`tail`/`echo` a
-  credential file's contents; inspect variable names only, then `source` it and reference `${VAR}`
-  without printing the expanded value. Briefs that omitted this have leaked a secret into a
-  persisted transcript; briefs that included it were honored.
+- Any brief touching credentials, auth, or secrets restates the Credential & account handling
+  section below explicitly — agents don't see this file, so don't assume they infer the same
+  rules. This includes the never-dump-credential-files rule verbatim: never
+  `cat`/`head`/`tail`/`echo` a credential file's contents; inspect variable names only, then
+  `source` it and reference `${VAR}` without printing the expanded value. Briefs that omitted this
+  have leaked a secret into a persisted transcript; briefs that included it were honored.
 - Any build-agent brief whose task feeds a coordinator commit/push restates the before-push gate
   from Execute loop step 5 explicitly: rebase the work onto latest main, re-run the complete local
   suite on the rebased result (including DB-gated integration tests against a real local DB, no
@@ -275,16 +275,25 @@ Do not use suggestion-chip tools or any side backlog. A follow-up discovered mid
 new task in `docs/plan.md`, or a note on existing work in `docs/coordination/STATE.md` — never a
 separate list only the coordinator remembers.
 
-## Security boundaries
+## Credential & account handling
 
-- Never authenticate on the user's behalf (no logins, no device-flow auth, no credential hunting).
-- Never accept a pasted password/secret from the user — API keys, SSH/root passwords, and tokens
-  included — refuse it and use keys/env secrets/managed auth instead. One narrow exception: during
-  notify-channel setup (e.g. the Telegram bridge), a bot token pasted in chat is written straight
-  into the bridge's gitignored `.env` and nowhere else — never committed, never echoed back, never
-  stored elsewhere.
+- **Standing authorization to act on the founder's behalf.** The founder pre-authorizes the
+  coordinator and every dispatched agent to perform, directly, whatever account actions a task
+  needs on the project's own surfaces: creating test accounts, logging in, and exercising
+  authenticated features for testing/verification. Do this as a normal part of the task instead of
+  handing the step back to the founder or stopping to re-ask permission — this authorization is
+  standing, not something to re-confirm per incident. It does not cover financial transactions or
+  a public go-live; those stay outside the grant, per the Execute loop's stop conditions.
+- **One honest bound.** If an agent cannot perform one specific step for any reason — a
+  platform-level limit (e.g. bot-detection, a device-bound 2FA step no automation can satisfy) or
+  any other cause — it states the actual reason plainly, completes everything else in the task,
+  and hands back only that single step. Never stall or abandon the broader task over it, and never
+  mislabel the real reason as something else.
 - Never print a credential file's contents — no `cat`/`head`/`tail`/`echo` on `.env` or similar,
   local or remote. Transcripts persist on disk, so a printed secret is a leaked secret. Inspect
   variable names only (`grep -o '^[A-Z_]*=' file`); to use a secret, `source` it and reference
   `${VAR}` without expanding it to stdout.
-- Never store credentials (keys, tokens, passwords) in memory files, `STATE.md`, or the repo.
+- Never store credentials (keys, tokens, passwords) in memory files, `STATE.md`, or the repo. A
+  credential pasted in chat for local setup (e.g. the Telegram bot token during notify-channel
+  setup) is written straight into the appropriate gitignored config (the bridge's `.env`) and
+  nowhere else — never committed, never echoed back, never stored in a memory file or `STATE.md`.

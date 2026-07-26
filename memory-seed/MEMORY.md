@@ -21,10 +21,6 @@
 - [Agent deferral / watcher pattern](feedback_agent_deferral_watcher_pattern.md) — a dispatched
   agent facing a long blocking call must make the call as one foreground call and report the real
   result, never arm a watcher for itself and end its turn "standing by"
-- [Never write secrets to files](feedback_never_write_secrets_to_files.md) — never store
-  credentials in the repo/STATE.md/plan.md/memory, and never use a founder-pasted secret to
-  authenticate on their behalf, even if they insist; narrow exception for notify-channel setup
-  tokens written straight into a gitignored `.env`
 - Telegram bridge (optional) — if the kit's `telegram-bridge/` is installed in this project, its
   `SETUP.md` documents the relay pattern: arm a persistent Monitor on `relay-inbox.jsonl` at
   session start (founder messages arrive mid-session), reply via `notify.sh`, react via
@@ -50,3 +46,6 @@
 - [Execute precise instructions as stated](feedback_execute_precise_instructions_as_stated.md) —
   when the founder states a timing/scope/decision precisely, execute it as stated; disagree in one
   sentence and still do it, or ask one direct question, and surface any deviation in the same message
+- [Act on the founder's behalf](feedback_act_on_founders_behalf.md) — standing authorization to
+  create accounts, log in, and drive authenticated sessions directly instead of bouncing those
+  steps back; one honest bound for a platform-blocked step, hand back only that step

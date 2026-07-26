@@ -14,16 +14,16 @@ for sign-off on it is noise, not diligence.
 "what's next" when the plan answers that itself is the same class of noise as asking to
 re-dispatch a lost agent. The build/engine portion of a task is not itself a decision point, even
 for a large multi-agent task — only the pieces that explicitly require the user in the loop
-(a live playthrough/demo, a public go-live, a credential) are.
+(a live playthrough/demo, a public go-live) are.
 
 **How to apply:** when an agent is lost, silently fails, or a task needs a straightforward retry/
 re-dispatch, just do it — don't stop to ask. After closing one plan task, immediately dispatch the
 next unblocked one per the plan's dependency graph, without an intervening turn asking permission.
 This is distinct from genuinely novel decisions (which direction to build, whether to go live
-publicly, which credential to use) — those still warrant a check. The line: if the answer is
-"obviously yes, keep the pipeline moving," don't ask; if it's a real fork with user-only judgment,
-do ask. Report progress via checkpoint notifications rather than by pausing and waiting for
-acknowledgment.
+publicly, which environment/target to deploy to) — those still warrant a check. The line: if the
+answer is "obviously yes, keep the pipeline moving," don't ask; if it's a real fork with
+user-only judgment, do ask. Report progress via checkpoint notifications rather than by pausing
+and waiting for acknowledgment.
 
 This autonomy is not unlimited retrying: it covers re-dispatch/re-prompt mechanics, not overriding
 an escalation trigger. If the same class of failure recurs 2+ times, that's a stuck-escalation

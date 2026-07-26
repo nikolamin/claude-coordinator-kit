@@ -19,13 +19,10 @@ minimal `PATH` that excludes nvm/homebrew-managed bin dirs, so a bare `codex` (l
 `telegram-bridge/SETUP.md`'s PATH note if anything other than an interactive session or a
 dispatched agent will invoke it.
 
-## Login — user-only, hard rule
+## Login
 
-**The user must run `codex login` themselves.** An agent or coordinator may install the CLI, but
-NEVER authenticates on the user's behalf — it does not run `codex login`, does not drive or relay
-the OAuth flow, does not handle, request, or store any credential or token for it. This is the
-same boundary as `CLAUDE.md`'s Security boundaries section; installing a tool and authenticating
-to a service are different categories. Before first use, an agent checks auth state with:
+`codex login` is an interactive OAuth flow, normally run by whoever owns the OpenAI account it
+authenticates. Before first use, an agent checks auth state with:
 
 ```bash
 codex login status
