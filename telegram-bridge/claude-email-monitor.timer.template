@@ -1,0 +1,18 @@
+# systemd --user timer template that triggers claude-email-monitor.service
+# every 5 minutes - the Linux equivalent of the launchd template's
+# StartInterval=300. See EMAIL-MONITOR.md for full setup instructions.
+#
+# To change the poll interval, edit the OnCalendar line below (systemd
+# calendar event syntax, e.g. "*:0/10" for every 10 minutes), then:
+#   systemctl --user daemon-reload
+#   systemctl --user restart claude-email-monitor.timer
+
+[Unit]
+Description=Run the Claude email monitor every 5 minutes
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target

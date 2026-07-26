@@ -14,16 +14,57 @@ LAST_REPORT_FILE (.last_report, next to this script) and is only advanced
 after the Telegram send succeeds, so a failed send never silently drops a
 day's activity - it will just be included in the next successful report.
 
+SIGNIFICANCE GATE: by default this script does NOT send a digest every
+day - it only sends when today's activity looks significant, meaning
+either of:
+  1. COMMIT-VOLUME SPIKE: the number of commits in this report is a large
+     jump over the recent normal rate - compared against a trailing
+     BASELINE_WINDOW_DAYS-day average commit rate computed directly from
+     git history (no persisted state needed - `git log --since/--until`
+     against real timestamps), floored at MIN_SIGNIFICANT_COMMITS so a
+     quiet/low-baseline repo doesn't flag on a single routine commit - see
+     compute_recent_daily_commit_average() / evaluate_significance().
+  2. FLAGGED KEYWORDS: any commit's `--oneline` summary contains a word
+     from SIGNIFICANT_COMMIT_KEYWORDS (revert, hotfix, incident, security,
+     ...) - catches a single noteworthy commit even on an otherwise quiet,
+     low-volume day, independent of the volume check above.
+If NEITHER condition fires, this script sends NOTHING - not even a
+"nothing new" message. Silence is the correct, expected default. Zero
+commits since the marker is always treated as routine (silent) too.
+
+WHEN A ROUTINE DAY IS SKIPPED, THE MARKER IS DELIBERATELY *NOT* ADVANCED:
+"successful send" and "day evaluated" are not the same event. Leaving the
+marker alone means those routine commits are simply folded into whichever
+future report DOES end up sending (the next significant day, if any) - so
+nothing is ever silently lost, it's just batched until something worth
+mentioning happens. This mirrors this script's pre-existing "never
+silently drop activity" invariant, extended to cover "silently skipped
+because it wasn't significant" the same way it already covered "silently
+skipped because the send failed".
+
+Set DIGEST_ALWAYS_SEND=1 in .env to bypass the significance gate entirely
+and go back to sending a digest unconditionally every run (the pre-gate
+behavior) - escape hatch for repos/situations where the gate isn't wanted.
+
+DRY RUN: pass --dry-run to run the full pipeline (including the
+significance evaluation and, if significant, the real `claude -p`
+summarization call) but skip the actual Telegram send AND skip advancing
+the marker - the message that would have been sent (or a clear note that
+the day was routine) is logged/printed instead. Used for manual
+verification without spamming the chat or disturbing real state.
+
 Only stdlib + `requests` (via telegram_common) are used, matching the rest
 of this module.
 
 Run manually for testing:
     python3 daily_report.py
+    python3 daily_report.py --dry-run
 
 Optional extra - skip this file entirely if you don't want a daily digest;
 nothing else in this directory depends on it.
 """
 
+import argparse
 import json
 import logging
 import subprocess
@@ -41,6 +82,16 @@ LAST_REPORT_FILE = SCRIPT_DIR / ".last_report"
 CLAUDE_TIMEOUT = 600  # 10 minutes
 TRUNCATE_LOG_CHARS = 200
 FALLBACK_LOOKBACK_HOURS = 24  # used only when there's no marker yet (first run)
+
+# --- Significance gate (see module docstring "SIGNIFICANCE GATE") ---------
+BASELINE_WINDOW_DAYS = 7
+MIN_SIGNIFICANT_COMMITS = 3     # floor: below this, never flag on volume alone
+COMMIT_SPIKE_MULTIPLIER = 1.5   # commits-in-report >= baseline_avg * this -> spike
+SIGNIFICANT_COMMIT_KEYWORDS = (
+    "revert", "rollback", "urgent", "critical", "hotfix", "incident",
+    "outage", "broken", "security", "vulnerab", "breaking change",
+    "regression", "rolled back",
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -160,6 +211,51 @@ def get_head_commit(cwd: str) -> str:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Significance gate - see module docstring "SIGNIFICANCE GATE".
+# ---------------------------------------------------------------------------
+
+def compute_recent_daily_commit_average(cwd: str, days: int = BASELINE_WINDOW_DAYS, now: datetime = None) -> float:
+    """Average commits/day over the trailing `days` days (real calendar
+    time, via `git log --since/--until` against actual commit timestamps -
+    no persisted state needed, unlike the report marker). Used purely as a
+    baseline for evaluate_significance() below; returns 0.0 (never raises)
+    on a git failure, so a baseline-computation hiccup degrades to "no
+    established baseline" rather than crashing the whole run.
+    """
+    if now is None:
+        now = datetime.now()
+    until = now.strftime("%Y-%m-%d %H:%M:%S")
+    since = (now - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    code, out, err = run_git(["log", "--oneline", f"--since={since}", f"--until={until}"], cwd)
+    if code != 0:
+        log.warning("Failed to compute recent commit baseline (rc=%s, %s); treating baseline as 0.", code, err)
+        return 0.0
+    count = len([line for line in out.splitlines() if line.strip()])
+    return count / days if days else 0.0
+
+
+def evaluate_significance(git_log_text: str, baseline_avg: float):
+    """Decide whether `git_log_text` (this report's `--oneline` commits)
+    counts as significant enough to send. Returns (is_significant: bool,
+    reason: str | None). Pure function, no I/O - see the two rules in the
+    module docstring's "SIGNIFICANCE GATE" section.
+    """
+    lines = [line for line in git_log_text.splitlines() if line.strip()]
+    count = len(lines)
+
+    threshold = max(MIN_SIGNIFICANT_COMMITS, baseline_avg * COMMIT_SPIKE_MULTIPLIER)
+    if count >= threshold:
+        return True, f"commit volume spike: {count} commits vs a ~{baseline_avg:.1f}/day recent baseline"
+
+    lowered = "\n".join(lines).lower()
+    hit_keywords = [kw for kw in SIGNIFICANT_COMMIT_KEYWORDS if kw in lowered]
+    if hit_keywords:
+        return True, f"flagged keyword(s) in commit messages: {', '.join(hit_keywords)}"
+
+    return False, None
+
+
 def build_digest_prompt(git_log_text: str) -> str:
     return (
         "You are generating a short daily activity digest to send as a Telegram "
@@ -207,11 +303,31 @@ def run_claude_digest(cwd: str, git_log_text: str):
     return True, result.stdout
 
 
-def main() -> int:
+def _env_flag(value: str) -> bool:
+    """Parse a loose boolean-ish .env value ('1', 'true', 'yes', 'on')."""
+    return (value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Send a short daily git-activity digest to Telegram.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run the full pipeline (real git/claude -p calls) but skip the actual Telegram send "
+             "and skip advancing the last-report marker; logs/prints the message that would have "
+             "been sent instead.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None) -> int:
+    args = parse_args(argv)
+
     env = parse_env_file(ENV_FILE)
     token = env.get("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = env.get("TELEGRAM_CHAT_ID", "").strip()
     default_cwd = env.get("CLAUDE_DEFAULT_CWD", "").strip()
+    always_send = _env_flag(env.get("DIGEST_ALWAYS_SEND", ""))
 
     missing = [
         name
@@ -238,10 +354,30 @@ def main() -> int:
         log.error("Failed to gather git history from %s: %s", default_cwd, exc)
         return 1
 
+    reason = None
+
     if not git_log_text.strip():
-        log.info("No new commits since last report; sending short notice, skipping Claude.")
+        if not always_send:
+            log.info("No new commits since last report; sending nothing (silence is the default).")
+            return 0
+        log.info("No new commits since last report; DIGEST_ALWAYS_SEND=1, sending short notice, skipping Claude.")
         message = "Daily digest: nothing new since last report."
     else:
+        if not always_send:
+            baseline_avg = compute_recent_daily_commit_average(default_cwd)
+            is_significant, reason = evaluate_significance(git_log_text, baseline_avg)
+            if not is_significant:
+                log.info(
+                    "Routine day (%d commit(s), ~%.1f/day recent baseline, no flagged keywords) - "
+                    "sending nothing. Marker NOT advanced; these commits will be folded into "
+                    "whichever future report does send.",
+                    len(git_log_text.splitlines()), baseline_avg,
+                )
+                return 0
+            log.info("Significant day: %s", reason)
+        else:
+            log.info("DIGEST_ALWAYS_SEND=1: bypassing significance gate, sending unconditionally.")
+
         ok, output = run_claude_digest(default_cwd, git_log_text)
         log.info("Digest generation ok=%s", ok)
         if ok:
@@ -252,6 +388,13 @@ def main() -> int:
                 f"({truncate(output, 300)}).\n\nRaw commits since last report:\n\n"
                 f"{git_log_text}"
             )
+
+    if args.dry_run:
+        log.info(
+            "[DRY RUN] Would send daily digest to chat_id=%s (reason: %s):\n%s",
+            chat_id, reason or ("always-send" if always_send else "n/a"), message,
+        )
+        return 0
 
     try:
         sent_ok = telegram_common.send_message_chunked(token, chat_id, message)

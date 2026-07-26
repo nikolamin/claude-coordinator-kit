@@ -13,3 +13,28 @@ env/
 .last_report
 .last_report.tmp
 relay-inbox.jsonl
+
+# Group chat support: auto-managed runtime state (bot identity + discovered
+# groups; every non-bot group sender ever observed). NOT allowed-members.json
+# below - that one is hand-edited config, intentionally not gitignored.
+bridge-config.json
+bridge-config.json.tmp
+seen-members.json
+seen-members.json.tmp
+
+# Media relay: downloaded voice/audio/video/photo/document files and their
+# derived frame dumps - per-machine working data, not source, can get large.
+media-inbox/
+
+# Whisper.cpp ggml model file(s) used by process-media.sh - large
+# (small.bin is ~500MB), downloaded on demand per SETUP.md, not committed.
+models/
+
+# email_monitor.py runtime state (not secret, just per-machine/per-run -
+# regenerated automatically, nothing to commit).
+email-inbox.jsonl
+email-monitor-state.json
+email-monitor-state.json.tmp
+email_monitor.log
+launchd-email-monitor-stdout.log
+launchd-email-monitor-stderr.log

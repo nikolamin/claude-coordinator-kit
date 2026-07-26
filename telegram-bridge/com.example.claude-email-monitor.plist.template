@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd template for running email_monitor.py every 5 minutes (macOS).
+  Optional - skip this file entirely if you don't want the email monitor.
+  See EMAIL-MONITOR.md for full setup instructions.
+
+  Unlike com.example.claude-telegram-bridge.plist.template (which uses
+  KeepAlive as the actual polling-loop mechanism, relaunching immediately
+  after every exit because bot.py's exit is gated on a 25s Telegram
+  long-poll timing out), email_monitor.py has no long-poll to wait out -
+  each run is a quick IMAP connect/search/fetch/disconnect. StartInterval
+  is the right primitive here: launchd runs the job once at load, then
+  again every N seconds after each start, independent of how long the
+  previous run took or its exit code. This is the same "scheduled
+  one-shot" shape as com.example.claude-telegram-bridge-daily-report.plist.template
+  (which uses StartCalendarInterval for a fixed daily time instead);
+  StartInterval is used here instead since we want a fixed period, not a
+  fixed clock time.
+
+  Deliberately has NO KeepAlive key - a scheduled one-shot job, not a
+  restart-on-exit loop.
+
+  BEFORE INSTALLING, replace every <PLACEHOLDER> below (same values as
+  com.example.claude-telegram-bridge.plist.template - keep them consistent):
+    <PYTHON3_PATH>    - absolute path to python3, e.g. output of `which python3`
+    <BRIDGE_DIR>      - absolute path to this telegram-bridge/ directory
+
+  email_monitor.py only uses stdlib (imaplib/email/json) - no `claude` or
+  other PATH-dependent subprocess calls - so unlike
+  com.example.claude-telegram-bridge.plist.template it does NOT need an
+  EnvironmentVariables/PATH override; a plain system PATH is enough for
+  python3 itself to run.
+
+  Rename the file (drop .template) and the Label to something specific to
+  your machine/setup before copying it into ~/Library/LaunchAgents/, e.g.
+  com.yourname.claude-email-monitor.plist - launchd Labels must be unique
+  across all loaded agents.
+
+  Do NOT load this until IMAP_PASSWORD has actually been created and
+  filled into .env - loading it before that just logs a graceful "missing
+  credentials" warning every 5 minutes for no benefit.
+
+  To change the poll interval, edit the StartInterval <integer> below
+  (seconds), then reload (launchctl unload, then load again).
+
+  Install:
+    cp com.example.claude-email-monitor.plist.template ~/Library/LaunchAgents/com.yourname.claude-email-monitor.plist
+    # edit the placeholders + Label in the copy, then:
+    launchctl load ~/Library/LaunchAgents/com.yourname.claude-email-monitor.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.claude-email-monitor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string><PYTHON3_PATH></string>
+        <string><BRIDGE_DIR>/email_monitor.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string><BRIDGE_DIR></string>
+
+    <!-- Runs every 300 seconds (5 minutes), starting at load time. Not a
+         restart-on-exit loop - no KeepAlive key. -->
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string><BRIDGE_DIR>/launchd-email-monitor-stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string><BRIDGE_DIR>/launchd-email-monitor-stderr.log</string>
+</dict>
+</plist>

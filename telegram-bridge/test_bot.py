@@ -1,0 +1,717 @@
+#!/usr/bin/env python3
+"""
+test_bot.py - Offline unit tests for bot.py's group-chat seen-members
+capture and media-relay handling (voice/audio/video/video_note/photo/
+document), including the unified "photo_path" convenience field for image
+media (photo, or a document whose mime_type starts with image/).
+
+No real network or disk I/O: Telegram calls are faked via a minimal stub
+client, real filesystem writes for downloaded media/relay-inbox.jsonl are
+redirected to a temp directory (never this repo's real media-inbox/ or
+relay-inbox.jsonl - the latter would be tailed by a live Claude Code session
+and must never see synthetic test data), and bot.py's persistence functions
+(save_offset/save_bridge_config/save_seen_members) are patched out so tests
+never touch this repo's real runtime-state files. The actual Telegram file
+download (resolve_telegram_file_path/download_telegram_file) is patched at
+the module level rather than faked through a client method, since that's
+how bot.py itself calls it.
+
+Run:
+    python3 test_bot.py
+    python3 -m unittest test_bot.py -v
+"""
+
+import json
+import logging
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+import requests
+
+import bot as bot_module
+
+# bot.py's module-level logging.basicConfig() attaches a FileHandler pointed
+# at the real bot.log (next to bot.py), on the ROOT logger, as an import
+# side effect - fine for the live service (one process, one log), but
+# importing the module here would otherwise make every test run leak
+# synthetic log lines (fake sender names, fake chat activity) into that
+# production log file, since bot.py's own "claude-telegram-bridge" logger
+# has no handlers of its own and simply propagates up to root. Replace the
+# root logger's handlers for the duration of this test module so
+# `python3 test_bot.py` / `python3 -m unittest test_bot.py` never writes to
+# bot.log.
+logging.getLogger().handlers = [logging.NullHandler()]
+
+FOUNDER_CHAT_ID = 1000000001
+BOT_ID = 999888777
+BOT_USERNAME = "ExampleBridgeBot"
+GROUP_CHAT_ID = -100999888
+GROUP_TITLE = "Example Group"
+
+
+class UpdateSeenMembersTests(unittest.TestCase):
+    """Pure-function tests for bot.update_seen_members() - no I/O."""
+
+    def test_first_seen_preserved_and_mentioned_bot_ors_in(self):
+        seen = {}
+        sender = {
+            "id": 111,
+            "is_bot": False,
+            "username": "alice",
+            "first_name": "Alice",
+            "last_name": "A",
+        }
+
+        seen = bot_module.update_seen_members(
+            seen, sender, chat_id=-100, mentioned=False, now="2026-01-01T10:00:00"
+        )
+        entry = seen["111"]
+        self.assertEqual(entry["user_id"], 111)
+        self.assertEqual(entry["username"], "alice")
+        self.assertEqual(entry["chat_id"], -100)
+        self.assertEqual(entry["first_seen_ts"], "2026-01-01T10:00:00")
+        self.assertEqual(entry["last_seen_ts"], "2026-01-01T10:00:00")
+        self.assertFalse(entry["mentioned_bot"])
+
+        # A later message that DOES mention the bot must flip the flag on,
+        # but must NOT move first_seen_ts.
+        seen = bot_module.update_seen_members(
+            seen, sender, chat_id=-100, mentioned=True, now="2026-01-01T10:05:00"
+        )
+        entry = seen["111"]
+        self.assertEqual(entry["first_seen_ts"], "2026-01-01T10:00:00")
+        self.assertEqual(entry["last_seen_ts"], "2026-01-01T10:05:00")
+        self.assertTrue(entry["mentioned_bot"])
+
+        # mentioned_bot is a rolling OR - a later non-mentioning message
+        # must not flip it back off.
+        seen = bot_module.update_seen_members(
+            seen, sender, chat_id=-100, mentioned=False, now="2026-01-01T10:10:00"
+        )
+        self.assertTrue(seen["111"]["mentioned_bot"])
+        self.assertEqual(seen["111"]["last_seen_ts"], "2026-01-01T10:10:00")
+
+    def test_bot_sender_is_skipped(self):
+        seen = {}
+        sender = {"id": 999, "is_bot": True, "username": "SomeBot"}
+        seen = bot_module.update_seen_members(seen, sender, chat_id=-100, mentioned=False)
+        self.assertEqual(seen, {})
+
+    def test_missing_sender_id_is_skipped(self):
+        seen = {}
+        seen = bot_module.update_seen_members(seen, {}, chat_id=-100, mentioned=False)
+        self.assertEqual(seen, {})
+
+
+class _FakeClient:
+    """Minimal stand-in for bot.TelegramClient: get_updates() replays a
+    fixed list of updates; set_reaction()/send_message_chunked() are
+    recorded rather than hitting the network.
+    """
+
+    def __init__(self, updates):
+        self._updates = updates
+        self.reactions = []
+        self.sent_messages = []
+
+    def get_updates(self, offset=None, timeout=None):
+        return {"ok": True, "result": self._updates}
+
+    def set_reaction(self, chat_id, message_id, emoji):
+        self.reactions.append((chat_id, message_id, emoji))
+        return {"ok": True}
+
+    def send_message_chunked(self, chat_id, text):
+        self.sent_messages.append((chat_id, text))
+        return True
+
+
+class SeenMemberCaptureDuringPollTests(unittest.TestCase):
+    """Integration-ish tests through bot.poll_once(): confirm seen-members
+    capture fires for a real group update even when the relay decision is
+    False - the exact situation of a not-yet-allowlisted member chatting in
+    the group, or mentioning the bot before being allowlisted.
+    """
+
+    def _run_poll_once(self, update, allowlist):
+        client = _FakeClient([update])
+        config = {"chat_id": str(FOUNDER_CHAT_ID), "relay_mode": True, "default_cwd": "/tmp"}
+        bridge_config = {"bot_id": BOT_ID, "bot_username": BOT_USERNAME}
+        seen_members = {}
+
+        with mock.patch.object(bot_module, "save_offset"), \
+                mock.patch.object(bot_module, "save_bridge_config"), \
+                mock.patch.object(bot_module, "save_seen_members"):
+            exit_code = bot_module.poll_once(client, config, bridge_config, allowlist, seen_members)
+
+        return exit_code, seen_members
+
+    def test_non_relayed_group_message_is_still_recorded(self):
+        update = {
+            "update_id": 42,
+            "message": {
+                "message_id": 500,
+                "date": 1700000000,
+                "chat": {"id": GROUP_CHAT_ID, "type": "group", "title": GROUP_TITLE},
+                "from": {
+                    "id": 222333444,
+                    "is_bot": False,
+                    "username": "someone",
+                    "first_name": "Some",
+                    "last_name": "One",
+                },
+                "text": "just chatting, no mention, no reply",
+            },
+        }
+
+        exit_code, seen_members = self._run_poll_once(update, allowlist=set())
+
+        self.assertEqual(exit_code, 0)
+        # Not relayed (unauthorized sender + no mention/reply)...
+        self.assertIn("222333444", seen_members)
+        entry = seen_members["222333444"]
+        # ...but still captured, with no message text stored anywhere.
+        self.assertEqual(entry["username"], "someone")
+        self.assertEqual(entry["first_name"], "Some")
+        self.assertEqual(entry["last_name"], "One")
+        self.assertEqual(entry["chat_id"], GROUP_CHAT_ID)
+        self.assertFalse(entry["mentioned_bot"])
+        self.assertNotIn("text", entry)
+
+    def test_mentioning_but_not_yet_allowlisted_sender_is_recorded(self):
+        text = "@ExampleBridgeBot hi"
+        update = {
+            "update_id": 43,
+            "message": {
+                "message_id": 501,
+                "date": 1700000001,
+                "chat": {"id": GROUP_CHAT_ID, "type": "group", "title": GROUP_TITLE},
+                "from": {
+                    "id": 333444555,
+                    "is_bot": False,
+                    "username": "newperson",
+                    "first_name": "New",
+                    "last_name": "Person",
+                },
+                "text": text,
+                "entities": [{"type": "mention", "offset": 0, "length": len("@ExampleBridgeBot")}],
+            },
+        }
+
+        exit_code, seen_members = self._run_poll_once(update, allowlist=set())
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("333444555", seen_members)
+        self.assertTrue(seen_members["333444555"]["mentioned_bot"])
+
+
+class GroupActivationGatingTests(unittest.TestCase):
+    """Regression tests for the fix that stopped a stranger's group from
+    silently hijacking active_group_chat_id (what notify.sh --group sends
+    to). record_group_discovery() (id/title bookkeeping in
+    discovered_groups) must still run for every group message the bot
+    observes - but activate_group() (which sets active_group_chat_id) must
+    ONLY ever run for a message that has already passed the relay gate
+    (founder or allowlisted sender, AND mentioned/replied). Before this
+    fix, a stranger merely adding the bot to an unrelated group - before
+    the founder's own group was ever seen - could capture
+    active_group_chat_id, and a later `notify.sh --group` would send
+    founder/coordinator status straight to that stranger's group.
+    """
+
+    def _run(self, update, allowlist=None, bridge_config=None):
+        client = _FakeClient([update])
+        config = {"chat_id": str(FOUNDER_CHAT_ID), "relay_mode": True, "default_cwd": "/tmp"}
+        bridge_config = bridge_config if bridge_config is not None else {"bot_id": BOT_ID, "bot_username": BOT_USERNAME}
+        seen_members = {}
+        with mock.patch.object(bot_module, "save_offset"), \
+                mock.patch.object(bot_module, "save_bridge_config"), \
+                mock.patch.object(bot_module, "save_seen_members"):
+            exit_code = bot_module.poll_once(client, config, bridge_config, allowlist or set(), seen_members)
+        return exit_code, bridge_config
+
+    def test_unauthorized_stranger_group_message_discovers_but_does_not_activate(self):
+        update = {
+            "update_id": 60,
+            "message": {
+                "message_id": 700,
+                "date": 1700000000,
+                "chat": {"id": GROUP_CHAT_ID, "type": "group", "title": GROUP_TITLE},
+                "from": {"id": 555000111, "is_bot": False, "username": "stranger"},
+                "text": "hi everyone, join my unrelated group",
+            },
+        }
+        exit_code, bridge_config = self._run(update)
+
+        self.assertEqual(exit_code, 0)
+        # Discovery metadata is still recorded (harmless, zero-setup UX
+        # preserved) ...
+        self.assertIn(str(GROUP_CHAT_ID), bridge_config.get("discovered_groups", {}))
+        # ... but a message that never passed the relay gate must NEVER be
+        # able to set active_group_chat_id.
+        self.assertNotIn("active_group_chat_id", bridge_config)
+
+    def test_founder_group_message_that_passes_the_gate_activates(self):
+        text = f"@{BOT_USERNAME} status?"
+        update = {
+            "update_id": 61,
+            "message": {
+                "message_id": 701,
+                "date": 1700000001,
+                "chat": {"id": GROUP_CHAT_ID, "type": "group", "title": GROUP_TITLE},
+                "from": {"id": FOUNDER_CHAT_ID, "is_bot": False, "username": "founder"},
+                "text": text,
+                "entities": [{"type": "mention", "offset": 0, "length": len(BOT_USERNAME) + 1}],
+            },
+        }
+        exit_code, bridge_config = self._run(update)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(bridge_config.get("active_group_chat_id"), GROUP_CHAT_ID)
+
+    def test_stranger_message_in_a_different_group_does_not_steal_an_already_active_group(self):
+        update = {
+            "update_id": 62,
+            "message": {
+                "message_id": 702,
+                "date": 1700000002,
+                "chat": {"id": -1, "type": "group", "title": "Some Other Group"},
+                "from": {"id": 555000111, "is_bot": False, "username": "stranger"},
+                "text": "spam message",
+            },
+        }
+        bridge_config = {"bot_id": BOT_ID, "bot_username": BOT_USERNAME, "active_group_chat_id": GROUP_CHAT_ID}
+        exit_code, bridge_config = self._run(update, bridge_config=bridge_config)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(bridge_config["active_group_chat_id"], GROUP_CHAT_ID)
+
+
+def _photo_update(update_id, message_id, caption=None, chat_id=FOUNDER_CHAT_ID):
+    message = {
+        "message_id": message_id,
+        "date": 1700000000,
+        "chat": {"id": chat_id, "type": "private"},
+        "from": {"id": chat_id, "is_bot": False, "username": "founder"},
+        "photo": [
+            {"file_id": "small1", "file_unique_id": "us1", "width": 90, "height": 90, "file_size": 1000},
+            {"file_id": "large1", "file_unique_id": "ul1", "width": 1280, "height": 1280, "file_size": 90000},
+        ],
+    }
+    if caption is not None:
+        message["caption"] = caption
+    return {"update_id": update_id, "message": message}
+
+
+def _document_update(update_id, message_id, mime_type, chat_id=FOUNDER_CHAT_ID, caption=None, file_name="file.bin"):
+    message = {
+        "message_id": message_id,
+        "date": 1700000000,
+        "chat": {"id": chat_id, "type": "private"},
+        "from": {"id": chat_id, "is_bot": False, "username": "founder"},
+        "document": {"file_id": "doc1", "file_name": file_name, "mime_type": mime_type},
+    }
+    if caption is not None:
+        message["caption"] = caption
+    return {"update_id": update_id, "message": message}
+
+
+def _voice_update(update_id, message_id, chat_id=FOUNDER_CHAT_ID, duration=12):
+    message = {
+        "message_id": message_id,
+        "date": 1700000000,
+        "chat": {"id": chat_id, "type": "private"},
+        "from": {"id": chat_id, "is_bot": False, "username": "founder"},
+        "voice": {"file_id": "voice1", "mime_type": "audio/ogg", "duration": duration, "file_size": 5000},
+    }
+    return {"update_id": update_id, "message": message}
+
+
+def _group_photo_update(update_id, message_id, from_id, from_username="stranger"):
+    message = {
+        "message_id": message_id,
+        "date": 1700000000,
+        "chat": {"id": GROUP_CHAT_ID, "type": "group", "title": GROUP_TITLE},
+        "from": {"id": from_id, "is_bot": False, "username": from_username},
+        "photo": [{"file_id": "grouppic1", "file_unique_id": "gu1", "width": 800, "height": 800}],
+    }
+    return {"update_id": update_id, "message": message}
+
+
+def _text_update(update_id, message_id, text, chat_id=FOUNDER_CHAT_ID):
+    message = {
+        "message_id": message_id,
+        "date": 1700000000,
+        "chat": {"id": chat_id, "type": "private"},
+        "from": {"id": chat_id, "is_bot": False, "username": "founder"},
+        "text": text,
+    }
+    return {"update_id": update_id, "message": message}
+
+
+class MediaRelayTests(unittest.TestCase):
+    """Integration-ish tests through bot.poll_once(): confirm media handling
+    in RELAY_MODE downloads the file, writes a `media` block into
+    relay-inbox.jsonl with the caption as `text`, and that image kinds
+    (photo, or an image-mime document) additionally get a `photo_path`
+    convenience field pointing at the same downloaded file - the merge of
+    the two forks' photo-relay and general-media-relay behaviors into one
+    path. Everything else (non-media documents' mime type, plain text,
+    RELAY_MODE off, unauthorized senders) is unaffected.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp_path = Path(self._tmpdir.name)
+        self.relay_inbox_file = tmp_path / "relay-inbox.jsonl"
+        self.media_inbox_dir = tmp_path / "media-inbox"
+
+        patches = [
+            mock.patch.object(bot_module, "RELAY_INBOX_FILE", self.relay_inbox_file),
+            mock.patch.object(bot_module, "MEDIA_INBOX_DIR", self.media_inbox_dir),
+            mock.patch.object(bot_module, "save_offset"),
+            mock.patch.object(bot_module, "save_bridge_config"),
+            mock.patch.object(bot_module, "save_seen_members"),
+        ]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        self.addCleanup(self._tmpdir.cleanup)
+
+    def _run_poll(self, client, allowlist=None):
+        config = {"chat_id": str(FOUNDER_CHAT_ID), "relay_mode": True, "default_cwd": "/tmp"}
+        bridge_config = {"bot_id": BOT_ID, "bot_username": BOT_USERNAME}
+        exit_code = bot_module.poll_once(
+            client, config, bridge_config, allowlist=allowlist or set(), seen_members={}
+        )
+        return exit_code
+
+    def _read_records(self):
+        if not self.relay_inbox_file.exists():
+            return []
+        lines = self.relay_inbox_file.read_text(encoding="utf-8").splitlines()
+        return [json.loads(line) for line in lines if line.strip()]
+
+    def _fake_download(self, remote_file_path="voice/file_1.oga", payload=b"fake-media-bytes"):
+        """Patch bot.resolve_telegram_file_path/download_telegram_file so no
+        real network call is made; download_telegram_file writes a small
+        fixed payload so tests can assert a file actually landed on disk.
+        """
+        def _fake_download_telegram_file(client, remote_path, dest_path):
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(payload)
+
+        return (
+            mock.patch.object(bot_module, "resolve_telegram_file_path", return_value=remote_file_path),
+            mock.patch.object(bot_module, "download_telegram_file", side_effect=_fake_download_telegram_file),
+        )
+
+    def test_photo_with_caption_is_relayed_with_media_and_photo_path(self):
+        client = _FakeClient([_photo_update(1, 900, caption="check this out")])
+        p1, p2 = self._fake_download(remote_file_path="photos/file_10.jpg")
+        with p1, p2:
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["text"], "check this out")
+        self.assertEqual(record["media"]["kind"], "photo")
+        self.assertTrue(Path(record["media"]["path"]).exists())
+        self.assertIn("photo_path", record)
+        self.assertEqual(record["photo_path"], record["media"]["path"])
+
+    def test_photo_without_caption_is_relayed_not_dropped(self):
+        client = _FakeClient([_photo_update(2, 901, caption=None)])
+        p1, p2 = self._fake_download(remote_file_path="photos/file_11.jpg")
+        with p1, p2:
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["text"], "")
+        self.assertIn("photo_path", records[0])
+
+    def test_image_document_gets_photo_path_like_a_photo(self):
+        client = _FakeClient(
+            [_document_update(3, 902, mime_type="image/png", caption="scanned doc", file_name="scan.png")]
+        )
+        p1, p2 = self._fake_download(remote_file_path="documents/scan.png")
+        with p1, p2:
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["text"], "scanned doc")
+        self.assertEqual(record["media"]["kind"], "document")
+        self.assertIn("photo_path", record)
+        self.assertEqual(record["photo_path"], record["media"]["path"])
+
+    def test_non_image_document_has_media_but_no_photo_path(self):
+        client = _FakeClient(
+            [_document_update(4, 903, mime_type="application/pdf", caption="a report", file_name="report.pdf")]
+        )
+        p1, p2 = self._fake_download(remote_file_path="documents/report.pdf")
+        with p1, p2:
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["media"]["kind"], "document")
+        self.assertNotIn("photo_path", record)
+
+    def test_voice_message_is_relayed_with_media_block_and_no_photo_path(self):
+        client = _FakeClient([_voice_update(5, 904, duration=17)])
+        p1, p2 = self._fake_download(remote_file_path="voice/file_5.oga")
+        with p1, p2:
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["media"]["kind"], "voice")
+        self.assertEqual(record["media"]["duration"], 17)
+        self.assertNotIn("photo_path", record)
+        self.assertEqual(record["note"], bot_module.UNTRUSTED_MEDIA_NOTE)
+
+    def test_plain_text_message_is_unaffected(self):
+        client = _FakeClient([_text_update(6, 905, text="hello there")])
+        exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        # The original four-field shape (ts/chat_id/message_id/text) must
+        # keep meaning exactly what it always meant for a plain text DM -
+        # group-support/media fields are additive, never a replacement, and
+        # a consumer written against the pre-merge kit's relay-inbox.jsonl
+        # shape must still work unmodified.
+        self.assertIn("ts", record)
+        self.assertIsInstance(record["ts"], str)
+        self.assertTrue(record["ts"])  # non-empty
+        self.assertEqual(record["chat_id"], FOUNDER_CHAT_ID)
+        self.assertEqual(record["message_id"], 905)
+        self.assertEqual(record["text"], "hello there")
+        self.assertNotIn("media", record)
+        self.assertNotIn("photo_path", record)
+
+    def test_svg_document_has_media_but_no_photo_path(self):
+        """SVG is markup, not a raster screenshot - it must NOT get the
+        photo_path convenience field even though its mime_type starts with
+        image/ (see bot.is_image_media()/NON_RASTER_IMAGE_MIME_TYPES).
+        """
+        client = _FakeClient(
+            [_document_update(20, 950, mime_type="image/svg+xml", caption="a diagram", file_name="diagram.svg")]
+        )
+        p1, p2 = self._fake_download(remote_file_path="documents/diagram.svg")
+        with p1, p2:
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["media"]["kind"], "document")
+        self.assertNotIn("photo_path", record)
+
+    def test_same_message_id_different_chats_produce_distinct_files_and_records(self):
+        """Regression test for a real collision: Telegram message_ids are
+        per-CHAT sequential, not global, so a DM and a group message can
+        legitimately share the same message_id on the same day. Before the
+        <date>-<chat_id>-<message_id> naming fix, both downloads landed at
+        the same <date>-<message_id> path and the second write silently
+        clobbered the first (data loss - the earlier sender's file was
+        destroyed, and both relay records pointed at whatever was left).
+        """
+        dm_update = _photo_update(1, 42, caption="from dm", chat_id=FOUNDER_CHAT_ID)
+        group_message = {
+            "message_id": 42,
+            "date": 1700000000,
+            "chat": {"id": GROUP_CHAT_ID, "type": "group", "title": GROUP_TITLE},
+            "from": {"id": FOUNDER_CHAT_ID, "is_bot": False, "username": "founder"},
+            "reply_to_message": {
+                "message_id": 0,
+                "from": {"id": BOT_ID, "is_bot": True, "username": BOT_USERNAME},
+                "text": "(bot's earlier message)",
+            },
+            "photo": [{"file_id": "groupfile1", "file_unique_id": "gu1", "width": 800, "height": 800}],
+            "caption": "from group",
+        }
+        group_update = {"update_id": 2, "message": group_message}
+
+        client = _FakeClient([dm_update, group_update])
+
+        def _fake_download_telegram_file(client_, remote_path, dest_path):
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            # Content is derived from the destination filename itself, so a
+            # collision (the second download overwriting the first) would
+            # leave the first file's content wrong - this is exactly the
+            # "one sender's image destroyed" symptom the bug reproduction
+            # described.
+            dest_path.write_bytes(f"payload-for-{dest_path.name}".encode())
+
+        with mock.patch.object(bot_module, "resolve_telegram_file_path", return_value="photos/file_1.jpg"), \
+                mock.patch.object(bot_module, "download_telegram_file", side_effect=_fake_download_telegram_file):
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 2)
+
+        paths = [Path(r["media"]["path"]) for r in records]
+        self.assertEqual(
+            len({str(p) for p in paths}), 2,
+            "expected two distinct file paths for the same message_id in different chats, got a collision",
+        )
+        for record, path in zip(records, paths):
+            self.assertTrue(path.exists())
+            self.assertEqual(path.read_bytes(), f"payload-for-{path.name}".encode())
+            self.assertEqual(record["photo_path"], str(path))
+
+        # Both filenames must encode their OWN chat id, not just date +
+        # message_id - the actual fix, not just "paths happen to differ".
+        self.assertIn(str(FOUNDER_CHAT_ID), paths[0].name)
+        self.assertIn(bot_module.sanitize_chat_id_for_filename(GROUP_CHAT_ID), paths[1].name)
+        self.assertTrue(paths[1].name.split("-")[1].startswith("g"))  # negative group id -> 'g' prefix
+
+    def test_failed_download_sends_failure_reply_and_writes_no_record(self):
+        client = _FakeClient([_photo_update(7, 906, caption="please still send this")])
+        with mock.patch.object(
+            bot_module, "resolve_telegram_file_path",
+            side_effect=requests.exceptions.RequestException("simulated failure"),
+        ):
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(self._read_records(), [])
+        self.assertIn((str(FOUNDER_CHAT_ID), 906, bot_module.REACTION_FAIL), [
+            (str(c), m, e) for c, m, e in client.reactions
+        ])
+        self.assertTrue(any(
+            bot_module.MEDIA_DOWNLOAD_FAILED_REPLY == text for _chat, text in client.sent_messages
+        ))
+
+    def test_media_dropped_outside_relay_mode(self):
+        client = _FakeClient([_voice_update(8, 907)])
+        config = {"chat_id": str(FOUNDER_CHAT_ID), "relay_mode": False, "default_cwd": "/tmp"}
+        bridge_config = {"bot_id": BOT_ID, "bot_username": BOT_USERNAME}
+        with mock.patch.object(bot_module, "save_offset"), \
+                mock.patch.object(bot_module, "save_bridge_config"), \
+                mock.patch.object(bot_module, "save_seen_members"):
+            exit_code = bot_module.poll_once(client, config, bridge_config, allowlist=set(), seen_members={})
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(self._read_records(), [])
+        self.assertEqual(client.reactions, [])  # never even 👀-reacted
+
+    def test_media_from_unauthorized_group_sender_is_never_downloaded(self):
+        """Group gating (evaluate_incoming_message) runs BEFORE media
+        handling - an unauthorized/non-mentioning group sender's photo must
+        never trigger a download attempt at all, not just never get
+        relayed. This is the group-support + media-relay merge point.
+        """
+        client = _FakeClient([_group_photo_update(9, 908, from_id=444555666)])
+        with mock.patch.object(bot_module, "resolve_telegram_file_path") as mock_resolve:
+            exit_code = self._run_poll(client, allowlist=set())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(self._read_records(), [])
+        mock_resolve.assert_not_called()
+        self.assertEqual(client.reactions, [])
+
+
+class ExtractMediaTests(unittest.TestCase):
+    """Pure-function tests for bot.extract_media() and bot.is_image_media() -
+    no I/O, no Telegram calls; just message-shape inspection.
+    """
+
+    def test_photo_message_returns_largest_size_file_id(self):
+        message = {
+            "photo": [
+                {"file_id": "small", "file_unique_id": "us", "width": 90, "height": 90},
+                {"file_id": "medium", "file_unique_id": "um", "width": 320, "height": 320},
+                {"file_id": "large", "file_unique_id": "ul", "width": 1280, "height": 1280},
+            ],
+            "caption": "look at this",
+        }
+        media = bot_module.extract_media(message)
+        self.assertEqual(media["kind"], "photo")
+        self.assertEqual(media["file_id"], "large")
+        self.assertTrue(bot_module.is_image_media(media))
+
+    def test_image_mime_document_is_detected_as_image(self):
+        message = {
+            "document": {
+                "file_id": "doc123",
+                "file_name": "photo.png",
+                "mime_type": "image/png",
+            },
+        }
+        media = bot_module.extract_media(message)
+        self.assertEqual(media["kind"], "document")
+        self.assertEqual(media["file_id"], "doc123")
+        self.assertTrue(bot_module.is_image_media(media))
+
+    def test_non_image_mime_document_is_not_image(self):
+        message = {
+            "document": {
+                "file_id": "doc456",
+                "file_name": "report.pdf",
+                "mime_type": "application/pdf",
+            },
+        }
+        media = bot_module.extract_media(message)
+        self.assertEqual(media["kind"], "document")
+        self.assertFalse(bot_module.is_image_media(media))
+
+    def test_voice_audio_video_video_note_are_never_image(self):
+        for key, extra in (
+            ("voice", {"file_id": "v1", "duration": 5}),
+            ("audio", {"file_id": "a1", "duration": 5}),
+            ("video", {"file_id": "vd1", "duration": 5}),
+            ("video_note", {"file_id": "vn1", "duration": 5}),
+        ):
+            message = {key: extra}
+            media = bot_module.extract_media(message)
+            self.assertEqual(media["kind"], key)
+            self.assertFalse(bot_module.is_image_media(media), key)
+
+    def test_plain_text_message_has_no_media(self):
+        message = {"text": "just words"}
+        self.assertIsNone(bot_module.extract_media(message))
+
+    def test_svg_mime_document_is_not_image_despite_image_prefix(self):
+        media = {"kind": "document", "file_id": "svg1", "mime": "image/svg+xml", "size": 100, "duration": None}
+        self.assertFalse(bot_module.is_image_media(media))
+
+    def test_svg_mime_is_case_insensitive(self):
+        media = {"kind": "document", "file_id": "svg2", "mime": "Image/SVG+XML", "size": 100, "duration": None}
+        self.assertFalse(bot_module.is_image_media(media))
+
+
+class SanitizeChatIdForFilenameTests(unittest.TestCase):
+    """Pure-function tests for bot.sanitize_chat_id_for_filename() - no I/O."""
+
+    def test_positive_private_chat_id_passes_through_unchanged(self):
+        self.assertEqual(bot_module.sanitize_chat_id_for_filename(1000000001), "1000000001")
+
+    def test_negative_group_chat_id_gets_g_prefix_not_a_literal_minus(self):
+        self.assertEqual(bot_module.sanitize_chat_id_for_filename(-100999888), "g100999888")
+
+    def test_result_never_starts_with_a_hyphen(self):
+        for chat_id in (1000000001, -100999888, -1, 0):
+            self.assertFalse(bot_module.sanitize_chat_id_for_filename(chat_id).startswith("-"))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

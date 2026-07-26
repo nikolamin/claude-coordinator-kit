@@ -202,6 +202,15 @@ See `telegram-bridge/SETUP.md` for the full walkthrough (bot creation, `.env`, l
 install, the relay-mode architecture, and the reaction-emoji/file-delivery gotchas). If you're not
 using Telegram, ignore this directory entirely — nothing else in the kit depends on it.
 
+Beyond the core 1:1 DM relay, the bridge also supports several optional, purely additive
+capabilities: group chat (a gated, @mention/reply-triggered relay for a Telegram group, on top of
+the founder's DM), media relay (voice/photo/video/document messages downloaded and, via
+`process-media.sh`, transcribed/frame-extracted locally), a significance-gated daily activity
+digest (sends only on a notably active or flagged day, not every day), and an optional email
+monitor (polls an IMAP inbox and surfaces new mail the same way relay mode surfaces Telegram
+messages). All are off by default and documented in `telegram-bridge/SETUP.md` and
+`telegram-bridge/EMAIL-MONITOR.md`.
+
 ## Boot the first session
 
 1. `cd` into the new project, start Claude Code.

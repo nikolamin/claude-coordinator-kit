@@ -1,0 +1,44 @@
+# systemd --user unit template for the email_monitor.py one-shot job (Linux).
+# Optional - skip both this file and the matching .timer template entirely
+# if you don't want the email monitor. Paired with
+# claude-email-monitor.timer.template, which triggers it on a recurring
+# interval - this .service file alone does NOT run on a schedule by itself.
+# See EMAIL-MONITOR.md for full setup instructions.
+#
+# email_monitor.py has no long-poll to wait out (unlike bot.py's Telegram
+# poll loop) - each run is a quick IMAP connect/search/fetch/disconnect,
+# so this is Type=oneshot triggered by a timer, the same shape as
+# claude-telegram-bridge-daily-report.service.template, just on a shorter
+# recurring interval instead of once a day.
+#
+# BEFORE INSTALLING, replace every <PLACEHOLDER> below (same values as
+# claude-telegram-bridge.service.template - keep them consistent):
+#   <PYTHON3_PATH>    - absolute path to python3
+#   <BRIDGE_DIR>      - absolute path to this telegram-bridge/ directory
+#
+# email_monitor.py only uses stdlib (imaplib/email/json) - no `claude` or
+# other PATH-dependent subprocess calls - so unlike
+# claude-telegram-bridge.service.template it does NOT need an
+# Environment=PATH override beyond a plain system PATH.
+#
+# Do NOT enable the timer until IMAP_PASSWORD has actually been created
+# and filled into .env - enabling it before that just logs a graceful
+# "missing credentials" warning every interval for no benefit.
+#
+# Install (rename both this file and the .timer file, drop .template):
+#   cp claude-email-monitor.service.template ~/.config/systemd/user/claude-email-monitor.service
+#   cp claude-email-monitor.timer.template ~/.config/systemd/user/claude-email-monitor.timer
+#   # edit the placeholders in the .service copy, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now claude-email-monitor.timer
+#
+# Logs: journalctl --user -u claude-email-monitor -f
+
+[Unit]
+Description=Claude email monitor - poll IMAP for new mail (one-shot, triggered by the matching .timer)
+
+[Service]
+Type=oneshot
+WorkingDirectory=<BRIDGE_DIR>
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=<PYTHON3_PATH> <BRIDGE_DIR>/email_monitor.py
