@@ -94,7 +94,15 @@ top. A validation finding might only require redoing Plan for one milestone, not
   worktree management. Fall back to sequential dispatch when tasks share files/resources or a
   dependency forces an order. Either way, only one task's outcome may be written to
   `STATE.md`/`plan.md` at a time (queue the edits, don't let two agents' results race on the same
-  file).
+  file). Worktrees isolate the file tree only — a shared external service (a test database, a
+  fixed listen port, a shared schema) is a separate collision class that survives worktree
+  isolation untouched; treat tasks that would share one of those as not actually disjoint (give
+  each agent a private instance, or fall back to sequential dispatch for them — see `CLAUDE.md`'s
+  Execute loop).
+- Any task that ends in a commit, in a shared (non-worktree) checkout, follows the shared-checkout
+  git hygiene in `CLAUDE.md`'s Execute loop step 5 — check `git status` before committing and
+  commit only the intended paths, check what's actually ahead of origin before pushing, and never
+  run a destructive git operation on a tree that may hold another agent's uncommitted work.
 - Everything is committed to git so any future session — this one resumed, or a fresh one — can
   pick up mid-loop from `STATE.md` and the repo alone.
 - User-approval gates (end of Concept, end of Plan) are the only phase transitions that require

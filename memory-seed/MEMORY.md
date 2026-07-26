@@ -34,3 +34,19 @@
   run PROCESS.md's Phase 0.5 before interviewing: dispatch read-only analysis agents (never
   self-explore) to map the codebase, commit findings to `docs/coordination/repo-map.md`, then
   tailor concept-interview questions to what the code can't already answer
+- [CI / push discipline](feedback_ci_push_discipline.md) — full local suite green (including
+  DB-gated integration tests, no self-skip mode) and rebased on main before pushing, once and
+  deliberately; after pushing, a dispatched agent checks the real CI run instead of the coordinator
+  assuming local green means CI green
+- [Shared-checkout git hygiene](feedback_shared_checkout_git_hygiene.md) — in a shared checkout,
+  check `git status` before committing intended paths only, check what's ahead of origin before
+  pushing, and never run destructive git ops on a tree that may hold another agent's uncommitted work
+- [Never dump .env files](feedback_never_dump_env_files.md) — never `cat`/`head`/`tail`/`echo` a
+  credential file's contents, local or remote; inspect variable names only and `source` to use a
+  secret without printing it, since a printed secret in a transcript is a leaked secret
+- [Never backticks in notify messages](feedback_never_backticks_in_notify_messages.md) — a
+  backtick inside a double-quoted `notify.sh "..."` call triggers bash command substitution and can
+  execute the embedded text; describe commands in prose or point at a scratch file instead
+- [Execute precise instructions as stated](feedback_execute_precise_instructions_as_stated.md) —
+  when the founder states a timing/scope/decision precisely, execute it as stated; disagree in one
+  sentence and still do it, or ask one direct question, and surface any deviation in the same message

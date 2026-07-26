@@ -232,7 +232,11 @@ At the start of a coordinator session (or as soon as the bridge is confirmed ins
    normal rules (see the kit's `CLAUDE.md` Question protocol for how the coordinator asks
    follow-ups back).
 3. **Reply** with `notify.sh "<reply text>"` — resolves `.env` relative to its own script location,
-   so it works regardless of the coordinator's own working directory.
+   so it works regardless of the coordinator's own working directory. **Never put a backtick in
+   the message text.** `notify.sh "..."` is still a shell command line, so a backtick-wrapped
+   command inside the double-quoted string triggers bash command substitution and can *execute*
+   the embedded text instead of just sending it as a message — describe commands in prose, or
+   write the literal text to a scratch file and reference its path instead.
 4. **Acknowledge** with `react.sh <message_id> ok` (👍) or `react.sh <message_id> fail` (👎) once
    the message is fully handled — this replaces the bot's initial 👀 with a final status the
    founder can see at a glance without opening the chat.
@@ -274,6 +278,10 @@ location regardless of the caller's working directory:
 ```bash
 <BRIDGE_DIR>/notify.sh "some message"
 ```
+
+Same caution as in (g): never put a backtick inside the quoted message — it triggers bash command
+substitution on that double-quoted string and can execute whatever's between the backticks instead
+of just sending it as text. Describe commands in prose, or point at a scratch file instead.
 
 ## (i) Optional: daily activity digest
 

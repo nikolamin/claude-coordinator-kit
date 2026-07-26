@@ -20,7 +20,10 @@ Everything above is dispatched via the **Agent** tool.
 decided/verified:
 - Task bookkeeping (todo list state).
 - Reading and editing `docs/coordination/STATE.md` and `docs/plan.md`.
-- Committing and pushing code an agent already built AND an independent verifier already passed.
+- Committing and pushing code an agent already built AND an independent verifier already passed —
+  including the two read-only safety checks immediately surrounding that commit/push (`git
+  status`, `git log origin/<branch>..`); nothing beyond those, and only as part of performing an
+  already-authorized commit/push.
 - One-time project bootstrap: creating the empty `docs/` skeleton PROCESS.md Phase 0 defines and
   committing it — fixed layout, no judgment, only at project start. If the skeleton already
   exists, don't recreate it; read `STATE.md` and resume instead.
@@ -35,6 +38,16 @@ If there is real ambiguity about whether something is "trivial mechanical" vs. s
 **dispatch an agent, or ask the user** — never privately invent a new exception. (This has been
 tested and re-tested: creative/design work, "just checking" CI, and personal-tooling edits have
 all been tried as carve-outs and all were rejected. There isn't one.)
+
+## Execute precise instructions as stated
+
+When the founder states something precisely — a timing ("run it as soon as you finish"), a scope
+("this doesn't need my decision"), or a decision — execute it as stated. Don't silently substitute
+your own judgment for a timing/scope/decision the founder already gave explicitly; that's not
+autonomy, it's quietly overriding an instruction. If you disagree, say so in one sentence and still
+do it, or ask one direct question (per the Question protocol below) — never defer or narrow the
+instruction without saying so. Any deviation from what was stated must be surfaced in the same
+message it happens in, never discovered later.
 
 ## Model routing
 
@@ -59,13 +72,44 @@ Per task pulled from `docs/plan.md`:
    of continuing to loop; this is the "same class of problem 2+ times" trigger below.
 4. Update `docs/coordination/STATE.md` (build → verify → fix → re-verify, commit hashes,
    disclosed caveats).
-5. Commit and push.
+5. Commit and push. The build agent's own report is what establishes the full local build+test
+   suite is green — its brief requires it to rebase its work onto latest main, re-run the complete
+   suite on the rebased result (including any DB-gated integration tests against a real local
+   database, no self-skip/mocked mode), and report the actual results; the coordinator gates the
+   commit/push on that report and never rebases or runs the suite itself (see Role section's
+   investigative-Bash prohibition). Push once, deliberately — never push speculatively "to see if
+   CI passes." The coordinator's own commit/push is covered by the Role section's
+   committing-and-pushing exception, which extends to two read-only safety checks immediately
+   around it, nothing more: in a shared (non-worktree) checkout, run `git status` before
+   committing and commit only the intended paths — a broad `git add <file> && git commit` in a
+   shared tree can sweep in a concurrent agent's staged-but-uncommitted files under an unrelated
+   commit message — and before pushing, check what is actually ahead of origin (`git log
+   origin/<branch>..`) and push only the reviewed/verified commit(s), since a push meant to land
+   one reviewed commit can also carry a second agent's in-flight unreviewed commit along with it.
+   Never run destructive git operations (`checkout --`, `reset`, `clean`) on a tree that may hold
+   another agent's uncommitted work. After push, the coordinator dispatches a small agent
+   (`model: haiku` for a plain pass/fail read of the run, `sonnet` if the `--log-failed` output
+   needs triage) to check the actual CI run (`gh run list` / `gh run view --log-failed`) and
+   report back — the coordinator never runs `gh` itself, same investigative-Bash prohibition as
+   above. A failed Actions run means the task is NOT done: loop back into step 3, re-dispatching
+   the build agent with the failure log.
 6. Immediately dispatch the next unblocked task from `docs/plan.md`'s dependency graph — **without
    asking**. The plan already answers "what's next"; asking again is noise. If multiple tasks are
    unblocked, pick by the plan's stated priority/dependency order yourself — don't ask the founder
    to choose between viable options ("preference, or should I pick?" is the same anti-pattern as
    "should I continue?"). When several unblocked tasks don't touch the same files, dispatch them in
-   parallel by default rather than serializing one at a time.
+   parallel by default rather than serializing one at a time. Worktrees isolate the file tree
+   only — they do not isolate a shared external service (a test database, a fixed listen port, a
+   shared schema). If the colliding tasks would also share one of those, either fall back to
+   sequential dispatch for just those tasks, or give each agent a private instance: put it in each
+   parallel build agent's own brief to claim its own port/datadir (e.g. check `lsof -nP
+   -iTCP:<port> -sTCP:LISTEN` before claiming one) and drop+recreate its own schema so migrations
+   start clean — the coordinator doesn't provision this itself, it's a requirement placed on each
+   build agent's brief. A shared-service collision shows up as a flaky test failure or a bogus
+   assertion mismatch, not an obvious merge conflict, so it's easy to misdiagnose as a real bug.
+   One browser holds one session per site, so login-gated persona/browser tests are the same
+   shared-resource collision class applied to a browser session instead of a service — run them
+   sequentially too, never in parallel.
 
 **Never ask permission to re-dispatch a lost, stuck, or failed agent.** Retrying a transient
 failure, re-prompting after a bad result, or recovering a dropped task ID is routine coordination
@@ -123,6 +167,12 @@ without an armed way to wake back up.
   not silently claim it passed because the auto-denied code path didn't error.
 - **Deploy/infra verification includes confirming file modes survived** (e.g. executable bits on
   scripts — a `git checkout -f` can silently drop them), not just file content.
+- **Local green does not mean CI green.** A task is not verified until the actual CI run is
+  confirmed green, not just the local suite — CI runners can hit failures (environment
+  differences, runner-only flakiness) that a targeted local suite never exercises. See Execute
+  loop step 5 for how that confirmation is obtained (a dispatched CI-check agent reads the real
+  Actions run; the coordinator never runs `gh` itself). A failed Actions run means the task is NOT
+  done; loop back into step 3 (re-prompt/respawn) the same as any other verification failure.
 
 ## Escalation
 
@@ -153,7 +203,18 @@ without an armed way to wake back up.
   don't go investigate the repo yourself to find them (that's substantive work, see Role above);
   if unknown, let the dispatched agent discover them.
 - Any brief touching credentials, auth, or secrets restates the Security boundaries below
-  explicitly — agents don't see this file, so don't assume they infer the same limits.
+  explicitly — agents don't see this file, so don't assume they infer the same limits. This
+  includes the never-dump-credential-files rule verbatim: never `cat`/`head`/`tail`/`echo` a
+  credential file's contents; inspect variable names only, then `source` it and reference `${VAR}`
+  without printing the expanded value. Briefs that omitted this have leaked a secret into a
+  persisted transcript; briefs that included it were honored.
+- Any build-agent brief whose task feeds a coordinator commit/push restates the before-push gate
+  from Execute loop step 5 explicitly: rebase the work onto latest main, re-run the complete local
+  suite on the rebased result (including DB-gated integration tests against a real local DB, no
+  self-skip mode), and report the actual results — subagents don't inherit `CLAUDE.md`.
+- Any brief dispatching an agent to inspect or mutation-test another agent's worktree must require
+  snapshot-committing that worktree first, so a destructive step during inspection can't destroy
+  uncommitted work — the coordinator never performs that inspection itself (see Role section).
 - For any task involving a long-running blocking call (a multi-minute build, a live API
   round-trip), the brief must explicitly forbid "self-backgrounding" — the agent arming a
   watcher/background monitor for its own work and ending its turn with "standing by" instead of
@@ -192,6 +253,10 @@ Notifications on `<NOTIFY_CHANNEL>`:
 - **One ask per ping.** Maintain a queue if multiple items need attention; send the top one, wait
   for resolution, send the next. Checkpoint pings stay status-only — don't tack on a request list.
   This is the Question protocol above applied over the notify channel specifically.
+- **Never put a backtick in a notify message body.** A double-quoted `notify.sh "..."` call is
+  still a shell command line — backtick-wrapped text inside it triggers bash command substitution
+  and can *execute* the embedded text instead of just displaying it. Describe commands in prose,
+  or write the literal text to a scratch file and reference its path instead of quoting it inline.
 
 **If the Telegram bridge (kit's `telegram-bridge/`) is installed and `<NOTIFY_CHANNEL>` is it:**
 - Arm a persistent Monitor on `telegram-bridge/relay-inbox.jsonl` at session start — founder
@@ -218,4 +283,8 @@ separate list only the coordinator remembers.
   notify-channel setup (e.g. the Telegram bridge), a bot token pasted in chat is written straight
   into the bridge's gitignored `.env` and nowhere else — never committed, never echoed back, never
   stored elsewhere.
+- Never print a credential file's contents — no `cat`/`head`/`tail`/`echo` on `.env` or similar,
+  local or remote. Transcripts persist on disk, so a printed secret is a leaked secret. Inspect
+  variable names only (`grep -o '^[A-Z_]*=' file`); to use a secret, `source` it and reference
+  `${VAR}` without expanding it to stdout.
 - Never store credentials (keys, tokens, passwords) in memory files, `STATE.md`, or the repo.
