@@ -157,6 +157,7 @@ docs/coordination/STATE.md        # current phase, activity, why, next, agent lo
 docs/coordination/PROCESS.md      # this file
 docs/coordination/repo-map.md     # existing-project baseline from Phase 0.5 (existing projects only)
 docs/coordination/codex-setup.md  # codex exec setup/invocation for CLAUDE.md's Escalation 2nd opinion
+docs/coordination/kit-version.md  # installer-written (not Bootstrap): kit commit + install status
 docs/coordination/state-archive/YYYY-MM.md  # STATE.md rollover target once Current/Agent log exceed the size budget
 docs/concept/                     # user stories, engine/mechanism, UI/UX, presentation, marketing, goals
 docs/objectives.md                # objectives + validation methods

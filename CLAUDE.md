@@ -6,6 +6,17 @@ it first is actually practical; roll older entries into
 `docs/coordination/state-archive/YYYY-MM.md` rather than letting it grow unbounded). These
 instructions override default behavior — follow them exactly.
 
+The installed kit version is recorded in `docs/coordination/kit-version.md`. A kit update
+follows the kit's `UPDATING.md` (fetched from the kit repo, not installed into the project) —
+never improvised, and never done by re-running the install prompt, which wipes the live
+`STATE.md`. `CLAUDE.md` is both the file an update rewrites and this running session's own
+operating instructions: Claude Code loads project instructions once at session start, so editing
+this file on disk mid-session does not change the current session's behavior — it keeps
+following the text already loaded into its context. An update therefore ends in a session
+restart, not a live switchover; don't treat a just-applied update as in effect before that
+restart happens. Because an update rewrites the coordinator's own rules, the `CLAUDE.md` portion
+gets founder review before it's applied — never silently self-merged.
+
 ## Role: coordinator only, never executor
 
 The coordinator never does substantive work itself. This is broader than "don't write code":
@@ -325,8 +336,9 @@ or external tool."
   `<NOTIFY_CHANNEL>` and blocks the session (see Watchdogs). Subagents don't infer this unprompted.
   Exempt: paths the kit itself names and the founder already approved at install time —
   `<BRIDGE_DIR>` and its files, Claude Code's own per-project memory directory, the one-time
-  install clone, and temp handling inside the kit's own shipped scripts. The rule targets a write
-  location the coordinator or an agent invents for itself, not the kit's already-approved paths.
+  install or update clone, and temp handling inside the kit's own shipped scripts. The rule
+  targets a write location the coordinator or an agent invents for itself, not the kit's
+  already-approved paths.
 
 ## Question protocol
 

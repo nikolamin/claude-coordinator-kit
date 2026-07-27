@@ -26,6 +26,8 @@ to actually stay in the coordinator role instead of drifting into doing work its
 | `memory-seed/` | Optional. Generalized versions of the behavioral corrections that make the coordinator role stick across sessions (see below). |
 | `telegram-bridge/` | Optional. A complete, ready-to-install reference implementation of `<NOTIFY_CHANNEL>` over Telegram — see below. |
 | `codex-setup.md` | Optional. Install/invocation guide for the GPT second-opinion (`codex exec`) that `CLAUDE.md`'s Escalation section triggers on judgment-heavy work. Installed to `docs/coordination/codex-setup.md` alongside `PROCESS.md`/`STATE.md` — `CLAUDE.md` points at it there. |
+| `UPDATING.md` | Per-file update rules and a paste-able update prompt for bringing an already-installed project onto a newer kit version. Not installed into the project — like `kickoff-prompt.md`, just fetch and paste/read it when updating. See "Updating" below. |
+| `docs/coordination/kit-version.md` | Not a kit file — created by the installer during install (see below), not shipped in the kit's own tree. Records which kit commit was installed, the date, and whether the bridge/memory seed were included. What `UPDATING.md` reads to know where you're updating from. |
 
 ## Install into a new project
 
@@ -50,21 +52,33 @@ all later coordinator work; never stop to ask permission for a commit or push.
 1. Fetch the kit into a scratch location and inspect it:
    `git clone https://github.com/nikolamin/claude-coordinator-kit /tmp/coordinator-kit`
    Confirm you can see CLAUDE.md, PROCESS.md, STATE.md, kickoff-prompt.md, codex-setup.md,
-   memory-seed/, and telegram-bridge/ in the clone before continuing.
+   UPDATING.md, memory-seed/, and telegram-bridge/ in the clone before continuing.
 
-2. Ask me, ONE question at a time, waiting for my answer before the next:
+2. Before asking me anything or copying a single file, guard against re-running this on a project
+   that already has the kit installed: check whether `docs/coordination/kit-version.md` exists, or
+   whether `docs/coordination/STATE.md` exists with content beyond the template stub — concretely,
+   its `## Current` section reads as anything other than the single line `- Phase: Bootstrap. No
+   tasks dispatched yet.`, or its `## Agent log` section holds any entry beyond the one EXAMPLE
+   entry. If either holds, stop here: tell me plainly that this project already has the kit
+   installed, that re-running this install prompt is destructive (it would silently wipe
+   `docs/coordination/STATE.md` back to an empty template, destroying the live phase, in-flight
+   agent tracking, and durable decisions), and that I should use the kit's `UPDATING.md` instead.
+   Do not continue to any step below — not the questions in step 3, not a partial file copy — once
+   either condition holds.
+
+3. Ask me, ONE question at a time, waiting for my answer before the next:
    a. "What should `<PROJECT>` be?" — the name of this project/product. No options needed, just
       take my answer.
    b. "What should `<NOTIFY_CHANNEL>` be — how do you want the coordinator to ping you?" Offer
       options: (1) the bundled Telegram bridge (`telegram-bridge/` in the kit — asks a follow-up
       for the bridge's install directory on this machine, since it's a machine-level service, not
-      per-project; bot creation and credentials are collected interactively in chat during step 3,
+      per-project; bot creation and credentials are collected interactively in chat during step 4,
       never via manual file edits), (2) a different existing mechanism (Slack webhook, email
       script, desktop notification command — ask me for the exact invocation, and if it needs a
-      credential, apply the same interactive-collection pattern as step 3's Telegram flow), (3)
+      credential, apply the same interactive-collection pattern as step 4's Telegram flow), (3)
       "just tell me in chat, no out-of-band channel." Wait for my answer. If I pick the Telegram
-      bridge, ask its follow-up (the install directory) immediately, as part of 2b, and wait for
-      that answer too before moving on to 2c.
+      bridge, ask its follow-up (the install directory) immediately, as part of 3b, and wait for
+      that answer too before moving on to 3c.
    c. "Do you want to allow Chrome browser usage — Claude's Chrome integration, driving your real
       logged-in browser — for the coordinator's verification work later?" Offer: (1) yes (needed
       for anything that requires your actual logged-in session, e.g. sites behind auth), (2) no,
@@ -73,47 +87,50 @@ all later coordinator work; never stop to ask permission for a commit or push.
       it seeds the behavioral corrections that make the coordinator role stick across sessions,
       (2) no. Wait for my answer.
 
-3. Place the files from /tmp/coordinator-kit into this project:
+4. Place the files from /tmp/coordinator-kit into this project:
    - `CLAUDE.md` → this project's root. If a `CLAUDE.md` already exists here, do NOT overwrite it —
      MERGE: inline the coordinator-kit's rules content into the existing file, keeping every
      existing project convention already documented there. Read both fully before merging. Never
-     link to the scratch clone (/tmp/coordinator-kit is deleted in step 7); linking to the GitHub
+     link to the scratch clone (/tmp/coordinator-kit is deleted in step 9); linking to the GitHub
      repo as a reference is fine, but the rules themselves must be in the file.
    - `PROCESS.md`, `STATE.md`, and `codex-setup.md` → `docs/coordination/` (create the directory).
      `CLAUDE.md`'s Escalation section points at `codex-setup.md` there — it must land in this
      directory or that pointer is dead on every fresh install.
-   - `memory-seed/*` → only if I said yes in 2d. Copy the files into
+   - `memory-seed/*` → only if I said yes in 3d. Copy the files into
      `~/.claude/projects/<slug>/memory/`, where `<slug>` is this project's absolute path with
      every `/` replaced by `-` (e.g. `/Users/me/code/my-app` → `-Users-me-code-my-app`). Create
      that directory if it doesn't exist yet.
-   - `telegram-bridge/` → optional, only if I chose it in step 2b. Copy the whole directory to a
+   - `telegram-bridge/` → optional, only if I chose it in step 3b. Copy the whole directory to a
      sibling tools location outside this project (it's a machine-level service meant to be reused
      across projects, e.g. `~/claude-telegram-bridge` or wherever I say). Then set it up yourself,
      interactively — do not tell me to hand-edit files:
      a. Tell me the exact @BotFather steps (open Telegram, message @BotFather, send `/newbot`,
         follow its name/username prompts) and ask me to paste the resulting bot token directly
         into this chat.
-     b. `cp .env.example .env` inside the bridge directory and fill in `TELEGRAM_BOT_TOKEN` with
-        the token I pasted. Never echo the token back, never commit `.env`, never write the token
-        anywhere else — not STATE.md, not a memory file, not a log.
+     b. Check first: if `.env` already exists in the bridge directory, it's an already-configured
+        bridge (likely shared with another project, since the bridge is machine-level) — leave it
+        untouched and skip to (d). Only if `.env` is missing, `cp .env.example .env` inside the
+        bridge directory and fill in `TELEGRAM_BOT_TOKEN` with the token I pasted. Never echo the
+        token back, never commit `.env`, never write the token anywhere else — not STATE.md, not a
+        memory file, not a log.
      c. Ask me to open a chat with the new bot and send it any message (e.g. "hi"), then fetch the
         chat id yourself via `curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates"` (or
         `python3 get_chat_id.py`, after `pip install requests` — the script imports it), confirm
         the detected name/id with me, and write it into `TELEGRAM_CHAT_ID` in `.env`.
      d. Continue with the rest of `telegram-bridge/SETUP.md` top to bottom (Python dependency, OS
-        service install).
-     If I instead chose a different mechanism in step 2b that needs a credential (e.g. a Slack
+        service install) — skip any `.env` setup it describes if (b) already found one in place.
+     If I instead chose a different mechanism in step 3b that needs a credential (e.g. a Slack
      webhook URL), apply the same pattern: ask for it in chat, write it into a gitignored config
      location yourself, never ask me to hand-edit a file.
-     If I did NOT choose the Telegram bridge in step 2b, skip this bullet entirely — and in step 4,
+     If I did NOT choose the Telegram bridge in step 3b, skip this bullet entirely — and in step 5,
      delete rather than substitute the placeholder that would otherwise reference it.
 
-4. Substitute every placeholder in the files you just installed: replace all `<PROJECT>` with my
-   answer from 2a (including `memory-seed/MEMORY.md`'s heading, if you copied it in step 3), all
-   `<NOTIFY_CHANNEL>` with the concrete invocation resulting from step 3 (e.g. the installed
-   notify.sh's absolute path — not the literal channel name from 2b), and, if I chose the Telegram
-   bridge in 2b, all `<BRIDGE_DIR>` in both `CLAUDE.md` and (if copied) `memory-seed/MEMORY.md`
-   with the absolute path you placed `telegram-bridge/` at in step 3 — both files reference the
+5. Substitute every placeholder in the files you just installed: replace all `<PROJECT>` with my
+   answer from 3a (including `memory-seed/MEMORY.md`'s heading, if you copied it in step 4), all
+   `<NOTIFY_CHANNEL>` with the concrete invocation resulting from step 4 (e.g. the installed
+   notify.sh's absolute path — not the literal channel name from 3b), and, if I chose the Telegram
+   bridge in 3b, all `<BRIDGE_DIR>` in both `CLAUDE.md` and (if copied) `memory-seed/MEMORY.md`
+   with the absolute path you placed `telegram-bridge/` at in step 4 — both files reference the
    bridge's `notify.sh`/`react.sh`/`typing.sh`/`send-file.sh`/`relay-inbox.jsonl` by that
    placeholder, and it needs a real path just like `<NOTIFY_CHANNEL>` does. If I did NOT choose the
    Telegram bridge, don't leave `<BRIDGE_DIR>` dangling — delete the whole "If the Telegram
@@ -125,27 +142,43 @@ all later coordinator work; never stop to ask permission for a commit or push.
    suppress stderr on this check (no `2>/dev/null`): a real error, like a bad path, must surface
    as one instead of being swallowed into a false "zero matches" pass. Fix any you find.
 
-5. If I said yes to Chrome browser usage in step 2c, exercise it now: open
+6. Write the version stamp, while the scratch clone from step 1 still exists (the commit SHA only
+   lives there — step 9 removes it): get the short SHA with
+   `git -C /tmp/coordinator-kit rev-parse --short HEAD`, then create
+   `docs/coordination/kit-version.md` with the real SHA, today's date, and the real outcome of my
+   step 3b/3d answers (keep only the line that applies for the bridge and for memory seed, drop
+   the other):
+
+       # Kit version
+
+       Installed from claude-coordinator-kit commit `<sha>` (`<YYYY-MM-DD>`).
+
+       - Telegram bridge: installed at `<BRIDGE_DIR>` | not installed
+       - Memory seed: installed at `~/.claude/projects/<slug>/memory/` | not installed
+
+       To update, follow the kit's `UPDATING.md` — do not re-run the install prompt.
+
+7. If I said yes to Chrome browser usage in step 3c, exercise it now: open
    `https://github.com/nikolamin/claude-coordinator-kit` with the Chrome browser tool and confirm
    it actually renders — read the page title, don't just issue the navigate call and assume it
    worked. Work through whatever obstacles come up: if the Claude-in-Chrome browser extension
    isn't installed yet, guide me through installing it; if a permission/connection or tab-access
    prompt appears, ask me to grant it, then retry. Keep retrying until the page renders and you've
    read its title — that's the pass signal. If any step needs an action only I can take, name it
-   precisely and wait. Once done (or immediately, if I said no in step 2c), record the outcome in
+   precisely and wait. Once done (or immediately, if I said no in step 3c), record the outcome in
    `docs/coordination/STATE.md`'s Infrastructure section: either "Chrome browser verification:
    allowed, smoke-tested against the kit's GitHub page" or "Chrome browser verification: not
    allowed, built-in browser pane only."
 
-6. Now read `/tmp/coordinator-kit/kickoff-prompt.md` in full, and follow its instructions
+8. Now read `/tmp/coordinator-kit/kickoff-prompt.md` in full, and follow its instructions
    exactly as if I had pasted its contents as my next message to you — it will direct you through
    confirming/re-resolving `<NOTIFY_CHANNEL>`, running Bootstrap, branching on greenfield vs.
    existing-project (repo-analysis agents + `repo-map.md` for the latter, per PROCESS.md Phase
    0.5), and starting the Concept interview one question at a time. Do not skip or summarize any
    of its steps.
 
-7. Once kickoff-prompt.md's instructions are underway, clean up: remove
-   /tmp/coordinator-kit.
+9. Once kickoff-prompt.md's instructions are underway, clean up: remove /tmp/coordinator-kit — the
+   version stamp in step 6 already captured everything needed from it.
 ```
 
 ### Manual install
@@ -156,19 +189,29 @@ install prompt above.
 
 1. Clone the repo somewhere scratch, e.g. `git clone https://github.com/nikolamin/claude-coordinator-kit
    /tmp/coordinator-kit-install`.
-2. Copy `CLAUDE.md` to the new project's root directory.
-3. Create `docs/coordination/` in the new project; copy `PROCESS.md`, `STATE.md`, and
+2. Guard against re-running this on an already-installed project: check whether
+   `docs/coordination/kit-version.md` exists, or whether `docs/coordination/STATE.md` exists with
+   content beyond the template stub — concretely, its `## Current` section reads as anything other
+   than the single line `- Phase: Bootstrap. No tasks dispatched yet.`, or its `## Agent log`
+   section holds any entry beyond the one EXAMPLE entry. If either holds, stop: this project
+   already has the kit installed, re-running this install is destructive (it would wipe
+   `docs/coordination/STATE.md` back to an empty template, destroying live phase and in-flight
+   agent tracking), so use the kit's `UPDATING.md` instead of continuing with step 3 onward.
+3. Copy `CLAUDE.md` to the new project's root directory.
+4. Create `docs/coordination/` in the new project; copy `PROCESS.md`, `STATE.md`, and
    `codex-setup.md` into it. `CLAUDE.md`'s Escalation section points at `codex-setup.md` at that
    path — skip this and the pointer resolves to nothing.
-4. (Optional) If you want the Telegram bridge, copy the whole `telegram-bridge/` directory out of
+5. (Optional) If you want the Telegram bridge, copy the whole `telegram-bridge/` directory out of
    the scratch clone now, to wherever you want it installed — it's a machine-level service, not
    per-project, so it doesn't have to live inside this project (see "Telegram bridge" below). Do
-   this before step 8 removes the clone, or you'll have nothing left to copy. Note the absolute
-   path you chose; you need it in step 5 and, if you seed memory, step 7 too, plus throughout
-   `telegram-bridge/SETUP.md`.
-5. Open the copied `CLAUDE.md` and replace every `<PROJECT>` with the project's actual name, and
+   this before step 10 removes the clone, or you'll have nothing left to copy. Note the absolute
+   path you chose; you need it in step 6 and, if you seed memory, step 8 too, plus throughout
+   `telegram-bridge/SETUP.md`. If `<BRIDGE_DIR>` already has a configured `.env` (e.g. this machine
+   already runs the bridge for another project), leave it alone — don't repeat
+   `telegram-bridge/SETUP.md`'s `.env` steps over a live bridge and clobber its token.
+6. Open the copied `CLAUDE.md` and replace every `<PROJECT>` with the project's actual name, and
    every `<NOTIFY_CHANNEL>` with how you want to be pinged (see below). If you copied the Telegram
-   bridge in step 4, also replace every `<BRIDGE_DIR>` in `CLAUDE.md` with the absolute path from
+   bridge in step 5, also replace every `<BRIDGE_DIR>` in `CLAUDE.md` with the absolute path from
    that step — `CLAUDE.md`'s Comms register section references the bridge's
    `notify.sh`/`react.sh`/`typing.sh`/`send-file.sh`/`relay-inbox.jsonl` by that placeholder. If
    you did NOT install the bridge, delete the "If the Telegram bridge ... is installed" subsection
@@ -176,10 +219,10 @@ install prompt above.
    instructions describe machinery you don't have. Then run `grep -rn
    '<PROJECT>\|<NOTIFY_CHANNEL>\|<BRIDGE_DIR>' CLAUDE.md` to confirm zero matches remain — don't
    leave placeholders in a file Claude Code loads every session. If you're seeding memory (step
-   7), the same `<PROJECT>` and `<BRIDGE_DIR>` substitutions — or, if you skipped the bridge, the
+   8), the same `<PROJECT>` and `<BRIDGE_DIR>` substitutions — or, if you skipped the bridge, the
    same subsection deletion — apply to `memory-seed/MEMORY.md`'s heading and Telegram bridge
-   bullet too; do that as part of step 7, once the file is at its real destination.
-6. Skim `PROCESS.md`'s "Knowledge base layout" section — it references `docs/concept/`,
+   bullet too; do that as part of step 8, once the file is at its real destination.
+7. Skim `PROCESS.md`'s "Knowledge base layout" section — it references `docs/concept/`,
    `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`, plus
    `.coordinator-scratch/` (gitignored, at the project root, not inside the `docs/` tree). These
    don't need to exist yet; the kickoff prompt's Bootstrap step creates them. (The section also
@@ -188,7 +231,7 @@ install prompt above.
    procedure worth checking in.) If your project has a strong opinion about the `docs/concept/`
    sub-structure already, adjust the note in `PROCESS.md` accordingly before the first session —
    it's meant to be edited, not treated as gospel.
-7. (Optional but recommended) Copy `memory-seed/*.md` into the new project's Claude Code memory
+8. (Optional but recommended) Copy `memory-seed/*.md` into the new project's Claude Code memory
    directory: `~/.claude/projects/<slug>/memory/`, where `<slug>` is the project's absolute path
    with every `/` replaced by `-` (e.g. `/Users/you/code/my-app` becomes
    `-Users-you-code-my-app`). If that directory doesn't exist yet, create it — it's populated lazily
@@ -201,14 +244,30 @@ install prompt above.
    line in `MEMORY.md` is written to be actionable on its own, not just a pointer — treat the
    linked per-topic files as reference detail you or an agent can open on demand, not as content
    you can assume is already in context. In the copied `MEMORY.md`, replace `<PROJECT>` in its
-   heading with the project's actual name. If you copied the Telegram bridge in step 4, also
+   heading with the project's actual name. If you copied the Telegram bridge in step 5, also
    replace every `<BRIDGE_DIR>` in its Telegram bridge bullet with the absolute path from that
    step; if you did NOT install the bridge, delete that bullet instead of leaving `<BRIDGE_DIR>`
    unresolved. Then run `grep -rn '<PROJECT>\|<BRIDGE_DIR>' ~/.claude/projects/<slug>/memory/` to
    confirm zero matches remain — don't leave placeholders in the file that auto-loads every
    session.
-8. Remove the scratch clone from step 1 once everything you need is copied out — including
-   `telegram-bridge/` from step 4, if you're installing it.
+9. Write the version stamp, before step 10 removes the scratch clone (the commit SHA only lives
+   there): get the short SHA with `git -C /tmp/coordinator-kit-install rev-parse --short HEAD`,
+   then create `docs/coordination/kit-version.md` with the real SHA, today's date, and the real
+   outcome of steps 5 and 8 (keep only the line that applies for the bridge and for memory seed,
+   drop the other):
+
+   ```
+   # Kit version
+
+   Installed from claude-coordinator-kit commit `<sha>` (`<YYYY-MM-DD>`).
+
+   - Telegram bridge: installed at `<BRIDGE_DIR>` | not installed
+   - Memory seed: installed at `~/.claude/projects/<slug>/memory/` | not installed
+
+   To update, follow the kit's `UPDATING.md` — do not re-run the install prompt.
+   ```
+10. Remove the scratch clone from step 1 once everything you need is copied out — including
+    `telegram-bridge/` from step 5, if you're installing it.
 
 ### What to customize
 
@@ -243,6 +302,15 @@ install prompt above.
   templates only, each documented inline in `telegram-bridge/SETUP.md` and in the template headers
   at the point you replace it.
 
+## Updating
+
+Re-running an install path above on a project that already has the kit is not the update path —
+it re-copies files wholesale instead of merging, and silently wipes the live
+`docs/coordination/STATE.md` in the process. Both install paths guard against this and point you
+at `UPDATING.md` instead once `docs/coordination/kit-version.md` exists. Fetch `UPDATING.md` from
+the kit's repo and follow it: it has the per-file update rules (what gets REPLACEd, what's NEVER
+TOUCHed, what gets MERGEd) and a paste-able update prompt of its own.
+
 ## Telegram bridge (optional)
 
 `telegram-bridge/` is a complete, ready-to-install reference implementation of `<NOTIFY_CHANNEL>`:
@@ -267,7 +335,7 @@ messages). All are off by default and documented in `telegram-bridge/SETUP.md` a
 ## Boot the first session
 
 **Only needed if you used Manual install above.** The guided install prompt already ends by
-reading `kickoff-prompt.md` and following it in the same session (its step 6) — if that's the path
+reading `kickoff-prompt.md` and following it in the same session (its step 8) — if that's the path
 you took, this already happened automatically and there's nothing to do here. This section exists
 for Manual-install founders, who still need to start a session and hand it `kickoff-prompt.md`
 themselves.
@@ -275,14 +343,14 @@ themselves.
 1. `cd` into the new project, start Claude Code.
 2. Paste the contents of `kickoff-prompt.md` as your first message.
 3. The coordinator checks whether `<NOTIFY_CHANNEL>` in `CLAUDE.md` is already resolved — this
-   branches on whether you actually did step 5's substitution above, not on having installed
+   branches on whether you actually did step 6's substitution above, not on having installed
    manually per se:
-   - **If you did step 5:** `<NOTIFY_CHANNEL>` (and `<BRIDGE_DIR>`, if you installed the bridge)
+   - **If you did step 6:** `<NOTIFY_CHANNEL>` (and `<BRIDGE_DIR>`, if you installed the bridge)
      is already a concrete value. The coordinator confirms it back to you in one line and moves on
      — it does not ask again. If you're using the bundled Telegram bridge, it still arms a Monitor
      on `<BRIDGE_DIR>/relay-inbox.jsonl` now regardless, since a fresh session's Monitor starts
      unarmed even though the placeholder was already resolved earlier.
-   - **If you skipped step 5** (or are handing this file to a session without having edited
+   - **If you skipped step 6** (or are handing this file to a session without having edited
      `CLAUDE.md` yourself): `<NOTIFY_CHANNEL>` is still the literal placeholder, so the coordinator
      asks you for it, updates `CLAUDE.md`, and — if you're using the bundled Telegram bridge —
      also asks for the bridge directory path, substitutes it for every `<BRIDGE_DIR>` in
