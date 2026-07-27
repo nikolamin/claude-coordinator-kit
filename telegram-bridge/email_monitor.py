@@ -73,6 +73,14 @@ STATE_FILE = SCRIPT_DIR / "email-monitor-state.json"
 EMAIL_INBOX_FILE = SCRIPT_DIR / "email-inbox.jsonl"
 
 PREVIEW_CHARS = 500
+# Generous enough that a slow-but-alive IMAP server is never killed mid-fetch,
+# short enough that a wedged socket is reaped long before the next poll cycle
+# comes around. Without a timeout, imaplib blocks forever on a connection the
+# server has silently dropped - and this monitor's whole failure mode is then
+# indistinguishable from "no new mail", since a hung poll logs nothing. Every
+# network call in fetch_unseen_messages() inherits this via the IMAP4_SSL
+# constructor.
+IMAP_TIMEOUT_SECONDS = 60
 UNTRUSTED_NOTE = "untrusted external email content"
 DEFAULT_IMAP_HOST = "imap.gmail.com"
 
@@ -421,7 +429,10 @@ def fetch_unseen_messages(config: dict):
     read state must stay untouched.
     """
     port = config.get("port")
-    conn = imaplib.IMAP4_SSL(config["host"], port) if port else imaplib.IMAP4_SSL(config["host"])
+    if port:
+        conn = imaplib.IMAP4_SSL(config["host"], port, timeout=IMAP_TIMEOUT_SECONDS)
+    else:
+        conn = imaplib.IMAP4_SSL(config["host"], timeout=IMAP_TIMEOUT_SECONDS)
     try:
         conn.login(config["user"], config["password"])
         status, _ = conn.select("INBOX", readonly=True)
@@ -554,6 +565,50 @@ def run_selftest() -> int:
         checks["parse_port_blank_is_none"] = _parse_port("") is None
         checks["parse_port_valid"] = _parse_port("993") == 993
         checks["parse_port_invalid_falls_back_to_none"] = _parse_port("not-a-port") is None
+
+        # --- IMAP socket timeout ---
+        # A missing/zero/non-finite timeout would silently restore the
+        # hang-forever failure mode this constant exists to prevent, so
+        # selftest asserts it's configured to a sane positive, finite value.
+        checks["imap_timeout_is_positive"] = IMAP_TIMEOUT_SECONDS > 0
+        checks["imap_timeout_is_finite_number"] = isinstance(IMAP_TIMEOUT_SECONDS, (int, float)) and not isinstance(IMAP_TIMEOUT_SECONDS, bool)
+
+        # The constant alone proves nothing if fetch_unseen_messages() never
+        # actually threads it through to imaplib.IMAP4_SSL - a mutation that
+        # strips the `timeout=` kwarg from that call would pass every check
+        # above while silently reintroducing the hang-forever failure mode.
+        # Monkeypatch imaplib.IMAP4_SSL to capture its call args (raising
+        # immediately, so nothing here ever touches the network) and assert
+        # the kwarg is present on BOTH branches: no configured IMAP_PORT, and
+        # an explicit one.
+        class _StubConnectAttempted(Exception):
+            pass
+
+        captured = {}
+
+        def _capturing_imap4_ssl(*args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            raise _StubConnectAttempted("selftest stub: no real connection attempted")
+
+        _real_imap4_ssl = imaplib.IMAP4_SSL
+        imaplib.IMAP4_SSL = _capturing_imap4_ssl
+        try:
+            captured.clear()
+            try:
+                fetch_unseen_messages({"host": "imap.example.com", "port": None, "user": "u", "password": "p"})
+            except _StubConnectAttempted:
+                pass
+            checks["imap_timeout_passed_without_port"] = captured.get("kwargs", {}).get("timeout") == IMAP_TIMEOUT_SECONDS
+
+            captured.clear()
+            try:
+                fetch_unseen_messages({"host": "imap.example.com", "port": 993, "user": "u", "password": "p"})
+            except _StubConnectAttempted:
+                pass
+            checks["imap_timeout_passed_with_port"] = captured.get("kwargs", {}).get("timeout") == IMAP_TIMEOUT_SECONDS
+        finally:
+            imaplib.IMAP4_SSL = _real_imap4_ssl
 
         # --- domain filter ---
         # domain-parsing helpers, no filesystem/network involved.

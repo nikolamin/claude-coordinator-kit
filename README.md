@@ -64,7 +64,12 @@ all later coordinator work; never stop to ask permission for a commit or push.
    `docs/coordination/STATE.md` back to an empty template, destroying the live phase, in-flight
    agent tracking, and durable decisions), and that I should use the kit's `UPDATING.md` instead.
    Do not continue to any step below — not the questions in step 3, not a partial file copy — once
-   either condition holds.
+   either condition holds. A missing `kit-version.md` is NOT by itself evidence that nothing is
+   installed — it only means this install predates the version stamp (older installs have none).
+   Always evaluate the `STATE.md`-content check too, regardless of what the `kit-version.md` check
+   found; that second check is what actually catches a pre-stamp existing install, and skipping it
+   after a missing `kit-version.md` would silently defeat the whole guard. `UPDATING.md` calls this
+   case a "pre-stamp install, version unknown" and has its own explicit handling for it.
 
 3. Ask me, ONE question at a time, waiting for my answer before the next:
    a. "What should `<PROJECT>` be?" — the name of this project/product. No options needed, just
@@ -196,7 +201,13 @@ install prompt above.
    section holds any entry beyond the one EXAMPLE entry. If either holds, stop: this project
    already has the kit installed, re-running this install is destructive (it would wipe
    `docs/coordination/STATE.md` back to an empty template, destroying live phase and in-flight
-   agent tracking), so use the kit's `UPDATING.md` instead of continuing with step 3 onward.
+   agent tracking), so use the kit's `UPDATING.md` instead of continuing with step 3 onward. A
+   missing `kit-version.md` is NOT by itself evidence that nothing is installed — it only means
+   this install predates the version stamp. Always evaluate the `STATE.md`-content check too,
+   regardless of what the `kit-version.md` check found; that second check is what actually catches
+   a pre-stamp existing install, and skipping it after a missing `kit-version.md` would silently
+   defeat the whole guard. `UPDATING.md` calls this case a "pre-stamp install, version unknown"
+   and has its own explicit handling for it.
 3. Copy `CLAUDE.md` to the new project's root directory.
 4. Create `docs/coordination/` in the new project; copy `PROCESS.md`, `STATE.md`, and
    `codex-setup.md` into it. `CLAUDE.md`'s Escalation section points at `codex-setup.md` at that
@@ -307,9 +318,13 @@ install prompt above.
 Re-running an install path above on a project that already has the kit is not the update path —
 it re-copies files wholesale instead of merging, and silently wipes the live
 `docs/coordination/STATE.md` in the process. Both install paths guard against this and point you
-at `UPDATING.md` instead once `docs/coordination/kit-version.md` exists. Fetch `UPDATING.md` from
-the kit's repo and follow it: it has the per-file update rules (what gets REPLACEd, what's NEVER
-TOUCHed, what gets MERGEd) and a paste-able update prompt of its own.
+at `UPDATING.md` instead — via either `docs/coordination/kit-version.md` existing, or (for an
+install made before that stamp existed) `docs/coordination/STATE.md` already holding real content;
+the guard does not depend on `kit-version.md` alone. Fetch `UPDATING.md` from the kit's repo and
+follow it: it has the per-file update rules (what gets REPLACEd, what's NEVER TOUCHed, what gets
+MERGEd — including a diff-before-overwrite check on every REPLACE-class file, since "kit-owned by
+design" doesn't guarantee a given install's copy was never hand-patched) and a paste-able update
+prompt of its own.
 
 ## Telegram bridge (optional)
 

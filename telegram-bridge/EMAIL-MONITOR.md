@@ -46,6 +46,14 @@ untrusted tool output.
 
 ## Setup
 
+### 0. Prerequisites
+
+Python **3.9 or newer**. `email_monitor.py` passes `timeout=` to `imaplib.IMAP4_SSL(...)` (added a
+socket timeout after a real two-day outage where a hung poll produced no error, indistinguishable
+from "no new mail") — that keyword argument only exists on `imaplib.IMAP4_SSL` from Python 3.9
+onward; on an older interpreter the script fails immediately with a `TypeError` on every poll.
+`python3 --version` to check.
+
 ### 1. Get IMAP credentials
 
 The default `IMAP_HOST` is `imap.gmail.com` (Gmail), used here purely as the documented example —
