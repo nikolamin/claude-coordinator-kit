@@ -1,6 +1,6 @@
 ---
 name: feedback-questions-one-by-one
-description: "Founder-facing questions (concept interview, plan gates, escalations, attention pings) must be asked one at a time, each with context + reasoning + 2-4 options and a recommendation — never a batched list."
+description: "Founder-facing questions (concept interview, plan gates, escalations, attention pings) must be asked one at a time, each with context + reasoning + 2-4 options and a recommendation + a safe default if unanswered — never a batched list."
 metadata:
   type: feedback
 ---
@@ -15,16 +15,17 @@ list), and the one decision that actually blocks progress gets buried among the 
 standing on its own. A single, well-framed question with real options gets a real answer; five
 questions in one message get a skim.
 
-**How to apply:** every question — in the main loop or over the notify channel — carries three
+**How to apply:** every question — in the main loop or over the notify channel — carries four
 parts: (1) one line of context, what this blocks or why it's being asked now; (2) the
 coordinator's own reasoning, briefly — what the agents found, what the actual trade-off is, not
 just "which do you want"; (3) 2-4 concrete options with a one-line trade-off each, plus a marked
-recommendation when one exists. Maintain a queue when more than one item needs an answer: send the
-top question, wait for the answer (or an explicit "park this" from the founder), then send the
-next — never advance to the next question before the current one resolves. In-session, prefer the
+recommendation when one exists; (4) the default action if no answer arrives — this must be safe,
+usually "do nothing yet." Maintain a queue when more than one item needs an answer: send the top
+question, wait for the answer (or an explicit "park this" from the founder), then send the next —
+never advance to the next question before the current one resolves. In-session, prefer the
 `AskUserQuestion` tool if the environment has one (it renders options natively; fold the reasoning
 into the question text). Over an out-of-band notify channel (Telegram, Slack, email), use the same
-three-part structure in plain text — the channel changes, the protocol doesn't.
+four-part structure in plain text — the channel changes, the protocol doesn't.
 
 This does not relax the "one ask per ping" rule in `CLAUDE.md`'s Comms register — that rule and
 this one are the same discipline applied at two altitudes (don't stack multiple asks in one

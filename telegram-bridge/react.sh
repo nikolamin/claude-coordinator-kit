@@ -1,9 +1,33 @@
 #!/usr/bin/env bash
 #
-# react.sh - Set the final 👍/👎 reaction on a relayed Telegram message.
+# react.sh - Set a reaction on a relayed Telegram message.
 #
 # Usage:
-#   ./react.sh [--chat <chat_id>] <message_id> <ok|fail>
+#   ./react.sh [--chat <chat_id>] <message_id> <result>
+#
+# <result> maps a friendly word to one of Telegram's curated allowed-emoji
+# reactions:
+#   ok, done, check, thumbup   -> 👍  (finished, all good) - UNCHANGED meaning
+#   fail, down, thumbdown, x   -> 👎  (failed / went wrong) - UNCHANGED meaning
+#   seen, working              -> 👀  (picked up, still working - matches
+#                                 bot.py's own initial "seen" reaction)
+#   thinking                   -> 🤔  (actively reasoning, not done yet)
+#   an ASCII word (letters      -> rejected locally, exit 1, before any
+#   only) not in the list          network call - almost certainly a typo
+#                                   of one of the words above, not an actual
+#                                   emoji, so failing fast with the known
+#                                   vocabulary is more useful than a round
+#                                   trip to Telegram for a 400.
+#   anything else (an actual    -> used AS-IS as a literal emoji, so a
+#   emoji, or any non-ASCII-       caller is never blocked from reacting
+#   word input)                    with any of Telegram's other allowed
+#                                   emoji just because it isn't one of the
+#                                   named words above (Telegram's own API
+#                                   still rejects an actually-invalid emoji
+#                                   with 400 REACTION_INVALID - see the note
+#                                   below).
+# `ok` and `fail` behave EXACTLY as they did before this word list grew -
+# the coordinator's `react.sh <message_id> ok|fail` calls are unaffected.
 #
 # Companion to relay mode (RELAY_MODE=1 in .env): bot.py 👀-reacts and
 # appends each incoming message to relay-inbox.jsonl; the live Claude Code
@@ -40,7 +64,9 @@ MESSAGE_ID="${1:-}"
 RESULT="${2:-}"
 
 if [[ -z "$MESSAGE_ID" || -z "$RESULT" ]]; then
-  echo "Error: usage: $(basename "$0") [--chat <chat_id>] <message_id> <ok|fail>" >&2
+  echo "Error: usage: $(basename "$0") [--chat <chat_id>] <message_id> <result>" >&2
+  echo "  <result>: ok|done|check|thumbup (👍), fail|down|thumbdown|x (👎)," >&2
+  echo "  seen|working (👀), thinking (🤔), or any other literal emoji." >&2
   exit 1
 fi
 
@@ -49,17 +75,39 @@ if ! [[ "$MESSAGE_ID" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
+# Telegram's setMessageReaction only accepts a fixed, curated set of emoji
+# for `type: emoji` reactions (see the Bot API docs' ReactionTypeEmoji
+# list). ✅ and ❌ are NOT in that set and are rejected with 400
+# REACTION_INVALID, even though the request shape is otherwise correct.
+# 👍/👎/👀/🤔 are all in the allowed set. `ok`/`fail` are UNCHANGED from
+# before this word list grew - do not repoint them at different emoji.
 case "$RESULT" in
-  # Telegram's setMessageReaction only accepts a fixed, curated set of emoji
-  # for `type: emoji` reactions (see the Bot API docs' ReactionTypeEmoji
-  # list). ✅ and ❌ are NOT in that set and are rejected with 400
-  # REACTION_INVALID, even though the request shape is otherwise correct.
-  # 👍/👎 are the closest allowed equivalents.
-  ok)   EMOJI="👍" ;;
-  fail) EMOJI="👎" ;;
+  ok|done|check|thumbup)   EMOJI="👍" ;;
+  fail|down|thumbdown|x)   EMOJI="👎" ;;
+  seen|working)            EMOJI="👀" ;;
+  thinking)                EMOJI="🤔" ;;
   *)
-    echo "Error: second argument must be 'ok' or 'fail', got: $RESULT" >&2
-    exit 1
+    # Not a recognized keyword. An ASCII-letters-only word (e.g. a typo like
+    # "dun" or "faill") is almost certainly meant to be one of the words
+    # above, not an actual emoji - Telegram's allowed reaction emoji are
+    # never plain ASCII letters, so failing locally here, before any
+    # network call, gives a clearer error than round-tripping to the API
+    # only to get 400 REACTION_INVALID back. Anything else (an actual
+    # emoji, or any other non-word input) is passed through as-is, so a
+    # caller is never blocked from using any of Telegram's other allowed
+    # reaction emoji just because it isn't one of the named words above -
+    # if it isn't actually a valid one, the API call below fails with 400
+    # REACTION_INVALID and that's reported the same way any other API error
+    # is, instead of this script pre-emptively guessing at a fixed
+    # allowlist of valid emoji.
+    if [[ "$RESULT" =~ ^[A-Za-z]+$ ]]; then
+      echo "Error: unrecognized reaction word: $RESULT" >&2
+      echo "  known words: ok|done|check|thumbup (👍), fail|down|thumbdown|x (👎)," >&2
+      echo "  seen|working (👀), thinking (🤔). Pass a literal emoji instead if" >&2
+      echo "  that's what you meant." >&2
+      exit 1
+    fi
+    EMOJI="$RESULT"
     ;;
 esac
 

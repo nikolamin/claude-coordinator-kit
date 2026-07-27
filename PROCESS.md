@@ -17,29 +17,40 @@ Role section): fixed layout, no judgment, one-time. If the skeleton already exis
 it — read `STATE.md`'s Current section and resume from there instead. Bootstrap also decides which
 path Phase 0.5/1 takes: if the repo contains real code beyond the fresh doc skeleton (source files,
 build config, non-trivial git history), it's an **existing** project — run Phase 0.5 before
-interviewing. A genuinely empty/new repo is **greenfield** — skip straight to Concept.
+interviewing. A genuinely empty/new repo is **greenfield** — skip straight to Concept. Either path,
+ask the founder one early question before the first build agent is ever dispatched: does a push to
+the project's main branch trigger a deploy? A greenfield repo has no Phase 0.5 to carry this, so
+ask it here, during Bootstrap, before Concept starts; an existing project asks it as part of Phase
+0.5 below. Record the answer as a durable decision in `docs/coordination/STATE.md` and state the
+resulting branching/worktree convention plainly at that point.
 
 **0.5. Repo analysis (existing projects only)** — Skipped entirely for greenfield projects. For an
 existing codebase, map what's already there *before* asking the founder anything, so the interview
-can build on the code instead of ignoring it. Per the Role section, the coordinator never explores
-the repo itself for this — it dispatches read-only analysis agents (`model: sonnet`; split by area
-and run in parallel if the repo is large) to map: languages/frameworks/toolchain, module/
-architecture layout, how to build/test/run it, CI/deploy setup, actual test-coverage state,
-existing docs, active areas and conventions visible from git history, and notable TODOs/known
-debt. Self-contained briefs per agent; each returns a structured summary. One further agent
-consolidates all of them into `docs/coordination/repo-map.md` (what exists, how it runs,
-conventions, risks/debt), which is committed as the baseline **before** the first interview
-question goes out. Existing project docs are linked from the knowledge base rather than
-recreated; an existing `CLAUDE.md` is merged (coordinator rules appended/linked in, project
-conventions kept), never blindly overwritten; existing conventions win over kit defaults unless
-the founder decides otherwise in the interview.
+can build on the code instead of ignoring it. Before that mapping starts, ask the founder the
+push-to-deploy question named in Phase 0 above (does a push to the main branch trigger a deploy?),
+record the answer as a durable decision in `docs/coordination/STATE.md`, and state the resulting
+branching/worktree convention plainly — this determines whether the worktree default in
+Cross-cutting rules applies as-is or inverted for this project. Per the Role section, the
+coordinator never explores the repo itself for this — it dispatches read-only analysis agents
+(`sonnet` — the build tier per `CLAUDE.md`'s Model routing section, which explicitly covers
+read-only analysis/research agents; split by area and run in parallel if the repo is large) to
+map: languages/frameworks/toolchain, module/architecture layout, how to build/test/run
+it, CI/deploy setup, actual test-coverage state, existing docs, active areas and conventions
+visible from git history, and notable TODOs/known debt. Self-contained briefs per agent; each
+returns a structured summary. One further agent consolidates all of them into
+`docs/coordination/repo-map.md` (what exists, how it runs, conventions, risks/debt), which is
+committed as the baseline **before** the first interview question goes out. Existing project docs
+are linked from the knowledge base rather than recreated; an existing `CLAUDE.md` is merged
+(coordinator rules appended/linked in, project conventions kept), never blindly overwritten;
+existing conventions win over kit defaults unless the founder decides otherwise in the interview.
+This phase is also where `CLAUDE.md`'s Guardrails section gets filled in for an existing codebase
+(see `CLAUDE.md`).
 
 **1. Concept** — Interview the user in the main loop (agents cannot talk to the user), in themed
 rounds covering: product vision & goals, user stories/personas, core mechanism/engine, UI/UX,
 any public-facing presentation surface, go-to-market/marketing, business model. Within each round,
-individual questions are delivered **one at a time**, per `CLAUDE.md`'s Question protocol (context
-for why it's being asked, brief reasoning, 2-4 options with trade-offs and a marked recommendation
-where one exists) — never a batched list within a round either. On an existing project, questions
+individual questions are delivered **one at a time**, in full per `CLAUDE.md`'s Question protocol —
+never a batched list within a round either. On an existing project, questions
 are tailored by `docs/coordination/repo-map.md` from Phase 0.5: ask only what the code can't
 answer, and reference the relevant finding directly (e.g. "the repo already does X this way — keep,
 extend, or replace?") instead of asking from a blank slate. The coordinator's role here is
@@ -53,8 +64,10 @@ escalated to the user.
 
 **3. Plan** — Agent produces a milestone plan; each task sized for a single agent run with
 acceptance criteria + a named verification step. Architecture/cost/effort decisions with lasting
-consequences are surfaced as ADRs in `docs/decisions/` before they're baked into the plan.
-**GATE: user approves plan before Execute begins.**
+consequences are surfaced as ADRs in `docs/decisions/` before they're baked into the plan. This
+phase is also when `CLAUDE.md`'s Guardrails section gets filled in for a greenfield project (an
+existing codebase already got this at Phase 0.5 — see `CLAUDE.md`). **GATE: user approves plan
+before Execute begins.**
 
 Minimum fields per task entry in `docs/plan.md` (a checklist item is enough, no rigid schema
 required): id, one-line description, depends-on (other task ids, or none), acceptance criteria,
@@ -77,28 +90,50 @@ itself. Conclusions written to `docs/validation/`.
 objectives. User approves deltas; the loop resumes at the affected phase — not always from the
 top. A validation finding might only require redoing Plan for one milestone, not a full re-concept.
 
+**Beyond Iterate — continuous operation.** A project may keep running past Phase 6 into ongoing
+operation once no single active plan bounds its scope anymore. That's not a seventh phase: the
+phase loop simply stops advancing, Intake (below) becomes the primary way work enters
+`docs/plan.md`, and the coordinator's Execute loop, verification standard, and reporting cadence
+continue unchanged — unless the founder has recorded a suspension of autonomous dispatch, a
+durable decision per `CLAUDE.md`, tracked in `STATE.md`'s Durable decisions section.
+
 ## Cross-cutting rules
 
 - `docs/coordination/STATE.md` is updated after every agent action that changes state (build
   lands, verify passes/fails, decision made). Read it first when resuming a session — it is the
   fastest way to reconstruct where things stand.
+- **Intake**: `docs/plan.md` isn't the only door work enters through. The project names its own
+  signal sources (a monitor alert, a support inbox, a mid-session founder message — whatever this
+  project actually has) during Concept/Objectives and records them in `docs/coordination/STATE.md`.
+  A new signal becomes either a new `docs/plan.md` task or a note on existing work in `STATE.md` —
+  never a side list only the coordinator remembers (`CLAUDE.md`'s Backlog discipline, applied at
+  the point work arrives rather than after it's already a task). Execute (Phase 4) pulls from
+  `docs/plan.md` the same way regardless of which phase or signal produced an entry: a bug report
+  that turns into a fix is dispatched exactly like a Plan-phase milestone.
 - Every agent prompt is self-contained; agents do not share the coordinator's conversation or
   memory.
-- Agents run via the native `Agent` tool. A CLI-based headless invocation (if your environment has
-  one) is reserved for jobs that must outlive the coordinator's own session.
+- Agents run via the native `Agent` tool. For anything that needs to keep listening across a
+  session — a relay inbox, a long-running watch — the primary pattern is an in-session
+  Monitor-hosted poller (see `CLAUDE.md`'s Watchdogs and Comms register sections for concrete
+  examples), so its output lands back in this same context instead of off to the side. A
+  CLI-based headless/detached invocation (if your environment has one) is the narrower case,
+  reserved for jobs that must genuinely outlive the coordinator's own session.
 - Orchestration: dispatch unblocked tasks that touch disjoint files/resources in parallel by
   default (see `CLAUDE.md`'s Execute loop) — sidestep merge conflicts with **git worktrees**, the
-  proven isolation mechanism for concurrent same-repo work: each parallel build agent works in its
-  own worktree, not the shared working tree. Many harnesses support this natively (e.g. a
-  worktree-isolation flag on agent dispatch) — use it when available rather than hand-rolling
-  worktree management. Fall back to sequential dispatch when tasks share files/resources or a
-  dependency forces an order. Either way, only one task's outcome may be written to
-  `STATE.md`/`plan.md` at a time (queue the edits, don't let two agents' results race on the same
-  file). Worktrees isolate the file tree only — a shared external service (a test database, a
-  fixed listen port, a shared schema) is a separate collision class that survives worktree
-  isolation untouched; treat tasks that would share one of those as not actually disjoint (give
-  each agent a private instance, or fall back to sequential dispatch for them — see `CLAUDE.md`'s
-  Execute loop).
+  default isolation mechanism for concurrent same-repo work (each parallel build agent works in
+  its own worktree, not the shared working tree). This is a default, not a universal: a
+  trunk-based / continuous-deploy project may need the opposite convention entirely, per the
+  push-to-deploy question in Phase 0/0.5 above and the branching convention recorded from it in
+  `STATE.md` — don't assume the default applies. Many harnesses support worktree isolation
+  natively (e.g. a worktree-isolation flag on agent dispatch) — use it when available rather than
+  hand-rolling worktree management. Fall back to sequential dispatch when tasks share
+  files/resources or a dependency forces an order. Either way, only one task's outcome may be
+  written to `STATE.md`/`plan.md` at a time (queue the edits, don't let two agents' results race
+  on the same file). Worktrees isolate the file tree only — a shared external service (a test
+  database, a fixed listen port, a shared schema) is a separate collision class that survives
+  worktree isolation untouched; treat tasks that would share one of those as not actually disjoint
+  (give each agent a private instance, or fall back to sequential dispatch for them — see
+  `CLAUDE.md`'s Execute loop).
 - Any task that ends in a commit, in a shared (non-worktree) checkout, follows the shared-checkout
   git hygiene in `CLAUDE.md`'s Execute loop step 5 — check `git status` before committing and
   commit only the intended paths, check what's actually ahead of origin before pushing, and never
@@ -112,17 +147,33 @@ top. A validation finding might only require redoing Plan for one milestone, not
 ## Knowledge base layout
 
 ```
-docs/coordination/STATE.md    # current phase, activity, why, next, agent log, decision log
-docs/coordination/PROCESS.md  # this file
-docs/coordination/repo-map.md # existing-project baseline from Phase 0.5 (existing projects only)
-docs/concept/                 # user stories, engine/mechanism, UI/UX, presentation, marketing, goals
-docs/objectives.md            # objectives + validation methods
-docs/plan.md                  # milestones, tasks, acceptance criteria
-docs/decisions/                # ADRs for architecture/cost/effort choices with lasting consequences
-docs/validation/               # validation reports, analytics conclusions
+docs/coordination/STATE.md        # current phase, activity, why, next, agent log, decision log
+docs/coordination/PROCESS.md      # this file
+docs/coordination/repo-map.md     # existing-project baseline from Phase 0.5 (existing projects only)
+docs/coordination/codex-setup.md  # codex exec setup/invocation for CLAUDE.md's Escalation 2nd opinion
+docs/coordination/state-archive/YYYY-MM.md  # STATE.md rollover target once Current/Agent log exceed the size budget
+docs/concept/                     # user stories, engine/mechanism, UI/UX, presentation, marketing, goals
+docs/objectives.md                # objectives + validation methods
+docs/plan.md                      # milestones, tasks, acceptance criteria
+docs/decisions/                   # ADRs for architecture/cost/effort choices with lasting consequences
+docs/validation/                  # validation reports, analytics conclusions
+docs/playbooks/                   # optional: recurring scheduled procedures (see note below)
 ```
+
+`STATE.md`, `PROCESS.md`, and `codex-setup.md` land in `docs/coordination/` by being copied from
+the kit at install time (see `README.md`'s install steps) — Bootstrap confirms they're present and
+initializes `STATE.md`'s live content, it does not create these three from an empty template.
+Everything else in this layout, from `repo-map.md` onward, is created empty (or populated) by
+whichever phase first needs it.
 
 Adapt the `docs/concept/` sub-structure to what the project actually needs (not every project has
 a "presentation website" or "marketing strategy" concern) — the layout is a starting skeleton, not
 a rigid schema. Keep the top-level six (`coordination/`, `concept/`, `objectives.md`, `plan.md`,
 `decisions/`, `validation/`) stable so tooling and habits transfer across projects.
+
+`docs/playbooks/` is optional, not part of that stable six: create it only when a project actually
+has a recurring scheduled procedure worth checking in — a prompt a scheduled task executes,
+distinct from an instruction file like `CLAUDE.md` that's loaded every session. The kit's optional
+Telegram bridge already ships a significance-gated activity digest, so a playbook isn't the only
+way to get a recurring report out of a project — reach for this directory only when that isn't
+enough.

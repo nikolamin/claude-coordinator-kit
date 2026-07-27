@@ -3,6 +3,13 @@
 > Maintained by the coordinator. Updated after every agent run that changes state. Read this first
 > when resuming a session.
 > Process definition: [PROCESS.md](PROCESS.md)
+>
+> **Size budget (read-first only works if this file stays readable):** keep **Current** to
+> roughly 40 lines of live content and **Agent log** to the most recent ~15 entries at ~10-15
+> lines each — the EXAMPLE entry below is sized to that guide, not just its content. Once either
+> grows past that, move the older material into `docs/coordination/state-archive/YYYY-MM.md`
+> (create it for the month being archived) and leave a one-line pointer in its place. Archive,
+> don't delete — trim on every update, not only once it's already unreadable.
 
 ## Current
 
@@ -23,7 +30,12 @@ resumed session to audit it and tell "still running" from "silently lost" instea
 
 A resumed session re-dispatches (per CLAUDE.md's autonomy-on-recovery rule) anything still listed
 here that the previous session never closed out — don't ask the founder first, that's routine
-recovery mechanics, not a decision.
+recovery mechanics, not a decision. Exception: if Durable decisions below records a suspension of
+autonomous dispatch still in force, do NOT re-dispatch — report each item's status to the founder
+instead and wait for them to explicitly lift the suspension.
+
+Hard cap: ~40 lines of live content (see the size budget in the header above). If it's longer,
+you're keeping history here instead of moving it into Agent log below — trim it.
 -->
 
 - Phase: Bootstrap. No tasks dispatched yet.
@@ -49,6 +61,28 @@ agent or coordinator turn — naming, architecture choices, scope cuts, anything
 docs/decisions/ formalized. Also the record of user-approval gates (concept approved, plan
 approved, go-live approved) — those are decisions too. One line each, dated, with a pointer to
 the ADR if one exists.
+
+Two categories always land here once they exist, each labelled so a resumed session finds them
+without scanning:
+- **Branching convention** — the push-to-main-triggers-deploy answer from PROCESS.md's Phase
+  0/0.5 question, and the resulting branching/worktree convention. Record before the first build
+  agent is ever dispatched.
+- **Autonomous dispatch suspended** — a founder-recorded suspension of autonomous dispatch (see
+  CLAUDE.md). Quote the founder's instruction verbatim, dated. Only an explicit founder
+  instruction lifting it removes this entry — a coordinator or agent never lifts it unilaterally.
+-->
+
+- (none yet)
+
+## Intake signal sources
+
+<!--
+Named during Concept/Objectives, per PROCESS.md's Intake rule: where new work can come from
+besides docs/plan.md tasks and Iterate's deltas — a monitor alert, a support inbox, a mid-session
+founder message, whatever this project actually has. One line each: source name + where/how it's
+checked. Not a gate — a signal from a source not listed here still becomes a plan.md task or a
+STATE.md note the same way (CLAUDE.md's Backlog discipline); this list just records what the
+project has agreed to watch.
 -->
 
 - (none yet)
@@ -71,20 +105,27 @@ verifier found (PASS on first pass is rare and worth noting when true — more o
 finds something, gets fixed, and re-verifies), and any caveat that was disclosed rather than
 silently fixed or silently hidden. This is the audit trail — write it so a future session trusts
 it without re-deriving the work.
+
+Size budget (see the header): keep only the most recent ~15 entries live, ~10-15 lines each — the
+EXAMPLE entry below is that length, use it as the length reference too, not just the content one.
+When a new entry would push past ~15, move the oldest into
+`docs/coordination/state-archive/YYYY-MM.md` (named for the month being archived) and replace them
+with one line here, e.g. "Older entries: see docs/coordination/state-archive/YYYY-MM.md through
+YYYY-MM.md."
 -->
 
 <!-- Delete the EXAMPLE entry below once your first real task closes — it's illustrative only,
      not a live record. Leaving it in place risks a future session mistaking it for real state. -->
 - **EXAMPLE — TASK-07 (user auth: email+password login) built + verified PASS, 2024-01-15.**
   Build (`a1b2c3d`): login form, session cookie issuance, rate-limited attempt counter, 14 new
-  unit tests + 3 integration tests, all green. Independent verify (`opus`) found a real gap:
-  the rate limiter counted attempts per-IP only, so a distributed brute force was untouched, and
-  the "remember me" cookie had no expiry set (effectively permanent). Fix (`d4e5f6a`): added
-  per-account attempt counting alongside per-IP, 30-day expiry on the remember-me cookie. Re-verify
-  **PASS**: both gaps closed, live click-through in a real browser confirmed login/logout/lockout-
-  and-unlock all behave correctly. Disclosed caveat (not fixed, intentionally deferred): password
-  reset flow is out of scope for this task, tracked as TASK-11 in `docs/plan.md`. **Still open:**
-  none for this task.
+  unit tests + 3 integration tests, all green. Independent verify (verifier tier, per CLAUDE.md's
+  Model routing) found a real gap: the rate limiter counted attempts per-IP only, so a distributed
+  brute force was untouched, and the "remember me" cookie had no expiry set (effectively
+  permanent). Fix (`d4e5f6a`): added per-account attempt counting alongside per-IP, 30-day expiry
+  on the remember-me cookie. Re-verify **PASS**: both gaps closed, live click-through in a real
+  browser confirmed login/logout/lockout-and-unlock all behave correctly. Disclosed caveat (not
+  fixed, intentionally deferred): password reset flow is out of scope for this task, tracked as
+  TASK-11 in `docs/plan.md`. **Still open:** none for this task.
 
 ## Open items
 

@@ -19,13 +19,13 @@ to actually stay in the coordinator role instead of drifting into doing work its
 
 | File | Purpose |
 |---|---|
-| `CLAUDE.md` | The core deliverable — drop into the new project's root. Defines the coordinator role, model routing, execute loop, watchdogs/stall-recovery, verification standard, escalation, question protocol, comms register, backlog discipline, security boundaries. Loaded every session automatically by Claude Code. |
+| `CLAUDE.md` | The core deliverable — drop into the new project's root. Defines the coordinator role, model routing, execute loop, watchdogs/stall-recovery, verification standard, escalation, question protocol, comms register, backlog discipline, credential handling, and a Guardrails section the coordinator fills in with project-specific hard limits at Plan time. Loaded every session automatically by Claude Code. |
 | `PROCESS.md` | The full phase loop (bootstrap → concept → objectives → plan → execute → validate → iterate) and the knowledge-base doc layout. Lives under `docs/coordination/`. |
-| `STATE.md` | Empty state-tracking template with section guidance, in-flight-agent/watchdog tracking fields, and one fictional example entry. Lives under `docs/coordination/`; the coordinator edits this constantly. |
+| `STATE.md` | Empty state-tracking template with section guidance, in-flight-agent/watchdog tracking fields, a size budget with an archive path (`docs/coordination/state-archive/`) for trimming old entries, and one fictional example entry. Lives under `docs/coordination/`; the coordinator edits this constantly. |
 | `kickoff-prompt.md` | The first message to paste into a fresh session to boot the coordinator and run Bootstrap + start the Concept interview. Not installed into the project — just paste its contents into chat. |
 | `memory-seed/` | Optional. Generalized versions of the behavioral corrections that make the coordinator role stick across sessions (see below). |
 | `telegram-bridge/` | Optional. A complete, ready-to-install reference implementation of `<NOTIFY_CHANNEL>` over Telegram — see below. |
-| `codex-setup.md` | Optional. Install/invocation guide for the GPT second-opinion (`codex exec`) that `CLAUDE.md`'s Escalation section triggers on judgment-heavy work. |
+| `codex-setup.md` | Optional. Install/invocation guide for the GPT second-opinion (`codex exec`) that `CLAUDE.md`'s Escalation section triggers on judgment-heavy work. Installed to `docs/coordination/codex-setup.md` alongside `PROCESS.md`/`STATE.md` — `CLAUDE.md` points at it there. |
 
 ## Install into a new project
 
@@ -79,7 +79,9 @@ all later coordinator work; never stop to ask permission for a commit or push.
      existing project convention already documented there. Read both fully before merging. Never
      link to the scratch clone (/tmp/coordinator-kit is deleted in step 7); linking to the GitHub
      repo as a reference is fine, but the rules themselves must be in the file.
-   - `PROCESS.md` and `STATE.md` → `docs/coordination/` (create the directory).
+   - `PROCESS.md`, `STATE.md`, and `codex-setup.md` → `docs/coordination/` (create the directory).
+     `CLAUDE.md`'s Escalation section points at `codex-setup.md` there — it must land in this
+     directory or that pointer is dead on every fresh install.
    - `memory-seed/*` → only if I said yes in 2d. Copy the files into
      `~/.claude/projects/<slug>/memory/`, where `<slug>` is this project's absolute path with
      every `/` replaced by `-` (e.g. `/Users/me/code/my-app` → `-Users-me-code-my-app`). Create
@@ -103,12 +105,25 @@ all later coordinator work; never stop to ask permission for a commit or push.
      If I instead chose a different mechanism in step 2b that needs a credential (e.g. a Slack
      webhook URL), apply the same pattern: ask for it in chat, write it into a gitignored config
      location yourself, never ask me to hand-edit a file.
+     If I did NOT choose the Telegram bridge in step 2b, skip this bullet entirely — and in step 4,
+     delete rather than substitute the placeholder that would otherwise reference it.
 
 4. Substitute every placeholder in the files you just installed: replace all `<PROJECT>` with my
-   answer from 2a, and all `<NOTIFY_CHANNEL>` with the concrete invocation resulting from step 3
-   (e.g. the installed notify.sh's absolute path — not the literal channel name from 2b). Then run
-   `grep -rn '<PROJECT>\|<NOTIFY_CHANNEL>' CLAUDE.md docs/coordination/ 2>/dev/null` (and the
-   memory-seed destination if you copied it) to confirm zero matches remain. Fix any you find.
+   answer from 2a (including `memory-seed/MEMORY.md`'s heading, if you copied it in step 3), all
+   `<NOTIFY_CHANNEL>` with the concrete invocation resulting from step 3 (e.g. the installed
+   notify.sh's absolute path — not the literal channel name from 2b), and, if I chose the Telegram
+   bridge in 2b, all `<BRIDGE_DIR>` in both `CLAUDE.md` and (if copied) `memory-seed/MEMORY.md`
+   with the absolute path you placed `telegram-bridge/` at in step 3 — both files reference the
+   bridge's `notify.sh`/`react.sh`/`typing.sh`/`send-file.sh`/`relay-inbox.jsonl` by that
+   placeholder, and it needs a real path just like `<NOTIFY_CHANNEL>` does. If I did NOT choose the
+   Telegram bridge, don't leave `<BRIDGE_DIR>` dangling — delete the whole "If the Telegram
+   bridge ... is installed" subsection near the end of `CLAUDE.md`'s Comms register, and, if you
+   copied memory-seed, the Telegram bridge bullet near the end of `memory-seed/MEMORY.md`, instead,
+   since their instructions describe machinery I don't have.
+   Then run `grep -rn '<PROJECT>\|<NOTIFY_CHANNEL>\|<BRIDGE_DIR>' CLAUDE.md docs/coordination/`
+   (and the memory-seed destination if you copied it) to confirm zero matches remain — don't
+   suppress stderr on this check (no `2>/dev/null`): a real error, like a bad path, must surface
+   as one instead of being swallowed into a false "zero matches" pass. Fix any you find.
 
 5. If I said yes to Chrome browser usage in step 2c, exercise it now: open
    `https://github.com/nikolamin/claude-coordinator-kit` with the Chrome browser tool and confirm
@@ -142,17 +157,37 @@ install prompt above.
 1. Clone the repo somewhere scratch, e.g. `git clone https://github.com/nikolamin/claude-coordinator-kit
    /tmp/coordinator-kit-install`.
 2. Copy `CLAUDE.md` to the new project's root directory.
-3. Create `docs/coordination/` in the new project; copy `PROCESS.md` and `STATE.md` into it.
-4. Open the copied `CLAUDE.md` and replace every `<PROJECT>` with the project's actual name, and
-   every `<NOTIFY_CHANNEL>` with how you want to be pinged (see below). Search for both tokens —
-   don't leave placeholders in a file Claude Code loads every session. If you're seeding memory
-   (step 6), replace `<PROJECT>` in `memory-seed/MEMORY.md`'s heading too.
-5. Skim `PROCESS.md`'s "Knowledge base layout" section — it references `docs/concept/`,
-   `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`. These don't need
-   to exist yet; the kickoff prompt's Bootstrap step creates them. If your project has a strong
-   opinion about the `docs/concept/` sub-structure already, adjust the note in `PROCESS.md`
-   accordingly before the first session — it's meant to be edited, not treated as gospel.
-6. (Optional but recommended) Copy `memory-seed/*.md` into the new project's Claude Code memory
+3. Create `docs/coordination/` in the new project; copy `PROCESS.md`, `STATE.md`, and
+   `codex-setup.md` into it. `CLAUDE.md`'s Escalation section points at `codex-setup.md` at that
+   path — skip this and the pointer resolves to nothing.
+4. (Optional) If you want the Telegram bridge, copy the whole `telegram-bridge/` directory out of
+   the scratch clone now, to wherever you want it installed — it's a machine-level service, not
+   per-project, so it doesn't have to live inside this project (see "Telegram bridge" below). Do
+   this before step 8 removes the clone, or you'll have nothing left to copy. Note the absolute
+   path you chose; you need it in step 5 and, if you seed memory, step 7 too, plus throughout
+   `telegram-bridge/SETUP.md`.
+5. Open the copied `CLAUDE.md` and replace every `<PROJECT>` with the project's actual name, and
+   every `<NOTIFY_CHANNEL>` with how you want to be pinged (see below). If you copied the Telegram
+   bridge in step 4, also replace every `<BRIDGE_DIR>` in `CLAUDE.md` with the absolute path from
+   that step — `CLAUDE.md`'s Comms register section references the bridge's
+   `notify.sh`/`react.sh`/`typing.sh`/`send-file.sh`/`relay-inbox.jsonl` by that placeholder. If
+   you did NOT install the bridge, delete the "If the Telegram bridge ... is installed" subsection
+   near the end of the Comms register instead of leaving `<BRIDGE_DIR>` unresolved — its
+   instructions describe machinery you don't have. Then run `grep -rn
+   '<PROJECT>\|<NOTIFY_CHANNEL>\|<BRIDGE_DIR>' CLAUDE.md` to confirm zero matches remain — don't
+   leave placeholders in a file Claude Code loads every session. If you're seeding memory (step
+   7), the same `<PROJECT>` and `<BRIDGE_DIR>` substitutions — or, if you skipped the bridge, the
+   same subsection deletion — apply to `memory-seed/MEMORY.md`'s heading and Telegram bridge
+   bullet too; do that as part of step 7, once the file is at its real destination.
+6. Skim `PROCESS.md`'s "Knowledge base layout" section — it references `docs/concept/`,
+   `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`. These don't need to
+   exist yet; the kickoff prompt's Bootstrap step creates them. (The section also documents
+   `docs/playbooks/`, but that one is intentionally *not* part of the Bootstrap skeleton — it's
+   created later, only once the project actually has a recurring scheduled procedure worth
+   checking in.) If your project has a strong opinion about the `docs/concept/` sub-structure
+   already, adjust the note in `PROCESS.md` accordingly before the first session — it's meant to be
+   edited, not treated as gospel.
+7. (Optional but recommended) Copy `memory-seed/*.md` into the new project's Claude Code memory
    directory: `~/.claude/projects/<slug>/memory/`, where `<slug>` is the project's absolute path
    with every `/` replaced by `-` (e.g. `/Users/you/code/my-app` becomes
    `-Users-you-code-my-app`). If that directory doesn't exist yet, create it — it's populated lazily
@@ -164,8 +199,15 @@ install prompt above.
    to auto-load into a fresh session's context the way project instructions do. That's why each
    line in `MEMORY.md` is written to be actionable on its own, not just a pointer — treat the
    linked per-topic files as reference detail you or an agent can open on demand, not as content
-   you can assume is already in context.
-7. Remove the scratch clone from step 1 once everything you need is copied out.
+   you can assume is already in context. In the copied `MEMORY.md`, replace `<PROJECT>` in its
+   heading with the project's actual name. If you copied the Telegram bridge in step 4, also
+   replace every `<BRIDGE_DIR>` in its Telegram bridge bullet with the absolute path from that
+   step; if you did NOT install the bridge, delete that bullet instead of leaving `<BRIDGE_DIR>`
+   unresolved. Then run `grep -rn '<PROJECT>\|<BRIDGE_DIR>' ~/.claude/projects/<slug>/memory/` to
+   confirm zero matches remain — don't leave placeholders in the file that auto-loads every
+   session.
+8. Remove the scratch clone from step 1 once everything you need is copied out — including
+   `telegram-bridge/` from step 4, if you're installing it.
 
 ### What to customize
 
@@ -182,22 +224,32 @@ install prompt above.
 - **Deploy targets / infra specifics** — this kit deliberately has none baked in. `STATE.md`'s
   "Infrastructure" section is where the coordinator records deploy URLs, server access patterns,
   and CI/deploy pipeline state once your project has them. Nothing to customize up front.
-- **Model tier names** — `CLAUDE.md` assumes the Agent tool's model parameter accepts something
-  like `sonnet`/`opus`/`haiku`/a top-tier advice model. If your environment's Agent tool uses
-  different tier names, update the Model routing section accordingly.
-- **Telegram bridge placeholders** — only relevant if you install the optional `telegram-bridge/`.
-  `<BRIDGE_DIR>`, `<PYTHON3_PATH>`, `<EXTRA_PATH_DIRS>`, and the launchd `Label` / systemd unit
-  name are filled in during bridge install, not here — each is documented inline in
-  `telegram-bridge/SETUP.md` and in the service/plist template headers at the point you replace it.
-  Nothing in `CLAUDE.md` needs changing for these.
+- **Model tier names** — `CLAUDE.md` assumes the Agent tool's model parameter accepts
+  `sonnet`/`opus`/`haiku`/`fable` (its build, verifier, cheapest-mechanical, and escalation-advice
+  tiers respectively). If your environment's Agent tool uses different tier names, update the
+  Model routing section accordingly.
+- **`<BRIDGE_DIR>`** — only relevant if you install the optional `telegram-bridge/`, but unlike
+  the placeholders below, this one *does* require edits beyond copying files as-is: it appears in
+  `CLAUDE.md`'s Comms register section (`notify.sh`/`react.sh`/`typing.sh`/`send-file.sh`/
+  `relay-inbox.jsonl` paths) and, if you seeded `memory-seed/`, in `memory-seed/MEMORY.md`'s
+  Telegram bridge bullet too — both need the directory's absolute install path the same way
+  `<PROJECT>` and `<NOTIFY_CHANNEL>` do (see the install steps above). If you don't install the
+  bridge, delete `CLAUDE.md`'s Telegram subsection and, if you seeded memory, `MEMORY.md`'s
+  Telegram bridge bullet, instead of leaving the placeholder unresolved.
+- **`<PYTHON3_PATH>`, `<EXTRA_PATH_DIRS>`, launchd `Label` / systemd unit name** — also only
+  relevant if you install the optional `telegram-bridge/`, and unlike `<BRIDGE_DIR>` these never
+  appear in `CLAUDE.md` — they're filled in during bridge install, inside the service/plist
+  templates only, each documented inline in `telegram-bridge/SETUP.md` and in the template headers
+  at the point you replace it.
 
 ## Telegram bridge (optional)
 
 `telegram-bridge/` is a complete, ready-to-install reference implementation of `<NOTIFY_CHANNEL>`:
 a phone-reachable Telegram bot that relays messages into a live coordinator session mid-conversation
-(not a disconnected headless call), plus a `notify.sh`/`react.sh` pair the coordinator uses to
-reply and acknowledge, and file delivery via the Bot API. It's a machine-level service — install it
-once and reuse it across every project's coordinator, or run a second bot for channel separation.
+(not a disconnected headless call), plus `notify.sh`/`react.sh`/`send-file.sh`/`typing.sh` helpers
+the coordinator uses to reply, acknowledge, deliver files, and show a live typing indicator. It's a
+machine-level service — install it once and reuse it across every project's coordinator, or run a
+second bot for channel separation.
 See `telegram-bridge/SETUP.md` for the full walkthrough (bot creation, `.env`, launchd/systemd
 install, the relay-mode architecture, and the reaction-emoji/file-delivery gotchas). If you're not
 using Telegram, ignore this directory entirely — nothing else in the kit depends on it.
@@ -213,27 +265,44 @@ messages). All are off by default and documented in `telegram-bridge/SETUP.md` a
 
 ## Boot the first session
 
+**Only needed if you used Manual install above.** The guided install prompt already ends by
+reading `kickoff-prompt.md` and following it in the same session (its step 6) — if that's the path
+you took, this already happened automatically and there's nothing to do here. This section exists
+for Manual-install founders, who still need to start a session and hand it `kickoff-prompt.md`
+themselves.
+
 1. `cd` into the new project, start Claude Code.
 2. Paste the contents of `kickoff-prompt.md` as your first message.
-3. The coordinator resolves `<NOTIFY_CHANNEL>` (asks you, updates `CLAUDE.md`; if you're using the
-   bundled Telegram bridge it also asks for the bridge directory path and arms a monitor on its
-   relay inbox immediately), then runs Bootstrap: reads `CLAUDE.md` + `PROCESS.md`, creates the doc
-   skeleton, commits it, tells you it's done.
+3. The coordinator checks whether `<NOTIFY_CHANNEL>` in `CLAUDE.md` is already resolved — this
+   branches on whether you actually did step 5's substitution above, not on having installed
+   manually per se:
+   - **If you did step 5:** `<NOTIFY_CHANNEL>` (and `<BRIDGE_DIR>`, if you installed the bridge)
+     is already a concrete value. The coordinator confirms it back to you in one line and moves on
+     — it does not ask again. If you're using the bundled Telegram bridge, it still arms a Monitor
+     on `<BRIDGE_DIR>/relay-inbox.jsonl` now regardless, since a fresh session's Monitor starts
+     unarmed even though the placeholder was already resolved earlier.
+   - **If you skipped step 5** (or are handing this file to a session without having edited
+     `CLAUDE.md` yourself): `<NOTIFY_CHANNEL>` is still the literal placeholder, so the coordinator
+     asks you for it, updates `CLAUDE.md`, and — if you're using the bundled Telegram bridge —
+     also asks for the bridge directory path, substitutes it for every `<BRIDGE_DIR>` in
+     `CLAUDE.md`, and arms the same Monitor.
+
+   Either way, it then runs Bootstrap: reads `CLAUDE.md` + `PROCESS.md`, creates the doc skeleton,
+   commits it, tells you it's done.
 4. **Greenfield vs. existing project:** if the repo already has real code (not just the fresh doc
    skeleton) or meaningful git history, the coordinator dispatches read-only repo-analysis agents
    before interviewing you, and commits the findings to `docs/coordination/repo-map.md` — see
    PROCESS.md's Phase 0.5. A genuinely empty/new repo skips straight to the interview.
 5. The coordinator goes into the Concept interview: themed rounds, but **one question at a time**
-   within each round — context, its own reasoning, 2-4 options with a marked recommendation, per
-   `CLAUDE.md`'s Question protocol. On an existing project, questions reference `repo-map.md`
-   findings instead of asking from a blank slate. It should never dump a giant questionnaire on
-   you.
+   within each round, following `CLAUDE.md`'s Question protocol in full (context, reasoning,
+   options with a recommendation, and a safe default if you don't answer). On an existing project,
+   questions reference `repo-map.md` findings instead of asking from a blank slate. It should never
+   dump a giant questionnaire on you.
 6. Answer the concept questions across as many turns/sessions as needed. A dispatched agent
    synthesizes each round's answers into `docs/concept/` docs (the coordinator itself never does
-   this), then the coordinator asks you to approve before moving
-   to Objectives. From there it's Objectives → Plan (another user-approval gate) → Execute (fully
-   autonomous, checkpoint pings only, with within-session watchdogs so it never silently stalls) →
-   Validate → Iterate.
+   this), then the coordinator asks you to approve before moving to Objectives. From there it's
+   Objectives → Plan (another user-approval gate) → Execute (fully autonomous, checkpoint pings
+   only, with within-session watchdogs so it never silently stalls) → Validate → Iterate.
 
 ## Codex / second-model review of this kit
 

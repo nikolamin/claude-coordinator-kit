@@ -3,7 +3,8 @@
 - [Coordinator never self-executes](feedback_coordinator_never_self_execute.md) — delegate ALL
   substantive/creative/investigative work to agents; only trivial mechanical bookkeeping is exempt
 - [Coordinator autonomy on recovery](feedback_coordinator_autonomy_on_recovery.md) — don't ask
-  before re-dispatching a lost/stuck/failed agent, just do it
+  before re-dispatching a lost/stuck/failed agent, just do it — unless a recorded suspension of
+  autonomous dispatch is in force, in which case report status and don't re-dispatch
 - [Watchdog / keep looping](feedback_watchdog_keep_looping.md) — arm a fallback wakeup on
   in-flight agents; a silently-stalled coordinator is as bad as one that self-executes
 - [Explicit agent models](feedback_explicit_agent_models.md) — always set model on Agent
@@ -11,29 +12,37 @@
 - [Verify by playing](feedback_verify_by_playing.md) — a demo/user-facing link isn't verified
   until an agent has actually played the flow end-to-end in a real browser
 - [Questions one at a time](feedback_questions_one_by_one.md) — every founder-facing question gets
-  context + reasoning + 2-4 options with a recommendation, sent one at a time, never batched
+  context + reasoning + 2-4 options with a recommendation + a safe default if unanswered, sent one
+  at a time, never batched
 - [Concise responses](feedback_concise_responses.md) — lead with actionable items/decisions, cut
   narrative elaboration unless asked
-- [Escalation protocols](feedback_escalation_protocols.md) — spawn a high-tier advice agent when
-  stuck 2+ times on the same class of problem; consider a second-model opinion for judgment calls
+- [Escalation protocols](feedback_escalation_protocols.md) — spawn a high-tier advice agent once
+  the Execute loop's retry cap is hit (2 failed re-prompt/respawn cycles on the same gap, escalate
+  on the 3rd); consider a second-model opinion for judgment calls
 - [Backlog discipline](feedback_backlog_discipline.md) — no suggestion-chip side backlogs; every
   follow-up goes into the plan or state doc, the single source of truth
 - [Agent deferral / watcher pattern](feedback_agent_deferral_watcher_pattern.md) — a dispatched
   agent facing a long blocking call must make the call as one foreground call and report the real
   result, never arm a watcher for itself and end its turn "standing by"
-- Telegram bridge (optional) — if the kit's `telegram-bridge/` is installed in this project, its
-  `SETUP.md` documents the relay pattern: arm a persistent Monitor on `relay-inbox.jsonl` at
-  session start (founder messages arrive mid-session), reply via `notify.sh`, react via
-  `react.sh`, deliver files via the Bot API `sendDocument` (session-UI delivery doesn't reach
-  Telegram)
+- Telegram bridge (optional) — if the kit's `telegram-bridge/` is installed (typically outside this
+  project, at `<BRIDGE_DIR>`, as a machine-level service — see README), its `SETUP.md` documents
+  the relay pattern: arm a persistent Monitor on `<BRIDGE_DIR>/relay-inbox.jsonl` at session start
+  (founder messages arrive mid-session), reply via `<BRIDGE_DIR>/notify.sh`, react via
+  `<BRIDGE_DIR>/react.sh`, signal "still working" via `<BRIDGE_DIR>/typing.sh [seconds]` while a
+  reply is being composed, and deliver files via `<BRIDGE_DIR>/send-file.sh <path> [caption]` —
+  never hand-roll a `curl` against the Bot API (session-UI delivery doesn't reach Telegram on its
+  own either)
 - Existing-project onboarding — on a repo with real code/history already in it (not greenfield),
   run PROCESS.md's Phase 0.5 before interviewing: dispatch read-only analysis agents (never
   self-explore) to map the codebase, commit findings to `docs/coordination/repo-map.md`, then
   tailor concept-interview questions to what the code can't already answer
-- [CI / push discipline](feedback_ci_push_discipline.md) — full local suite green (including
-  DB-gated integration tests, no self-skip mode) and rebased on main before pushing, once and
-  deliberately; after pushing, a dispatched agent checks the real CI run instead of the coordinator
-  assuming local green means CI green
+- [CI / push discipline](feedback_ci_push_discipline.md) — before pushing, rebase onto latest main
+  and re-run the full local suite (including DB-gated integration tests against a real DB, no
+  self-skip mode, no narrowed subset), once and deliberately, reporting zero new failures versus
+  the base commit with failure sets diffed and the pre-existing set named — this is one of the
+  push gate's two conditions, see `CLAUDE.md`'s Execute loop step 5 for the other; after pushing,
+  a dispatched agent checks the real CI run instead of the coordinator assuming local green means
+  CI green
 - [Shared-checkout git hygiene](feedback_shared_checkout_git_hygiene.md) — in a shared checkout,
   check `git status` before committing intended paths only, check what's ahead of origin before
   pushing, and never run destructive git ops on a tree that may hold another agent's uncommitted work

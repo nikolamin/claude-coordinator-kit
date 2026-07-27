@@ -43,6 +43,13 @@ new `.env` variables:
   session that just wants to look at the image directly. Outside RELAY_MODE,
   media messages are logged and dropped exactly as any other non-text
   message always was.
+- **Reply threading.** In RELAY_MODE, if the founder's incoming message is
+  itself a Telegram reply to an earlier message, the relay-inbox.jsonl
+  record additionally carries a `reply_to` block (`message_id` + the first
+  ~120 chars of the quoted message's text/caption as `text_prefix`) so a
+  live session can tell which of its own earlier messages is being
+  answered - see extract_reply_to(). Absent entirely when the message isn't
+  a reply; purely additive, same convention as the group-chat fields above.
 
 Only stdlib + `requests` are used (no python-dotenv, no other third-party
 deps) - .env is parsed manually below.
@@ -99,6 +106,12 @@ HTTP_TIMEOUT = POLL_TIMEOUT + 10  # requests timeout, must exceed poll timeout
 CLAUDE_TIMEOUT = 600  # 10 minutes
 TRUNCATE_LOG_CHARS = 200
 TYPING_INTERVAL_SECONDS = 4  # Telegram's typing indicator lasts ~5s client-side
+# How much of a quoted (replied-to) message's text/caption to carry into a
+# relay-inbox.jsonl record's optional `reply_to.text_prefix` - see
+# extract_reply_to(). Enough for a consuming session to recognize which of
+# its own earlier messages is being answered, without duplicating the full
+# quoted message body into every record.
+REPLY_TEXT_PREFIX_CHARS = 120
 
 REACTION_SEEN = "\U0001F440"  # 👀 - received, about to process
 # Telegram's setMessageReaction only accepts a fixed, curated set of emoji
@@ -596,7 +609,7 @@ def run_claude_with_typing(client: TelegramClient, chat_id, args, cwd):
         indicator.stop()
 
 
-def relay_message(client: TelegramClient, message_id, decision: dict, text: str):
+def relay_message(client: TelegramClient, message_id, decision: dict, text: str, reply_to: dict = None):
     """RELAY_MODE handler for a plain text (or command) message: 👀-react and
     append the message to the relay inbox.
 
@@ -611,6 +624,13 @@ def relay_message(client: TelegramClient, message_id, decision: dict, text: str)
     relay-inbox.jsonl keep working unchanged while new consumers can use the
     extra fields to tell founder-DM, founder-group, and allowlisted-member
     messages apart.
+
+    `reply_to` (optional) is the dict returned by extract_reply_to() - None
+    when the incoming message isn't itself a Telegram reply. When present,
+    it's threaded into the record as `reply_to` so a consuming session can
+    tell which of its own earlier messages the founder is answering. Purely
+    additive, same convention as the group-chat metadata fields above - a
+    consumer written before this field existed keeps working unmodified.
     """
     chat_id = decision["chat_id"]
     safe_set_reaction(client, chat_id, message_id, REACTION_SEEN)
@@ -625,6 +645,8 @@ def relay_message(client: TelegramClient, message_id, decision: dict, text: str)
         "is_reply_to_bot": decision.get("is_reply_to_bot", False),
         "mentioned": decision.get("mentioned", False),
     }
+    if reply_to is not None:
+        record["reply_to"] = reply_to
     with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     log.info(
@@ -729,6 +751,36 @@ def is_image_media(media: dict) -> bool:
     return False
 
 
+def extract_reply_to(message: dict):
+    """Return a small `reply_to` dict describing the message `message` is a
+    Telegram reply to (its `reply_to_message` field), or None if `message`
+    isn't a reply at all.
+
+    Pure function, no I/O - same "pure decision/extraction helper, unit
+    tested in isolation" shape as extract_media()/is_image_media() above
+    and telegram_common.is_reply_to_bot_message() (which answers a
+    different, narrower question: whether the reply target was the BOT's
+    own message, used for group-relay gating - this function instead
+    identifies ANY reply target, for a consuming session's benefit, and
+    never affects a relay decision).
+
+    Only carries `message_id` and a short `text_prefix` (the first
+    REPLY_TEXT_PREFIX_CHARS characters of the quoted message's text, or its
+    caption if it was a media message, whichever is present - empty string
+    if neither) - deliberately NOT the full quoted message body, so a
+    relay-inbox.jsonl record stays small regardless of how long the
+    original quoted message was.
+    """
+    reply = message.get("reply_to_message")
+    if not reply:
+        return None
+    quoted_text = reply.get("text") or reply.get("caption") or ""
+    return {
+        "message_id": reply.get("message_id"),
+        "text_prefix": quoted_text[:REPLY_TEXT_PREFIX_CHARS],
+    }
+
+
 def sanitize_chat_id_for_filename(chat_id) -> str:
     """Render a Telegram chat id as a filesystem-safe filename component.
 
@@ -792,7 +844,7 @@ def download_telegram_file(client: TelegramClient, remote_file_path: str, dest_p
     telegram_common.download_file(client.token, remote_file_path, dest_path)
 
 
-def relay_media(client: TelegramClient, message_id, decision: dict, media: dict, caption: str):
+def relay_media(client: TelegramClient, message_id, decision: dict, media: dict, caption: str, reply_to: dict = None):
     """RELAY_MODE handler for voice/audio/video/video_note/photo/document.
 
     Downloads the file into MEDIA_INBOX_DIR, then appends a relay-inbox.jsonl
@@ -809,6 +861,9 @@ def relay_media(client: TelegramClient, message_id, decision: dict, media: dict,
     session that only cares about "is there an image to look at" doesn't
     need to inspect `media.kind` itself. Omitted entirely for non-image
     media (voice/audio/video/video_note/non-image document).
+
+    `reply_to` (optional): same extract_reply_to() dict and same purely
+    additive convention as relay_message() - see its docstring.
     """
     chat_id = decision["chat_id"]
     safe_set_reaction(client, chat_id, message_id, REACTION_SEEN)
@@ -873,6 +928,8 @@ def relay_media(client: TelegramClient, message_id, decision: dict, media: dict,
     }
     if is_image_media(media):
         record["photo_path"] = str(dest_path)
+    if reply_to is not None:
+        record["reply_to"] = reply_to
 
     with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -882,13 +939,13 @@ def relay_media(client: TelegramClient, message_id, decision: dict, media: dict,
     )
 
 
-def handle_message(client: TelegramClient, config: dict, decision: dict, message_id, text: str):
+def handle_message(client: TelegramClient, config: dict, decision: dict, message_id, text: str, reply_to: dict = None):
     chat_id = decision["chat_id"]
     text = text or ""
     stripped = text.strip()
 
     if config.get("relay_mode"):
-        relay_message(client, message_id, decision, text)
+        relay_message(client, message_id, decision, text, reply_to)
         return
 
     safe_set_reaction(client, chat_id, message_id, REACTION_SEEN)
@@ -1015,6 +1072,9 @@ def poll_once(client: TelegramClient, config: dict, bridge_config: dict, allowli
         text = message.get("text")
         message_id = message.get("message_id")
         caption = message.get("caption") or ""
+        # Optional, purely additive: None when `message` isn't itself a
+        # reply to an earlier message - see extract_reply_to()'s docstring.
+        reply_to = extract_reply_to(message)
 
         # Group auto-discovery: record chat id/title for ANY group message
         # the bot observes, independent of the relay decision below. This
@@ -1072,7 +1132,7 @@ def poll_once(client: TelegramClient, config: dict, bridge_config: dict, allowli
         if media is not None:
             if config.get("relay_mode"):
                 try:
-                    relay_media(client, message_id, decision, media, caption)
+                    relay_media(client, message_id, decision, media, caption, reply_to)
                 except Exception as exc:
                     # relay_media() already catches and reports its own
                     # download/IO failures - this is a last-resort net so a
@@ -1105,7 +1165,7 @@ def poll_once(client: TelegramClient, config: dict, bridge_config: dict, allowli
             continue
 
         try:
-            handle_message(client, config, decision, message_id, text)
+            handle_message(client, config, decision, message_id, text, reply_to)
         except Exception as exc:
             # redact_secrets() matters doubly here: `exc` is both logged AND
             # sent back to the Telegram chat below - an unredacted

@@ -29,7 +29,8 @@ hand to an agent, or escalate to the user if it's genuinely a credential-grant d
 work, involving no new judgment call:**
 - Task-list bookkeeping.
 - Reading/editing the state and plan docs to record outcomes.
-- Committing and pushing code an agent already built and an independent verifier already passed.
+- Committing and pushing code that has cleared the Execute loop's push gate (see `CLAUDE.md`'s
+  Execute loop step 5 and Role section for the current two-condition definition).
 - One-time project bootstrap (creating an empty docs skeleton from a fixed template, at project
   start only) — fixed layout, no judgment call involved.
 - Arming monitors/scheduled wakeups in the session.

@@ -504,6 +504,49 @@ class MediaRelayTests(unittest.TestCase):
         self.assertEqual(record["text"], "hello there")
         self.assertNotIn("media", record)
         self.assertNotIn("photo_path", record)
+        self.assertNotIn("reply_to", record)  # not a reply - field must be absent, not null
+
+    def test_text_message_that_is_a_reply_carries_reply_to(self):
+        message = {
+            "message_id": 950,
+            "date": 1700000000,
+            "chat": {"id": FOUNDER_CHAT_ID, "type": "private"},
+            "from": {"id": FOUNDER_CHAT_ID, "is_bot": False, "username": "founder"},
+            "text": "yes, that one",
+            "reply_to_message": {
+                "message_id": 940,
+                "from": {"id": BOT_ID, "is_bot": True, "username": BOT_USERNAME},
+                "text": "Which deploy do you mean?",
+            },
+        }
+        client = _FakeClient([{"update_id": 70, "message": message}])
+        exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertIn("reply_to", record)
+        self.assertEqual(record["reply_to"]["message_id"], 940)
+        self.assertEqual(record["reply_to"]["text_prefix"], "Which deploy do you mean?")
+
+    def test_reply_to_text_prefix_is_truncated_to_120_chars(self):
+        long_text = "x" * 500
+        message = {
+            "message_id": 951,
+            "date": 1700000000,
+            "chat": {"id": FOUNDER_CHAT_ID, "type": "private"},
+            "from": {"id": FOUNDER_CHAT_ID, "is_bot": False, "username": "founder"},
+            "text": "replying to the long one",
+            "reply_to_message": {"message_id": 941, "from": {"id": BOT_ID, "is_bot": True}, "text": long_text},
+        }
+        client = _FakeClient([{"update_id": 71, "message": message}])
+        exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        record = self._read_records()[0]
+        self.assertEqual(len(record["reply_to"]["text_prefix"]), 120)
+        self.assertEqual(record["reply_to"]["text_prefix"], "x" * 120)
 
     def test_svg_document_has_media_but_no_photo_path(self):
         """SVG is markup, not a raster screenshot - it must NOT get the
@@ -629,6 +672,38 @@ class MediaRelayTests(unittest.TestCase):
         mock_resolve.assert_not_called()
         self.assertEqual(client.reactions, [])
 
+    def test_media_message_that_is_a_reply_also_carries_reply_to(self):
+        """reply_to threading isn't text-only - relay_media() must carry the
+        same optional field when a photo/voice/etc. message is itself a
+        reply, using the same shape relay_message() does.
+        """
+        message = {
+            "message_id": 909,
+            "date": 1700000000,
+            "chat": {"id": FOUNDER_CHAT_ID, "type": "private"},
+            "from": {"id": FOUNDER_CHAT_ID, "is_bot": False, "username": "founder"},
+            "photo": [{"file_id": "replyphoto1", "file_unique_id": "rp1", "width": 800, "height": 800}],
+            "caption": "here's the screenshot",
+            "reply_to_message": {
+                "message_id": 899,
+                "from": {"id": BOT_ID, "is_bot": True, "username": BOT_USERNAME},
+                "text": "Can you send a screenshot of the error?",
+            },
+        }
+        client = _FakeClient([{"update_id": 10, "message": message}])
+        p1, p2 = self._fake_download(remote_file_path="photos/reply.jpg")
+        with p1, p2:
+            exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertIn("media", record)
+        self.assertIn("reply_to", record)
+        self.assertEqual(record["reply_to"]["message_id"], 899)
+        self.assertEqual(record["reply_to"]["text_prefix"], "Can you send a screenshot of the error?")
+
 
 class ExtractMediaTests(unittest.TestCase):
     """Pure-function tests for bot.extract_media() and bot.is_image_media() -
@@ -711,6 +786,59 @@ class SanitizeChatIdForFilenameTests(unittest.TestCase):
     def test_result_never_starts_with_a_hyphen(self):
         for chat_id in (1000000001, -100999888, -1, 0):
             self.assertFalse(bot_module.sanitize_chat_id_for_filename(chat_id).startswith("-"))
+
+
+class ExtractReplyToTests(unittest.TestCase):
+    """Pure-function tests for bot.extract_reply_to() - no I/O, no Telegram
+    calls; just message-shape inspection. See relay_message()/relay_media()
+    (and MediaRelayTests/test_text_message_that_is_a_reply_carries_reply_to
+    etc. above) for the integration-level coverage confirming this actually
+    lands in a relay-inbox.jsonl record as the optional `reply_to` field.
+    """
+
+    def test_non_reply_message_returns_none(self):
+        message = {"text": "just a regular message"}
+        self.assertIsNone(bot_module.extract_reply_to(message))
+
+    def test_reply_to_a_text_message_carries_id_and_text_prefix(self):
+        message = {
+            "text": "yes that one",
+            "reply_to_message": {"message_id": 42, "text": "Which one do you mean?"},
+        }
+        reply_to = bot_module.extract_reply_to(message)
+        self.assertEqual(reply_to, {"message_id": 42, "text_prefix": "Which one do you mean?"})
+
+    def test_reply_to_a_media_message_falls_back_to_caption(self):
+        # A quoted message with no `text` (e.g. a photo) still has a caption
+        # if one was attached - use that as the text_prefix source instead.
+        message = {
+            "text": "look at this",
+            "reply_to_message": {"message_id": 43, "caption": "check out this chart"},
+        }
+        reply_to = bot_module.extract_reply_to(message)
+        self.assertEqual(reply_to["text_prefix"], "check out this chart")
+
+    def test_reply_to_a_message_with_neither_text_nor_caption_gets_empty_prefix(self):
+        # E.g. replying to a bare photo with no caption at all - message_id
+        # is still meaningful even though there's no text to preview.
+        message = {
+            "text": "nice",
+            "reply_to_message": {"message_id": 44},
+        }
+        reply_to = bot_module.extract_reply_to(message)
+        self.assertEqual(reply_to, {"message_id": 44, "text_prefix": ""})
+
+    def test_text_prefix_is_truncated_to_120_chars(self):
+        long_text = "a" * 300
+        message = {"text": "reply", "reply_to_message": {"message_id": 45, "text": long_text}}
+        reply_to = bot_module.extract_reply_to(message)
+        self.assertEqual(len(reply_to["text_prefix"]), bot_module.REPLY_TEXT_PREFIX_CHARS)
+        self.assertEqual(reply_to["text_prefix"], "a" * 120)
+
+    def test_short_text_is_not_padded_or_altered(self):
+        message = {"text": "reply", "reply_to_message": {"message_id": 46, "text": "short"}}
+        reply_to = bot_module.extract_reply_to(message)
+        self.assertEqual(reply_to["text_prefix"], "short")
 
 
 if __name__ == "__main__":

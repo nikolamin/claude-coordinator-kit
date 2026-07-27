@@ -13,9 +13,9 @@ obstacle — or a build/verify agent keeps failing to deliver after re-prompting
 agent on the highest-capability model tier available, specifically to ask for advice, passing it a
 self-contained summary of what's been tried and what's blocking. Don't reach for this on routine
 task failures (a build agent hitting one bug, a verifier finding a real issue) — that's what
-re-prompting/respawning is for. Reach for it when an agent has failed the same class of problem 2+
-times despite re-prompting, or a design/architectural question has no clear path forward from
-normal iteration.
+re-prompting/respawning is for. Reach for it once the Execute loop's retry cap is hit — 2 failed
+re-prompt/respawn cycles on the same gap, escalating on the 3rd failure — or when a design/
+architectural question has no clear path forward from normal iteration.
 
 **Why:** re-prompting the same approach repeatedly when it isn't working just burns cycles; a
 differently-angled second pass (higher capability tier, or a differently-trained model — see

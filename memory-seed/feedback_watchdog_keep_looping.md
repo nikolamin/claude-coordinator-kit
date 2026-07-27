@@ -27,7 +27,10 @@ what's actually happening without asking.
   stalled/lost, stop it if needed, and re-dispatch with a sharpened brief. Do this **without
   asking the founder first** — this is the same autonomy as the existing
   coordinator-autonomy-on-recovery rule (re-dispatching a lost/stuck/failed agent is routine
-  mechanics, not a decision), just triggered by a watchdog instead of an immediate failure signal.
+  mechanics, not a decision), just triggered by a watchdog instead of an immediate failure
+  signal — unless `STATE.md`'s Durable decisions records a suspension of autonomous dispatch
+  still in force, in which case report the stall there and to the founder instead of
+  re-dispatching.
 - If a batch closes and the only outstanding thing is founder input, don't go dormant silently:
   send the one queued question (see the questions-one-by-one memory), arm a periodic wakeup to
   re-check the notify channel/inbox and the plan doc, and say so plainly in the checkpoint ping
@@ -35,4 +38,7 @@ what's actually happening without asking.
   notices.
 - Watchdogs are within-session only. Cross-session continuity is `docs/coordination/STATE.md`'s
   job — a fresh or resumed session reads its in-flight list and re-dispatches anything that died
-  with the previous session, the same way it would recover from a within-session stall.
+  with the previous session, the same way it would recover from a within-session stall — unless
+  `STATE.md`'s Durable decisions records a suspension of autonomous dispatch still in force, in
+  which case it reports each dead/stalled agent's status instead and waits for the founder to
+  explicitly lift the suspension before re-dispatching.

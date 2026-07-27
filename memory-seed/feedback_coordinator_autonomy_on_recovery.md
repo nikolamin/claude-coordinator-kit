@@ -26,8 +26,15 @@ user-only judgment, do ask. Report progress via checkpoint notifications rather 
 and waiting for acknowledgment.
 
 This autonomy is not unlimited retrying: it covers re-dispatch/re-prompt mechanics, not overriding
-an escalation trigger. If the same class of failure recurs 2+ times, that's a stuck-escalation
-case (see the escalation-protocols memory), not another silent retry.
+an escalation trigger. Once the Execute loop's retry cap is hit — 2 failed re-prompt/respawn
+cycles on the same gap — that's a stuck-escalation case (see the escalation-protocols memory), not
+another silent retry.
+
+One more exception, orthogonal to escalation: if the founder has recorded a suspension of
+autonomous dispatch (`CLAUDE.md`'s Execute loop and Watchdogs sections; the record lives in
+`STATE.md`'s Durable decisions), that suspension overrides this file's default — report status on
+any lost/stuck/failed agent or newly-unblocked task instead of re-dispatching, until the founder
+explicitly lifts it.
 
 Note the "live playthrough/demo" that stays user-only is the user's own attendance/participation
 (e.g. a final go/no-go session) — distinct from an agent's own pre-send verification playthrough
