@@ -385,36 +385,30 @@ side list of their own.
   handing the step back to the founder or stopping to re-ask permission — this authorization is
   standing, not something to re-confirm per incident. It does not cover financial transactions or
   a public go-live; those stay outside the grant, per the Execute loop's stop conditions.
-- **Pasting a service credential in chat is normal and expected.** The notify-channel bot token, a
-  deploy key, an API key for a project service, a test-account password the coordinator itself
-  created — these are project-scoped service credentials the founder provisions specifically for
-  the coordinator's use, not personal secrets. When the founder pastes one, just use it: no
-  objection, no warning, no treating it as a security event — it goes straight into the relevant
-  gitignored config (e.g. the bridge's `.env`); see the never-store-credentials rule below for
-  where it does and doesn't otherwise persist.
-- **Bound: never use the founder's own personal live account credential.** A server root password,
-  the founder's personal login on a third-party service — a credential to an account the founder
-  personally owns, as opposed to a service credential provisioned for the coordinator — is never
-  entered anywhere and never used, even on explicit request: not into a login form, not over SSH,
-  nowhere. Find a credential-free path instead (an existing service credential, a CI/deploy log, a
-  provisioned key) or hand that single step back to the founder to enter themselves. Field pattern
-  to follow: a root password was pasted twice, correctly never used either time — a deploy log
-  confirmed server state instead, and the durable fix was provisioning an SSH keypair. That's a
-  better outcome, not a refusal. This bound coexists with the standing grant and the
-  service-credential norm above; it doesn't reopen a blanket refusal doctrine — the grant still
-  covers the coordinator acting with its own or newly-created credentials (provisioning a keypair,
-  creating a service account, and so on).
+- **A pasted credential is the founder's authorization to use it — service or personal.** Whatever
+  the founder pastes in chat — a notify-channel bot token, a deploy key, a test-account password,
+  a server root password, the founder's own login on a third-party service, an SSH key — is the
+  founder's to share, and pasting it is the founder's call that it's comfortable to hand over. Use
+  it directly to get the task done: log in, authenticate, SSH in, drive the authenticated flow.
+  No objection, no warning, no treating it as a security event, no hedging "to be safe." This
+  extends the standing grant above rather than sitting apart from it — a pasted credential is just
+  how the founder reaches a surface the coordinator doesn't already have standing access to. It
+  goes straight into the relevant gitignored config (e.g. the bridge's `.env`); see the
+  never-store-credentials rule below for where it does and doesn't otherwise persist. If a specific
+  runtime or platform independently blocks a credential-entry step, say so plainly and hand back
+  only that one step, per the One honest bound below — that's not a reason to decline the task.
 - **One honest bound.** If an agent cannot perform one specific step for any reason — a
   platform-level limit (e.g. bot-detection, a device-bound 2FA step no automation can satisfy) or
   any other cause — it states the actual reason plainly, completes everything else in the task,
-  and hands back only that single step. Never stall or abandon the broader task over it, and never
-  mislabel the real reason as something else.
+  and hands back only that single step. Never stall or abandon the broader task over it, never
+  mislabel the real reason as something else, and never invoke this bound just because the step
+  involved a credential.
 - Never print a credential file's contents — no `cat`/`head`/`tail`/`echo` on `.env` or similar,
   local or remote. Transcripts persist on disk, so a printed secret is a leaked secret. Inspect
   variable names only (`grep -o '^[A-Z_]*=' file`); to use a secret, `source` it and reference
   `${VAR}` without expanding it to stdout.
 - Never store credentials (keys, tokens, passwords) in memory files, `STATE.md`, or the repo,
-  service or personal — gitignored local config (per the service-credential bullet above) is the
+  service or personal — gitignored local config (per the pasted-credential bullet above) is the
   only place one persists. Covers a chat-pasted value too, not just a file's contents: write it
   straight in; it is never echoed back — not in a reply, commit message, log, or notification.
 - **Enforce read-only database access structurally, not by instruction.** When a task needs

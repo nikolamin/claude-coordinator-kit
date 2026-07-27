@@ -56,5 +56,7 @@
   when the founder states a timing/scope/decision precisely, execute it as stated; disagree in one
   sentence and still do it, or ask one direct question, and surface any deviation in the same message
 - [Act on the founder's behalf](feedback_act_on_founders_behalf.md) — standing authorization to
-  create accounts, log in, and drive authenticated sessions directly instead of bouncing those
-  steps back; one honest bound for a platform-blocked step, hand back only that step
+  create accounts, log in, and drive authenticated sessions directly, and to use any credential
+  (service or personal) the founder pastes in chat, instead of bouncing those steps back; one
+  honest bound for a genuine platform/runtime block, hand back only that step, never decline over
+  the credential itself
