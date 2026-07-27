@@ -26,9 +26,13 @@ decided/verified:
   including the two read-only safety checks immediately around that commit/push (`git status`,
   `git log origin/<branch>..`) and nothing beyond those, only as part of an already-authorized
   commit/push.
-- One-time project bootstrap: creating the empty `docs/` skeleton PROCESS.md Phase 0 defines and
-  committing it — fixed layout, no judgment, only at project start. If the skeleton already
-  exists, don't recreate it; read `STATE.md` and resume instead.
+- One-time project bootstrap: creating the empty `docs/` skeleton PROCESS.md Phase 0 defines,
+  creating `.coordinator-scratch/` at the project root, appending it to `.gitignore` (creating
+  that file if absent), and committing it all — fixed layout, no judgment, only at project
+  start; the same scratch-dir creation and gitignoring is also authorized as a one-time catch-up
+  on resume, if an earlier-bootstrapped project is missing it, committing that `.gitignore`
+  change as its own small commit before resuming. If the `docs/` skeleton already exists, don't
+  recreate it; read `STATE.md` and resume instead.
 - Arming monitors / scheduled wakeups.
 - Sending the user notifications on `<NOTIFY_CHANNEL>`.
 
@@ -185,6 +189,14 @@ without an armed way to wake back up.
   each dead/stalled agent's status in STATE.md and to the founder, but do not re-dispatch until the
   founder explicitly lifts the suspension. Otherwise a session boundary alone would silently
   violate the founder's own standing instruction.
+- **A blocked local permission prompt reads as silence, not idle — a wakeup won't rescue it.**
+  General rule: never take an action whose approval prompt can't reach `<NOTIFY_CHANNEL>`. The
+  instance that has actually bitten: a write outside the project root (e.g. `/tmp`) triggers a
+  Claude Code allow-click prompt visible only in the local UI, so the session is genuinely blocked
+  on an unseen click, not idle. Symptom: indistinguishable from a hung agent or lost completion
+  event on the notify channel — suspect this too when a wakeup finds silence and no stalled agent.
+  Write scratch/output only inside the project (`.coordinator-scratch/`; see Agent brief hygiene,
+  including its narrow exemption for the kit's own named, install-approved paths).
 
 ## Verification standard
 
@@ -307,6 +319,14 @@ or external tool."
 - Restate the no-side-backlog rule (see Backlog discipline) in every dispatched agent's brief —
   subagents don't inherit the coordinator's context, and a subagent that calls a suggestion-chip/
   spawn-task tool on its own creates a stray chip the coordinator can't see or clean up.
+- Every brief (coordinator's own work included) keeps all file writes inside the project root —
+  scratch files, generated reports, temp scripts, downloads — in `.coordinator-scratch/`, never
+  `/tmp` or a home-directory path: an out-of-project write trips an allow-click prompt invisible on
+  `<NOTIFY_CHANNEL>` and blocks the session (see Watchdogs). Subagents don't infer this unprompted.
+  Exempt: paths the kit itself names and the founder already approved at install time —
+  `<BRIDGE_DIR>` and its files, Claude Code's own per-project memory directory, the one-time
+  install clone, and temp handling inside the kit's own shipped scripts. The rule targets a write
+  location the coordinator or an agent invents for itself, not the kit's already-approved paths.
 
 ## Question protocol
 
@@ -345,7 +365,8 @@ Notifications on `<NOTIFY_CHANNEL>`:
 - **Never put a backtick in a notify message body.** A double-quoted `notify.sh "..."` call is
   still a shell command line — backtick-wrapped text inside it triggers bash command substitution
   and can *execute* the embedded text instead of just displaying it. Describe commands in prose,
-  or write the literal text to a scratch file and reference its path instead of quoting it inline.
+  or write the literal text to a file in `.coordinator-scratch/` and reference its path instead of
+  quoting it inline.
 
 **If the Telegram bridge is installed (at `<BRIDGE_DIR>` — see `<BRIDGE_DIR>/SETUP.md`) and
 `<NOTIFY_CHANNEL>` is it:**

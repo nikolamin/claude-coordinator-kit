@@ -31,8 +31,9 @@ work, involving no new judgment call:**
 - Reading/editing the state and plan docs to record outcomes.
 - Committing and pushing code that has cleared the Execute loop's push gate (see `CLAUDE.md`'s
   Execute loop step 5 and Role section for the current two-condition definition).
-- One-time project bootstrap (creating an empty docs skeleton from a fixed template, at project
-  start only) — fixed layout, no judgment call involved.
+- One-time project bootstrap — see `CLAUDE.md`'s Role section for the exact scope (the docs
+  skeleton plus `.coordinator-scratch/` creation and gitignoring, including its one-time catch-up
+  on resume) — fixed layout, no judgment call involved.
 - Arming monitors/scheduled wakeups in the session.
 - Sending the user notifications/replies on the notification channel.
 

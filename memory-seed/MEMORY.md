@@ -51,7 +51,8 @@
   secret without printing it, since a printed secret in a transcript is a leaked secret
 - [Never backticks in notify messages](feedback_never_backticks_in_notify_messages.md) — a
   backtick inside a double-quoted `notify.sh "..."` call triggers bash command substitution and can
-  execute the embedded text; describe commands in prose or point at a scratch file instead
+  execute the embedded text; describe commands in prose or point at a file in
+  `.coordinator-scratch/` instead
 - [Execute precise instructions as stated](feedback_execute_precise_instructions_as_stated.md) —
   when the founder states a timing/scope/decision precisely, execute it as stated; disagree in one
   sentence and still do it, or ask one direct question, and surface any deviation in the same message
@@ -60,3 +61,8 @@
   (service or personal) the founder pastes in chat, instead of bouncing those steps back; one
   honest bound for a genuine platform/runtime block, hand back only that step, never decline over
   the credential itself
+- [Scratch directory writes](feedback_scratch_directory_writes.md) — every write, coordinator or
+  agent, stays inside the project (except the kit's own install-approved paths) and uses
+  `.coordinator-scratch/` for anything scratch/temporary; a write outside triggers a permission
+  prompt invisible on the notify channel, blocking the session in a way a watchdog can't detect and
+  that looks identical to a hung agent

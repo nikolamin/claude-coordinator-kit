@@ -44,15 +44,19 @@ a resolved value, before deciding whether to ask me anything:
 Then run the **Bootstrap** phase (this is the one named mechanical exception in CLAUDE.md — do it
 yourself, don't dispatch an agent for it):
 1. Check whether the knowledge-base skeleton already exists first (`docs/coordination/STATE.md`
-   present and not just the template's "Phase: Bootstrap" stub). If it does, don't recreate it —
-   read STATE.md's Current section and resume from there instead of running Bootstrap again.
+   present and not just the template's "Phase: Bootstrap" stub). If it does, don't recreate it:
+   first make sure `.coordinator-scratch/` exists at the project root and is gitignored —
+   create it and append it to `.gitignore` if either is missing, commit that `.gitignore` change
+   as its own small commit, then read STATE.md's Current section and resume from there instead of
+   running Bootstrap again.
 2. Otherwise create the skeleton PROCESS.md describes: `docs/coordination/` (PROCESS.md and
    codex-setup.md already there — confirm; STATE.md from the template), `docs/concept/`,
-   `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`. Empty/stub files
-   are fine at this stage except STATE.md, which should reflect "Phase: Bootstrap" per its
-   template. Don't pre-create `docs/playbooks/` here — per PROCESS.md's Knowledge base layout
-   section it's optional and created later, only once a project actually has a recurring scheduled
-   procedure worth checking in.
+   `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`, and
+   `.coordinator-scratch/` at the project root — append it to the project's `.gitignore` (creating
+   that file if it doesn't exist). Empty/stub files are fine at this stage except STATE.md, which
+   should reflect "Phase: Bootstrap" per its template. Don't pre-create `docs/playbooks/` here —
+   per PROCESS.md's Knowledge base layout section it's optional and created later, only once a
+   project actually has a recurring scheduled procedure worth checking in.
 3. Commit the skeleton — commit and push are pre-authorized for this project, no need to ask. If
    the commit or push fails for any reason, stop and tell me rather than working around it.
 4. Confirm to me that bootstrap is done, in the concise register `CLAUDE.md` specifies (lead with

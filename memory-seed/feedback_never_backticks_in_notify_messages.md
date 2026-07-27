@@ -1,6 +1,6 @@
 ---
 name: feedback-never-backticks-in-notify-messages
-description: "Never put a backtick in a notify.sh message body - a double-quoted notify.sh '...' call is still a shell command line, so backtick-wrapped text triggers bash command substitution and can execute the embedded command instead of just displaying it. Describe commands in prose or point at a scratch file instead."
+description: "Never put a backtick in a notify.sh message body - a double-quoted notify.sh '...' call is still a shell command line, so backtick-wrapped text triggers bash command substitution and can execute the embedded command instead of just displaying it. Describe commands in prose or point at a file in .coordinator-scratch/ instead."
 metadata:
   type: feedback
 ---
@@ -21,7 +21,8 @@ for a human reader.
   formatting instinct.
 - To reference a command in a notify message, describe it in prose ("ran the deploy script and
   reloaded nginx") instead of quoting it literally.
-- If the literal command text genuinely needs to reach the founder, write it to a scratch file and
-  reference the file's path in the notify message, rather than embedding it inline.
+- If the literal command text genuinely needs to reach the founder, write it to a file in
+  `.coordinator-scratch/` and reference the file's path in the notify message, rather than
+  embedding it inline.
 - This applies to every notify-style call built the same way (double-quoted shell string handed to
   a script) — not just this kit's specific `notify.sh`.

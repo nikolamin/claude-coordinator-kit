@@ -40,7 +40,8 @@ codex exec "<prompt>"
 
 Key flags:
 
-- `-o, --output-last-message <file>` — write only the final reply to a file (skip the run log).
+- `-o, --output-last-message <file>` — write only the final reply to a file under
+  `.coordinator-scratch/` (skip the run log).
 - `-s, --sandbox <read-only|workspace-write>` — sandbox level; `read-only` for review/opinion
   work, `workspace-write` only if it genuinely needs to edit files.
 - `--skip-git-repo-check` — required when running outside a git repo.

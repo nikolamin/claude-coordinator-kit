@@ -11,12 +11,18 @@ escalation).
 ## Phases
 
 **0. Bootstrap** — Knowledge-base skeleton (below) created, `docs/coordination/STATE.md`
-initialized, committed. First thing any fresh coordinator session does if the skeleton doesn't
-exist yet — this is the one named exception to "coordinator never self-executes" (see `CLAUDE.md`
-Role section): fixed layout, no judgment, one-time. If the skeleton already exists, don't recreate
-it — read `STATE.md`'s Current section and resume from there instead. Bootstrap also decides which
-path Phase 0.5/1 takes: if the repo contains real code beyond the fresh doc skeleton (source files,
-build config, non-trivial git history), it's an **existing** project — run Phase 0.5 before
+initialized, `.coordinator-scratch/` created at the project root and gitignored — append the entry
+to the project's `.gitignore`, creating that file if it doesn't exist yet (see `CLAUDE.md`'s Agent
+brief hygiene section) — committed. First thing any fresh coordinator session does if the skeleton
+doesn't exist yet — this is the one named exception to "coordinator never self-executes" (see
+`CLAUDE.md` Role section): fixed layout, no judgment, one-time. If the skeleton already exists,
+don't recreate it — read `STATE.md`'s Current section and resume from there instead, but first
+check whether `.coordinator-scratch/` exists and is gitignored; if either is missing (an
+already-bootstrapped project, or one installed from an earlier kit version), create/gitignore it
+now as the same one-time catch-up `CLAUDE.md`'s Role section names, commit that `.gitignore` change
+as its own small commit, then resume. Bootstrap also decides which path Phase 0.5/1 takes: if the
+repo contains real code beyond the fresh doc skeleton (source files, build config, non-trivial git
+history), it's an **existing** project — run Phase 0.5 before
 interviewing. A genuinely empty/new repo is **greenfield** — skip straight to Concept. Either path,
 ask the founder one early question before the first build agent is ever dispatched: does a push to
 the project's main branch trigger a deploy? A greenfield repo has no Phase 0.5 to carry this, so
@@ -159,6 +165,9 @@ docs/decisions/                   # ADRs for architecture/cost/effort choices wi
 docs/validation/                  # validation reports, analytics conclusions
 docs/playbooks/                   # optional: recurring scheduled procedures (see note below)
 ```
+
+`.coordinator-scratch/` sits at the project root, outside this `docs/` tree — Bootstrap creates
+and gitignores it per `CLAUDE.md`'s Agent brief hygiene section.
 
 `STATE.md`, `PROCESS.md`, and `codex-setup.md` land in `docs/coordination/` by being copied from
 the kit at install time (see `README.md`'s install steps) — Bootstrap confirms they're present and

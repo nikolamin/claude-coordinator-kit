@@ -180,13 +180,14 @@ install prompt above.
    same subsection deletion — apply to `memory-seed/MEMORY.md`'s heading and Telegram bridge
    bullet too; do that as part of step 7, once the file is at its real destination.
 6. Skim `PROCESS.md`'s "Knowledge base layout" section — it references `docs/concept/`,
-   `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`. These don't need to
-   exist yet; the kickoff prompt's Bootstrap step creates them. (The section also documents
-   `docs/playbooks/`, but that one is intentionally *not* part of the Bootstrap skeleton — it's
-   created later, only once the project actually has a recurring scheduled procedure worth
-   checking in.) If your project has a strong opinion about the `docs/concept/` sub-structure
-   already, adjust the note in `PROCESS.md` accordingly before the first session — it's meant to be
-   edited, not treated as gospel.
+   `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`, plus
+   `.coordinator-scratch/` (gitignored, at the project root, not inside the `docs/` tree). These
+   don't need to exist yet; the kickoff prompt's Bootstrap step creates them. (The section also
+   documents `docs/playbooks/`, but that one is intentionally *not* part of the Bootstrap
+   skeleton — it's created later, only once the project actually has a recurring scheduled
+   procedure worth checking in.) If your project has a strong opinion about the `docs/concept/`
+   sub-structure already, adjust the note in `PROCESS.md` accordingly before the first session —
+   it's meant to be edited, not treated as gospel.
 7. (Optional but recommended) Copy `memory-seed/*.md` into the new project's Claude Code memory
    directory: `~/.claude/projects/<slug>/memory/`, where `<slug>` is the project's absolute path
    with every `/` replaced by `-` (e.g. `/Users/you/code/my-app` becomes
