@@ -36,6 +36,31 @@ client, its read/unread state is untouched. Because of that, the server's `UNSEE
 keep returning the same messages on every poll forever; deduplication is handled entirely by this
 script's own UID-tracking state file instead of relying on the server's flag.
 
+**Consequence: a big permanent `UNSEEN` backlog makes every cycle slow.** Since nothing here ever
+clears `\Seen`, whatever is unread in that account stays in the `UNSEEN` result set forever, and
+every single poll re-lists and re-examines all of it — even though the UID state file means almost
+none of it is ever recorded twice. The per-cycle cost therefore scales with *how much unread mail
+the account is sitting on*, not with how much new mail arrived. On a field deployment against an
+inbox carrying ~850 permanently-unread messages, a cycle took **3–12 minutes** against a
+`StartInterval` of 300s.
+
+Two things follow, and neither is a malfunction:
+
+- **Your effective poll interval is the cycle duration, not `StartInterval`**, once cycles run
+  longer than the interval. launchd and systemd both refuse to run a second instance of the same
+  job while the first is still alive, so timer ticks are skipped rather than stacking up — you get
+  serialized cycles, not overlapping ones clobbering the state file.
+- **A slow cycle is not the hang described under "IMAP socket timeout" below.** The timeout is a
+  *per-socket-read* deadline, not a whole-cycle budget: a cycle that is steadily working through a
+  large backlog resets it on every read and can legitimately run far past 60s. Tell the two apart
+  from the log — a working cycle ends with `Poll cycle complete.`, a wedged one logs
+  `starting poll cycle` and then nothing at all, forever.
+
+If cycles are slower than you want, the fix is on the mail side, not in this script: mark the
+backlog read in your mail client (this script won't mind — its own UID state, not `\Seen`, is what
+prevents re-alerting), or point `IMAP_USER` at an account that isn't carrying thousands of unread
+messages.
+
 **Untrusted content.** Every field pulled out of a message (`from`/`to`/`subject`/`preview`) is
 external, untrusted content — same trust level as an incoming Telegram message in
 `relay-inbox.jsonl`. Each record carries an explicit `"note": "untrusted external email content"`
