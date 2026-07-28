@@ -64,6 +64,7 @@ operation. See SETUP.md for full setup instructions.
 import json
 import logging
 import mimetypes
+import os
 import subprocess
 import sys
 import threading
@@ -100,6 +101,63 @@ SEEN_MEMBERS_FILE = SCRIPT_DIR / "seen-members.json"
 # "Media relay" in SETUP.md). Not automatically pruned. Created on demand,
 # not at import time.
 MEDIA_INBOX_DIR = SCRIPT_DIR / "media-inbox"
+
+# --- Production-state write guard (defense in depth) ---------------------
+#
+# Every test that drives poll_once() is supposed to redirect this module's
+# state paths at a temp directory (mock.patch.object on RELAY_INBOX_FILE /
+# MEDIA_INBOX_DIR) and patch out the save_* persistence helpers. That is a
+# convention, and a convention is exactly what a newly added test class can
+# forget: on 2026-07-27 a test class that patched only the save_* helpers -
+# but not RELAY_INBOX_FILE - appended two synthetic group messages
+# (fabricated "founder" sender, fabricated group chat id) straight into the
+# LIVE relay-inbox.jsonl that a running Claude Code session tails, which
+# read as a real intrusion.
+#
+# So the convention is now backstopped in the module that actually does the
+# writing. A test process announces itself by setting
+# TELEGRAM_BRIDGE_TEST_MODE=1 in the environment (test_bot.py does this at
+# import time); while that is set, any attempt to write one of this repo's
+# real, live-service state paths raises instead of writing. Nothing changes
+# for the live service - the launchd/systemd job never sets the variable,
+# so guard_production_write() returns immediately on its first line.
+TEST_MODE_ENV_VAR = "TELEGRAM_BRIDGE_TEST_MODE"
+
+# Captured here, at import time, from the module-level constants above - so
+# a test that rebinds RELAY_INBOX_FILE/MEDIA_INBOX_DIR to a temp path still
+# leaves this set pointing at the real production locations to compare
+# against.
+_PRODUCTION_STATE_PATHS = frozenset(
+    p.resolve() for p in (
+        RELAY_INBOX_FILE,
+        OFFSET_FILE,
+        BRIDGE_CONFIG_FILE,
+        SEEN_MEMBERS_FILE,
+        MEDIA_INBOX_DIR,
+    )
+)
+
+
+def guard_production_write(path, what: str) -> None:
+    """Raise if a test process is about to write real production state.
+
+    No-op unless TELEGRAM_BRIDGE_TEST_MODE is set in the environment, so
+    this costs the live service one dict lookup per write and nothing else.
+    """
+    if not os.environ.get(TEST_MODE_ENV_VAR):
+        return
+    try:
+        resolved = Path(path).resolve()
+    except OSError:  # defensive: never let the guard itself break a write
+        return
+    if resolved in _PRODUCTION_STATE_PATHS:
+        raise RuntimeError(
+            f"refusing to write production state under test: {what} -> {resolved}. "
+            f"This test must redirect bot.{what} at a temp path "
+            f"(mock.patch.object) or patch out the persistence helper. "
+            f"See the production-state write guard in bot.py."
+        )
+
 
 POLL_TIMEOUT = 25  # seconds, Telegram long-poll timeout (safely under Telegram's server-side max)
 HTTP_TIMEOUT = POLL_TIMEOUT + 10  # requests timeout, must exceed poll timeout
@@ -239,6 +297,7 @@ def load_offset():
 
 def save_offset(offset) -> None:
     """Persist the update offset. Writes atomically (temp file + rename)."""
+    guard_production_write(OFFSET_FILE, "OFFSET_FILE")
     tmp_path = OFFSET_FILE.with_suffix(".json.tmp")
     try:
         tmp_path.write_text(json.dumps({"offset": offset}), encoding="utf-8")
@@ -268,6 +327,7 @@ def load_bridge_config() -> dict:
 
 def save_bridge_config(data: dict) -> None:
     """Persist bridge-config.json. Writes atomically (temp file + rename)."""
+    guard_production_write(BRIDGE_CONFIG_FILE, "BRIDGE_CONFIG_FILE")
     tmp_path = BRIDGE_CONFIG_FILE.with_suffix(".json.tmp")
     try:
         tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -326,6 +386,7 @@ def load_seen_members() -> dict:
 
 def save_seen_members(data: dict) -> None:
     """Persist seen-members.json. Writes atomically (temp file + rename)."""
+    guard_production_write(SEEN_MEMBERS_FILE, "SEEN_MEMBERS_FILE")
     tmp_path = SEEN_MEMBERS_FILE.with_suffix(".json.tmp")
     try:
         tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -647,6 +708,7 @@ def relay_message(client: TelegramClient, message_id, decision: dict, text: str,
     }
     if reply_to is not None:
         record["reply_to"] = reply_to
+    guard_production_write(RELAY_INBOX_FILE, "RELAY_INBOX_FILE")
     with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     log.info(
@@ -866,6 +928,10 @@ def relay_media(client: TelegramClient, message_id, decision: dict, media: dict,
     additive convention as relay_message() - see its docstring.
     """
     chat_id = decision["chat_id"]
+    # Checked up front, outside the download try/except below - that block
+    # swallows every exception into a "download failed" chat reply, which
+    # would hide the guard's own error instead of surfacing it.
+    guard_production_write(MEDIA_INBOX_DIR, "MEDIA_INBOX_DIR")
     safe_set_reaction(client, chat_id, message_id, REACTION_SEEN)
 
     kind = media["kind"]
@@ -931,6 +997,7 @@ def relay_media(client: TelegramClient, message_id, decision: dict, media: dict,
     if reply_to is not None:
         record["reply_to"] = reply_to
 
+    guard_production_write(RELAY_INBOX_FILE, "RELAY_INBOX_FILE")
     with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     log.info(
@@ -1031,6 +1098,18 @@ def poll_once(client: TelegramClient, config: dict, bridge_config: dict, allowli
     the media-handling block below for why the classic `claude -p` CLI path
     is out of scope.
     """
+    # Production-state write guard, checked once up front rather than only
+    # at each individual write: under TELEGRAM_BRIDGE_TEST_MODE a poll_once()
+    # test that has not redirected this module's state paths at a temp
+    # directory fails loudly and immediately, instead of failing only on the
+    # subset of inputs that happen to reach a write. See
+    # guard_production_write().
+    for _path, _name in (
+        (RELAY_INBOX_FILE, "RELAY_INBOX_FILE"),
+        (MEDIA_INBOX_DIR, "MEDIA_INBOX_DIR"),
+    ):
+        guard_production_write(_path, _name)
+
     founder_chat_id = config["chat_id"]
     offset = load_offset()
 

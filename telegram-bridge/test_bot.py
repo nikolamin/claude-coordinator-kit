@@ -11,7 +11,11 @@ redirected to a temp directory (never this repo's real media-inbox/ or
 relay-inbox.jsonl - the latter would be tailed by a live Claude Code session
 and must never see synthetic test data), and bot.py's persistence functions
 (save_offset/save_bridge_config/save_seen_members) are patched out so tests
-never touch this repo's real runtime-state files. The actual Telegram file
+never touch this repo's real runtime-state files. As a backstop for when a
+test class forgets one of those, this module sets TELEGRAM_BRIDGE_TEST_MODE=1
+before importing bot, which arms bot.py's guard_production_write(): while it
+is set, any write aimed at a real live-service state path raises instead of
+landing on disk (see ProductionStateWriteGuardTests). The actual Telegram file
 download (resolve_telegram_file_path/download_telegram_file) is patched at
 the module level rather than faked through a client method, since that's
 how bot.py itself calls it.
@@ -23,6 +27,7 @@ Run:
 
 import json
 import logging
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,7 +35,18 @@ from unittest import mock
 
 import requests
 
-import bot as bot_module
+# Announce "this is a test process" BEFORE importing bot, so bot.py's
+# production-state write guard is armed for everything this module does.
+# While this is set, bot.py refuses to write any of the repo's real
+# live-service state files (relay-inbox.jsonl, .offset.json,
+# bridge-config.json, seen-members.json, media-inbox/) and raises instead -
+# so a test class that forgets to redirect those paths at a temp directory
+# fails loudly here rather than silently injecting synthetic messages into
+# the live relay inbox a running Claude Code session is tailing. See
+# guard_production_write() in bot.py.
+os.environ["TELEGRAM_BRIDGE_TEST_MODE"] = "1"
+
+import bot as bot_module  # noqa: E402  (must follow the env var above)
 
 # bot.py's module-level logging.basicConfig() attaches a FileHandler pointed
 # at the real bot.log (next to bot.py), on the ROOT logger, as an import
@@ -49,6 +65,96 @@ BOT_ID = 999888777
 BOT_USERNAME = "ExampleBridgeBot"
 GROUP_CHAT_ID = -100999888
 GROUP_TITLE = "Example Group"
+
+
+def _redirect_state_paths_to_tempdir(self):
+    """setUp helper: point bot.py's on-disk state paths at a fresh temp
+    directory for the duration of one test.
+
+    Any test that calls bot.poll_once() MUST use this (or do the equivalent
+    patching itself, as MediaRelayTests' own setUp does). poll_once() can
+    reach relay_message()/relay_media(), both of which append to
+    bot.RELAY_INBOX_FILE - and the unpatched value of that constant is this
+    repo's LIVE relay-inbox.jsonl, which a running Claude Code session
+    tails and treats as real incoming Telegram traffic. Patching only the
+    save_* persistence helpers is NOT enough: that was the 2026-07-27 bug,
+    where GroupActivationGatingTests' founder-mention fixture (synthetic
+    group -100999888, synthetic "founder" sender) was appended to the live
+    inbox on every test run and read as an intrusion. bot.py's
+    guard_production_write() now also refuses such a write outright, but
+    redirecting the paths here is what makes these tests actually exercise
+    the write path.
+    """
+    tmpdir = tempfile.TemporaryDirectory()
+    self.addCleanup(tmpdir.cleanup)
+    tmp_path = Path(tmpdir.name)
+    self.relay_inbox_file = tmp_path / "relay-inbox.jsonl"
+    self.media_inbox_dir = tmp_path / "media-inbox"
+    for patcher in (
+        mock.patch.object(bot_module, "RELAY_INBOX_FILE", self.relay_inbox_file),
+        mock.patch.object(bot_module, "MEDIA_INBOX_DIR", self.media_inbox_dir),
+    ):
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class ProductionStateWriteGuardTests(unittest.TestCase):
+    """The defense-in-depth backstop itself: with TELEGRAM_BRIDGE_TEST_MODE
+    set (this module sets it at import), bot.py must refuse to write any of
+    the repo's real live-service state paths, and must still allow writes to
+    a redirected temp path.
+    """
+
+    def test_guard_raises_for_each_real_production_state_path(self):
+        for path, name in (
+            (bot_module.SCRIPT_DIR / "relay-inbox.jsonl", "RELAY_INBOX_FILE"),
+            (bot_module.SCRIPT_DIR / ".offset.json", "OFFSET_FILE"),
+            (bot_module.SCRIPT_DIR / "bridge-config.json", "BRIDGE_CONFIG_FILE"),
+            (bot_module.SCRIPT_DIR / "seen-members.json", "SEEN_MEMBERS_FILE"),
+            (bot_module.SCRIPT_DIR / "media-inbox", "MEDIA_INBOX_DIR"),
+        ):
+            with self.subTest(name=name):
+                with self.assertRaises(RuntimeError):
+                    bot_module.guard_production_write(path, name)
+
+    def test_guard_allows_a_redirected_temp_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bot_module.guard_production_write(Path(tmp) / "relay-inbox.jsonl", "RELAY_INBOX_FILE")
+
+    def test_guard_is_a_no_op_when_the_env_var_is_absent(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            bot_module.guard_production_write(bot_module.RELAY_INBOX_FILE, "RELAY_INBOX_FILE")
+
+    def test_poll_once_refuses_to_run_against_the_live_relay_inbox(self):
+        """The exact 2026-07-27 regression: a poll_once() test that patches
+        only the save_* helpers, leaving RELAY_INBOX_FILE pointing at the
+        live file, must now fail loudly instead of appending to it.
+        """
+        client = _FakeClient([])
+        config = {"chat_id": str(FOUNDER_CHAT_ID), "relay_mode": True, "default_cwd": "/tmp"}
+        with mock.patch.object(bot_module, "save_offset"), \
+                mock.patch.object(bot_module, "save_bridge_config"), \
+                mock.patch.object(bot_module, "save_seen_members"):
+            with self.assertRaises(RuntimeError):
+                bot_module.poll_once(
+                    client, config, {"bot_id": BOT_ID, "bot_username": BOT_USERNAME}, set(), {}
+                )
+
+    def test_relay_message_refuses_to_append_to_the_live_relay_inbox(self):
+        before = bot_module.RELAY_INBOX_FILE.read_bytes() if bot_module.RELAY_INBOX_FILE.exists() else None
+        decision = {"chat_id": FOUNDER_CHAT_ID, "chat_type": "private", "from_id": FOUNDER_CHAT_ID}
+        with self.assertRaises(RuntimeError):
+            bot_module.relay_message(_FakeClient([]), 12345, decision, "synthetic test text")
+        after = bot_module.RELAY_INBOX_FILE.read_bytes() if bot_module.RELAY_INBOX_FILE.exists() else None
+        self.assertEqual(before, after)
+
+    def test_save_helpers_refuse_to_write_real_runtime_state(self):
+        with self.assertRaises(RuntimeError):
+            bot_module.save_offset(1)
+        with self.assertRaises(RuntimeError):
+            bot_module.save_bridge_config({})
+        with self.assertRaises(RuntimeError):
+            bot_module.save_seen_members({})
 
 
 class UpdateSeenMembersTests(unittest.TestCase):
@@ -135,6 +241,8 @@ class SeenMemberCaptureDuringPollTests(unittest.TestCase):
     the group, or mentioning the bot before being allowlisted.
     """
 
+    setUp = _redirect_state_paths_to_tempdir
+
     def _run_poll_once(self, update, allowlist):
         client = _FakeClient([update])
         config = {"chat_id": str(FOUNDER_CHAT_ID), "relay_mode": True, "default_cwd": "/tmp"}
@@ -220,6 +328,8 @@ class GroupActivationGatingTests(unittest.TestCase):
     active_group_chat_id, and a later `notify.sh --group` would send
     founder/coordinator status straight to that stranger's group.
     """
+
+    setUp = _redirect_state_paths_to_tempdir
 
     def _run(self, update, allowlist=None, bridge_config=None):
         client = _FakeClient([update])
