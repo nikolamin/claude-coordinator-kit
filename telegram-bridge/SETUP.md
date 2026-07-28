@@ -25,13 +25,14 @@ below is the fully-manual path, for a human running it themselves with no agent 
 | `react.sh` | Set a reaction on a relayed message: `./react.sh <message_id> <result>` (or `./react.sh --chat <chat_id> <message_id> <result>` — see (h)). `<result>` is `ok`/`fail` (the final 👍/👎, unchanged) or one of the extra words in (j) — `done`/`check`/`thumbup`, `down`/`thumbdown`/`x`, `seen`/`working`, `thinking`; an unrecognized ASCII word fails locally, and any other literal emoji is passed straight through. |
 | `send-file.sh` | Deliver a file to Telegram, picking `sendPhoto`/`sendAnimation`/`sendVideo`/`sendDocument` from its extension: `./send-file.sh <path> [caption]` — see (j). |
 | `typing.sh` | Post (or keep alive) a "typing…" indicator: `./typing.sh [seconds]` — see (j). |
+| `register-commands.sh` | Publish the bot's `/command` menu to Telegram (additive + idempotent): `./register-commands.sh` (or `--list` to read it back). Ships with an empty command list — see (m). |
 | `telegram_common.py` | Shared helper module (message chunking, group-chat gating, file download) used by `bot.py` and `daily_report.py`. Required — `bot.py` imports it. |
 | `get_chat_id.py` | Optional helper to print your chat id from recent bot updates (alternative to the curl one-liner in step (a)). |
 | `daily_report.py` | Optional. One-shot, significance-gated daily git-activity digest sent to Telegram — see (k). |
 | `process-media.sh` | Optional. Local transcription/frame-extraction for media downloaded by `bot.py` — see (i). |
 | `email_monitor.py` | Optional. Polls an IMAP inbox on a schedule and surfaces new mail the same way relay mode surfaces Telegram messages — see (l). |
 | `EMAIL-MONITOR.md` | Full setup walkthrough for `email_monitor.py` — see (l). |
-| `test_bot.py`, `test_filter.py`, `test_daily_report.py`, `test_send_file.py`, `test_react.py`, `test_typing.py` | Unit tests for `bot.py`/`telegram_common.py` gating logic, `daily_report.py`'s significance gate, `send-file.sh`'s extension routing and unconfigured-bridge exit, `react.sh`'s word→emoji vocabulary, and `typing.sh`'s unconfigured-bridge exit. Run with `python3 -m unittest discover` (or `python3 test_bot.py`, etc.) from this directory — stdlib `unittest`, no extra install needed. `python3 -m pytest` also works as an alternative runner *if* `pytest` is already installed (`pip install pytest`) — it isn't a project dependency, so don't rely on it being present by default. |
+| `test_bot.py`, `test_filter.py`, `test_daily_report.py`, `test_send_file.py`, `test_react.py`, `test_typing.py`, `test_register_commands.py` | Unit tests for `bot.py`/`telegram_common.py` gating logic, `daily_report.py`'s significance gate, `send-file.sh`'s extension routing and unconfigured-bridge exit, `react.sh`'s word→emoji vocabulary, `typing.sh`'s unconfigured-bridge exit, and `register-commands.sh`'s additive merge, idempotency and empty-list no-op. Run with `python3 -m unittest discover` (or `python3 test_bot.py`, etc.) from this directory — stdlib `unittest`, no extra install needed. `python3 -m pytest` also works as an alternative runner *if* `pytest` is already installed (`pip install pytest`) — it isn't a project dependency, so don't rely on it being present by default. |
 | `.env.example` | Template for your `.env` — copy and fill in. |
 | `.gitignore` | Keeps `.env`, logs, and runtime state files out of version control. |
 | `com.example.claude-telegram-bridge.plist.template` | macOS launchd template for the always-on bot loop. |
@@ -602,6 +603,51 @@ fed by email instead of Telegram messages. Full setup — IMAP credentials, `.en
 launchd/systemd install, and the security notes specific to email (read-only IMAP access, untrusted
 content, domain filtering) — lives in `EMAIL-MONITOR.md` in this same directory. Skip it entirely
 if you don't want it; nothing else here depends on it.
+
+## (m) Slash-command menu (`register-commands.sh`)
+
+Telegram lets a bot publish a **command menu** — the list of `/commands` your phone offers as soon
+as you type `/` in the chat. This is *discoverability only*. It changes nothing about how messages
+are handled: in relay mode `bot.py` writes every text message into `relay-inbox.jsonl` verbatim,
+slash commands included (see (f)), so a registered command is simply a typing shortcut for text the
+live coordinator session was always going to receive. Nothing in the relay path intercepts,
+validates, or strips a slash command, and an *un*registered command relays exactly the same way.
+
+Register (or re-register) the menu with:
+
+```bash
+./register-commands.sh          # merge this repo's command list into the bot's menu
+./register-commands.sh --list   # print the currently registered menu, change nothing
+```
+
+It reads the existing menu via `getMyCommands` first and **merges** — additive and idempotent, so
+re-running never drops a command registered elsewhere, and a second run is a no-op. Token handling
+follows the same rules as the other standalone scripts (`.env` sourced from next to the script,
+token never printed — see (j) and **Security**).
+
+**The kit ships this menu empty, on purpose.** Which commands are worth publishing is a per-project
+question, so the `COMMANDS` array at the top of the script contains only a commented sample line.
+With it empty the script is a safe no-op: it reports the currently registered menu and changes
+nothing. To add a command, uncomment the sample (or write your own) as one `"name|description"`
+line and re-run:
+
+```bash
+COMMANDS=(
+  "standup|Post today's status to the coordinator session"
+)
+```
+
+Telegram's own rules apply to each entry: the name is 1–32 chars of lowercase `a-z`, `0-9` and
+underscores; the description is 1–256 chars. A command whose description you change is updated in
+place on the next run rather than duplicated.
+
+Nothing else has to know about a command you add — no handler, no dispatch table, no `bot.py`
+change. The word arrives in `relay-inbox.jsonl` like any other message and the live coordinator
+session decides what it means (in the project this bridge was extracted from, `/personas` is just a
+shortcut for text that triggers a project-local Claude Code skill).
+
+Because the menu is stored by Telegram against the bot token, a token rotation or a fresh bot
+(step (a)) starts with an empty menu — re-run `./register-commands.sh` after either.
 
 ## Security
 
