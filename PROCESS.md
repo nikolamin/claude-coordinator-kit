@@ -124,6 +124,14 @@ durable decision per `CLAUDE.md`, tracked in `STATE.md`'s Durable decisions sect
   examples), so its output lands back in this same context instead of off to the side. A
   CLI-based headless/detached invocation (if your environment has one) is the narrower case,
   reserved for jobs that must genuinely outlive the coordinator's own session.
+- **Listener-liveness check**: such a poller can die silently while every producer upstream stays
+  perfectly healthy — so during any idle or quiet stretch (every 2-3 idle ticks), a health check
+  compares the watched file's own tail — last line, or mtime/line count — against the last message
+  the session actually processed. A mismatch means the in-session listener is dead, however green
+  the producers look: checking them (the daemon, the launchd/cron job, the sender's log) proves
+  delivery **to the file**, never delivery **to the session**, and will happily confirm "silence is
+  genuine" when three messages are sitting unread. On a mismatch, re-arm the listener **and** work
+  the backlog — acknowledge and answer the missed messages — not just re-arm.
 - Orchestration: dispatch unblocked tasks that touch disjoint files/resources in parallel by
   default (see `CLAUDE.md`'s Execute loop) — sidestep merge conflicts with **git worktrees**, the
   default isolation mechanism for concurrent same-repo work (each parallel build agent works in

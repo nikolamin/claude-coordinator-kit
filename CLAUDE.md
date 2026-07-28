@@ -208,6 +208,12 @@ without an armed way to wake back up.
   event on the notify channel — suspect this too when a wakeup finds silence and no stalled agent.
   Write scratch/output only inside the project (`.coordinator-scratch/`; see Agent brief hygiene,
   including its narrow exemption for the kit's own named, install-approved paths).
+- **A dead in-session listener reads as silence too — and no producer-side check can see it.**
+  Every 2-3 idle ticks, compare the watched inbox file's last line (or mtime/line count — e.g.
+  `<BRIDGE_DIR>/relay-inbox.jsonl`) against the last message this session actually processed:
+  producer health (launchd job up, bot log flowing) only proves delivery **to the file**, never
+  **to the session**, so it will confirm "silence is genuine" while messages sit unread. On a
+  mismatch, re-arm the listener **and** process the missed backlog (react/reply), not just re-arm.
 
 ## Verification standard
 
