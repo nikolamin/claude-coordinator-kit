@@ -1,6 +1,6 @@
 ---
 name: feedback-watchdog-keep-looping
-description: "A coordinator that goes silently idle waiting on a notification that never fires is a failure mode as real as self-executing - arm watchdogs on in-flight agents and never stop the loop silently."
+description: "A coordinator that goes silently idle waiting on a notification that never fires is a failure mode as real as self-executing - arm watchdogs on in-flight agents, check that your own listener is still alive during quiet stretches, and never stop the loop silently."
 metadata:
   type: feedback
 ---
@@ -36,6 +36,13 @@ what's actually happening without asking.
   re-check the notify channel/inbox and the plan doc, and say so plainly in the checkpoint ping
   ("idle on founder input, nothing else queued") instead of just stopping and hoping someone
   notices.
+- During idle stretches, verify your own listener, not just the producers feeding it: every 2-3
+  idle ticks, compare the watched inbox file's tail (last line, or mtime/line count) against the
+  last message the session actually processed. Producer-side health — the daemon running, the
+  launchd/cron job green, the sender's log flowing — proves delivery **to the file** and never
+  delivery **to the session**, so an in-session poller that died quietly looks exactly like
+  genuine silence. On a mismatch, re-arm the listener **and** work the missed backlog
+  (acknowledge and answer), not just re-arm.
 - Watchdogs are within-session only. Cross-session continuity is `docs/coordination/STATE.md`'s
   job — a fresh or resumed session reads its in-flight list and re-dispatches anything that died
   with the previous session, the same way it would recover from a within-session stall — unless
