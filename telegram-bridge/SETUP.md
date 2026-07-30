@@ -245,6 +245,29 @@ Two modes, switched by `RELAY_MODE` in `.env`:
   purely-additive convention as the group-chat fields above; a consumer that only reads the
   original four-field shape is unaffected either way. Media records (see (i)) carry the same
   optional `reply_to` field under the same condition.
+
+  **`text_path` (optional, downstream-truncation defense).** A layer above this bridge — outside
+  its control, e.g. a notification/monitor layer the coordinator session reads a relay record
+  through — has been observed in the field to silently truncate a long inbound plain-text message
+  mid-string before that session ever sees it (well short of Telegram's own 4096-char per-message
+  limit, so this isn't Telegram truncating). To defend against that, a message whose `text` is
+  longer than 700 characters (`bot.py`'s `LONG_TEXT_ARTIFACT_THRESHOLD_CHARS`) also gets its full,
+  untruncated body written to a file in `media-inbox/` — the same directory downloaded media
+  already lands in, see (i) — named `<YYYYMMDD>-<chat_id>-<message_id>.txt` (identical naming
+  convention to a media download, just with a fixed `.txt` extension since there's no MIME type to
+  guess from), with the path threaded into the record as:
+  ```json
+  "text_path": "/absolute/path/to/media-inbox/20260731-1000000001-1002.txt"
+  ```
+  A consuming session that wants to be sure it has the complete text — rather than trust whatever
+  `text` looks like it got truncated to — reads this file instead. **Absent entirely** for a
+  message at or under the threshold, or if the write itself fails (an unwritable disk, a full
+  volume, …) — a failed artifact write degrades the record to "no `text_path`", it never drops the
+  message or crashes the poll cycle. Same purely-additive convention as `reply_to` above: the
+  inline `text` field keeps meaning exactly what it always meant either way, and a consumer that
+  only reads `text` is unaffected. Deliberately scoped to plain-text messages only — a media
+  message's `caption` (see (i)) flows through `relay_media()` instead, so it never reaches the
+  artifact code path at all.
 - **Classic mode (`RELAY_MODE` unset, fallback).** Each message is handled by shelling out to a
   fresh, headless `claude -p` (or `claude -p --continue text` to keep conversation context across
   messages) — no shared context with any live/desktop session, no memory of anything the
@@ -400,6 +423,9 @@ MIME-type guess, then `.bin`. The `chat_id` segment is required, not cosmetic: T
 same `message_id` on the same day — omitting `chat_id` from the filename would let the second
 download silently overwrite the first. A negative group chat id (e.g. `-100999888`) is rendered as
 `g100999888` (a leading `g` instead of a literal `-`) so the filename never starts with a hyphen.
+This same directory and naming convention (just with a fixed `.txt` extension) is also reused by
+the downstream-truncation defense for long plain-text messages — see `text_path` under (f) above —
+rather than inventing a second inbound-artifact directory for it.
 
 **`relay-inbox.jsonl` fields.** A media message's record carries a `media` block (`kind`, `path`,
 `mime`, `size`, `duration`) instead of relying on `text` alone (any caption still comes through as

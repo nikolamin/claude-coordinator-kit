@@ -30,6 +30,7 @@ import logging
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -813,6 +814,241 @@ class MediaRelayTests(unittest.TestCase):
         self.assertIn("reply_to", record)
         self.assertEqual(record["reply_to"]["message_id"], 899)
         self.assertEqual(record["reply_to"]["text_prefix"], "Can you send a screenshot of the error?")
+
+
+class LongTextArtifactTests(unittest.TestCase):
+    """Integration-ish tests through bot.poll_once(): confirm the
+    downstream-truncation defense - a plain-text message over
+    LONG_TEXT_ARTIFACT_THRESHOLD_CHARS gets its full body written to a file
+    in MEDIA_INBOX_DIR (the same directory media downloads already use) and
+    referenced via an additive `text_path` field on its relay-inbox.jsonl
+    record - see write_inbound_text_artifact()/relay_message() in bot.py.
+
+    Same "integration-ish through poll_once(), redirect state paths to a
+    temp dir" shape as MediaRelayTests above, since the feature reuses
+    MEDIA_INBOX_DIR rather than a directory of its own.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp_path = Path(self._tmpdir.name)
+        self.relay_inbox_file = tmp_path / "relay-inbox.jsonl"
+        self.media_inbox_dir = tmp_path / "media-inbox"
+
+        patches = [
+            mock.patch.object(bot_module, "RELAY_INBOX_FILE", self.relay_inbox_file),
+            mock.patch.object(bot_module, "MEDIA_INBOX_DIR", self.media_inbox_dir),
+            mock.patch.object(bot_module, "save_offset"),
+            mock.patch.object(bot_module, "save_bridge_config"),
+            mock.patch.object(bot_module, "save_seen_members"),
+        ]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        self.addCleanup(self._tmpdir.cleanup)
+
+    def _run_poll(self, client):
+        config = {"chat_id": str(FOUNDER_CHAT_ID), "relay_mode": True, "default_cwd": "/tmp"}
+        bridge_config = {"bot_id": BOT_ID, "bot_username": BOT_USERNAME}
+        return bot_module.poll_once(
+            client, config, bridge_config, allowlist=set(), seen_members={}
+        )
+
+    def _read_records(self):
+        if not self.relay_inbox_file.exists():
+            return []
+        lines = self.relay_inbox_file.read_text(encoding="utf-8").splitlines()
+        return [json.loads(line) for line in lines if line.strip()]
+
+    def test_short_message_gets_no_text_path_and_is_byte_identical_in_shape(self):
+        """Under the threshold: `text_path` must be entirely absent, and
+        every other field must be exactly what MediaRelayTests'
+        test_plain_text_message_is_unaffected already asserts for a plain
+        text DM - proving this feature is additive, not a reshape.
+        """
+        client = _FakeClient([_text_update(100, 1000, text="hello there")])
+        exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertIn("ts", record)
+        self.assertIsInstance(record["ts"], str)
+        self.assertTrue(record["ts"])
+        self.assertEqual(record["chat_id"], FOUNDER_CHAT_ID)
+        self.assertEqual(record["message_id"], 1000)
+        self.assertEqual(record["text"], "hello there")
+        self.assertEqual(record["chat_type"], "private")
+        self.assertEqual(record["from_id"], FOUNDER_CHAT_ID)
+        self.assertEqual(record["from_name"], "founder")
+        self.assertFalse(record["is_reply_to_bot"])
+        self.assertFalse(record["mentioned"])
+        self.assertNotIn("media", record)
+        self.assertNotIn("photo_path", record)
+        self.assertNotIn("reply_to", record)
+        self.assertNotIn("text_path", record)
+        # Exactly the 9-key shape MediaRelayTests' short-text test expects -
+        # nothing added, nothing removed, for a message under the threshold.
+        self.assertEqual(
+            set(record.keys()),
+            {
+                "ts", "chat_id", "message_id", "text", "chat_type",
+                "from_id", "from_name", "is_reply_to_bot", "mentioned",
+            },
+        )
+        # No artifact directory traffic at all for a short message.
+        self.assertFalse(self.media_inbox_dir.exists())
+
+    def test_message_exactly_at_threshold_gets_no_text_path(self):
+        """Boundary check: exactly LONG_TEXT_ARTIFACT_THRESHOLD_CHARS chars
+        is NOT "over" the threshold (relay_message() uses a strict `>`), so
+        no artifact should be written.
+        """
+        text = "y" * bot_module.LONG_TEXT_ARTIFACT_THRESHOLD_CHARS
+        client = _FakeClient([_text_update(101, 1001, text=text)])
+        exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        record = self._read_records()[0]
+        self.assertEqual(record["text"], text)
+        self.assertNotIn("text_path", record)
+
+    def test_long_multibyte_message_writes_full_text_artifact_and_references_it(self):
+        """Over the threshold, with multibyte characters (so a byte-vs-
+        character counting bug would surface): the inline `text` field must
+        still carry the complete text (bot.py itself never truncates it -
+        the truncation this defends against happens in a layer above this
+        bridge), AND the referenced file must hold the exact same complete
+        text, char for char.
+        """
+        unit = "café 日本語 \U0001F600 "  # accents, CJK, emoji
+        text = unit * (bot_module.LONG_TEXT_ARTIFACT_THRESHOLD_CHARS // len(unit) + 5)
+        self.assertGreater(len(text), bot_module.LONG_TEXT_ARTIFACT_THRESHOLD_CHARS)
+
+        client = _FakeClient([_text_update(102, 1002, text=text)])
+        exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["text"], text)
+        self.assertIn("text_path", record)
+
+        artifact_path = Path(record["text_path"])
+        self.assertTrue(artifact_path.exists())
+        self.assertEqual(artifact_path.read_text(encoding="utf-8"), text)
+        self.assertEqual(len(artifact_path.read_text(encoding="utf-8")), len(text))
+
+        # Same naming convention as media downloads: <YYYYMMDD>-<chat_id>-<message_id>.txt
+        date_str = datetime.now().strftime("%Y%m%d")
+        expected_name = f"{date_str}-{FOUNDER_CHAT_ID}-1002.txt"
+        self.assertEqual(artifact_path.name, expected_name)
+        self.assertEqual(artifact_path.parent, self.media_inbox_dir)
+
+    def test_long_message_in_a_group_chat_gets_g_prefixed_filename(self):
+        """Same chat-id sanitization relay_media() relies on: a negative
+        group chat id must render with a 'g' prefix rather than a literal
+        leading '-' in the artifact filename.
+        """
+        text = "z" * (bot_module.LONG_TEXT_ARTIFACT_THRESHOLD_CHARS + 50)
+        message = {
+            "message_id": 1003,
+            "date": 1700000000,
+            "chat": {"id": GROUP_CHAT_ID, "type": "group", "title": GROUP_TITLE},
+            "from": {"id": FOUNDER_CHAT_ID, "is_bot": False, "username": "founder"},
+            "text": text,
+            "reply_to_message": {
+                "message_id": 0,
+                "from": {"id": BOT_ID, "is_bot": True, "username": BOT_USERNAME},
+                "text": "(bot's earlier message)",
+            },
+        }
+        client = _FakeClient([{"update_id": 103, "message": message}])
+        exit_code = self._run_poll(client)
+
+        self.assertEqual(exit_code, 0)
+        record = self._read_records()[0]
+        self.assertIn("text_path", record)
+        artifact_path = Path(record["text_path"])
+        self.assertTrue(artifact_path.name.startswith(
+            datetime.now().strftime("%Y%m%d") + "-g"
+        ))
+        self.assertEqual(artifact_path.read_text(encoding="utf-8"), text)
+
+    def test_artifact_write_failure_degrades_gracefully_event_still_produced(self):
+        """Force the write to fail (occupy MEDIA_INBOX_DIR's path with a
+        plain file, so mkdir(parents=True, exist_ok=True) raises OSError)
+        and confirm poll_once() neither raises nor drops the message - the
+        relay record is still produced, just without `text_path`. This is
+        the "degrade gracefully, don't kill the poll cycle" requirement.
+        """
+        # A regular file sitting where the directory should be - mkdir()
+        # with exist_ok=True still raises FileExistsError (an OSError
+        # subclass) when the existing entry isn't itself a directory.
+        self.media_inbox_dir.parent.mkdir(parents=True, exist_ok=True)
+        self.media_inbox_dir.write_bytes(b"occupied by a plain file, not a directory")
+
+        text = "w" * (bot_module.LONG_TEXT_ARTIFACT_THRESHOLD_CHARS + 20)
+        client = _FakeClient([_text_update(104, 1004, text=text)])
+
+        exit_code = self._run_poll(client)  # must not raise
+
+        self.assertEqual(exit_code, 0)
+        records = self._read_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        # The event is still produced, in full, with the untouched inline
+        # text - just no text_path, since the artifact write failed.
+        self.assertEqual(record["text"], text)
+        self.assertNotIn("text_path", record)
+        self.assertEqual(record["message_id"], 1004)
+
+
+class WriteInboundTextArtifactTests(unittest.TestCase):
+    """Direct unit tests for bot.write_inbound_text_artifact() itself. This
+    function does not check the length threshold (relay_message() does that
+    before calling it) - these tests call it directly regardless of length.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.media_inbox_dir = Path(self._tmpdir.name) / "media-inbox"
+        patcher = mock.patch.object(bot_module, "MEDIA_INBOX_DIR", self.media_inbox_dir)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self._tmpdir.cleanup)
+
+    def test_writes_full_text_and_returns_path(self):
+        result = bot_module.write_inbound_text_artifact(FOUNDER_CHAT_ID, 4242, "the full text body")
+        self.assertIsNotNone(result)
+        path = Path(result)
+        self.assertTrue(path.exists())
+        self.assertEqual(path.read_text(encoding="utf-8"), "the full text body")
+        self.assertEqual(path.suffix, ".txt")
+        self.assertEqual(path.parent, self.media_inbox_dir)
+
+    def test_no_leftover_tmp_file_after_a_successful_write(self):
+        result = bot_module.write_inbound_text_artifact(FOUNDER_CHAT_ID, 4243, "another body")
+        path = Path(result)
+        tmp_path = path.with_name(path.name + ".tmp")
+        self.assertFalse(tmp_path.exists())
+
+    def test_returns_none_and_logs_on_write_failure_without_raising(self):
+        self.media_inbox_dir.parent.mkdir(parents=True, exist_ok=True)
+        self.media_inbox_dir.write_bytes(b"occupied")
+        result = bot_module.write_inbound_text_artifact(FOUNDER_CHAT_ID, 4244, "won't be written")
+        self.assertIsNone(result)
+
+    def test_refuses_to_write_the_live_media_inbox_dir_under_test_mode(self):
+        """The same production-state write guard media downloads already
+        get (see ProductionStateWriteGuardTests) must also cover this
+        function - it writes into the same MEDIA_INBOX_DIR.
+        """
+        with mock.patch.object(bot_module, "MEDIA_INBOX_DIR", bot_module.SCRIPT_DIR / "media-inbox"):
+            with self.assertRaises(RuntimeError):
+                bot_module.write_inbound_text_artifact(FOUNDER_CHAT_ID, 4245, "x")
 
 
 class ExtractMediaTests(unittest.TestCase):

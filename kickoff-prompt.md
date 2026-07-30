@@ -43,13 +43,15 @@ a resolved value, before deciding whether to ask me anything:
 
 Then run the **Bootstrap** phase (this is the one named mechanical exception in CLAUDE.md — do it
 yourself, don't dispatch an agent for it):
-1. Check whether the knowledge-base skeleton already exists first (`docs/coordination/STATE.md`
-   present and not just the template's "Phase: Bootstrap" stub). If it does, don't recreate it:
-   first make sure `.coordinator-scratch/` exists at the project root and is gitignored —
-   create it and append it to `.gitignore` if either is missing, commit that `.gitignore` change
-   as its own small commit, then read STATE.md's Current section and resume from there instead of
-   running Bootstrap again.
-2. Otherwise create the skeleton PROCESS.md describes: `docs/coordination/` (PROCESS.md and
+1. Check whether this project is already bootstrapped by applying **the resume test** `CLAUDE.md`
+   defines (Session stop / resume protocol, under "bootstrap yourself") — not just "does STATE.md
+   exist," which a stale stub could pass by accident. If it fires, this project was already
+   bootstrapped in an earlier session — this is exactly the situation `CLAUDE.md`'s "bootstrap
+   yourself" protocol covers (including how it reads and acts on a STOP NOTE in `STATE.md`'s
+   Current section, if one is waiting). Follow that protocol instead of running Bootstrap again
+   below, and don't recreate anything Bootstrap already created.
+2. Otherwise (neither condition holds — a genuinely fresh, never-bootstrapped project): create
+   the skeleton PROCESS.md describes: `docs/coordination/` (PROCESS.md and
    codex-setup.md already there — confirm; STATE.md from the template), `docs/concept/`,
    `docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`, and
    `.coordinator-scratch/` at the project root — append it to the project's `.gitignore` (creating

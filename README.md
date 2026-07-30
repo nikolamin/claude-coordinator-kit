@@ -26,7 +26,7 @@ to actually stay in the coordinator role instead of drifting into doing work its
 | `memory-seed/` | Optional. Generalized versions of the behavioral corrections that make the coordinator role stick across sessions (see below). |
 | `telegram-bridge/` | Optional. A complete, ready-to-install reference implementation of `<NOTIFY_CHANNEL>` over Telegram — see below. |
 | `codex-setup.md` | Optional. Install/invocation guide for the GPT second-opinion (`codex exec`) that `CLAUDE.md`'s Escalation section triggers on judgment-heavy work. Installed to `docs/coordination/codex-setup.md` alongside `PROCESS.md`/`STATE.md` — `CLAUDE.md` points at it there. |
-| `UPDATING.md` | Per-file update rules and a paste-able update prompt for bringing an already-installed project onto a newer kit version. Not installed into the project — like `kickoff-prompt.md`, just fetch and paste/read it when updating. See "Updating" below. |
+| `UPDATING.md` | Per-file update rules (REPLACE/NEVER TOUCH/MERGE classification and the reasoning behind each) that the install prompt's update branch follows, plus a manual by-hand fallback. Not installed into the project — like `kickoff-prompt.md`, just fetch and read it when updating. See "Updating" below. |
 | `docs/coordination/kit-version.md` | Not a kit file — created by the installer during install (see below), not shipped in the kit's own tree. Records which kit commit was installed, the date, and whether the bridge/memory seed were included. What `UPDATING.md` reads to know where you're updating from. |
 
 ## Install into a new project
@@ -40,7 +40,9 @@ Paste the block below as the **first message in a fresh Claude Code session, sta
 new project's root directory**. It is self-contained — it fetches the kit itself, asks you the
 required questions one at a time (project name, notify channel, Chrome browser access, memory
 seeding), installs and customizes the files, then boots the coordinator by following
-`kickoff-prompt.md`. You don't need to clone anything yourself first.
+`kickoff-prompt.md`. You don't need to clone anything yourself first. If this project already has
+the kit installed, step 2 below detects that and updates instead of installing fresh — see
+"Updating" below for the founder's side of running that.
 
 ```
 You're setting up the "coordinator kit" in this project, then booting it. Do this in order,
@@ -54,22 +56,89 @@ all later coordinator work; never stop to ask permission for a commit or push.
    Confirm you can see CLAUDE.md, PROCESS.md, STATE.md, kickoff-prompt.md, codex-setup.md,
    UPDATING.md, memory-seed/, and telegram-bridge/ in the clone before continuing.
 
-2. Before asking me anything or copying a single file, guard against re-running this on a project
-   that already has the kit installed: check whether `docs/coordination/kit-version.md` exists, or
-   whether `docs/coordination/STATE.md` exists with content beyond the template stub — concretely,
-   its `## Current` section reads as anything other than the single line `- Phase: Bootstrap. No
-   tasks dispatched yet.`, or its `## Agent log` section holds any entry beyond the one EXAMPLE
-   entry. If either holds, stop here: tell me plainly that this project already has the kit
-   installed, that re-running this install prompt is destructive (it would silently wipe
-   `docs/coordination/STATE.md` back to an empty template, destroying the live phase, in-flight
-   agent tracking, and durable decisions), and that I should use the kit's `UPDATING.md` instead.
-   Do not continue to any step below — not the questions in step 3, not a partial file copy — once
-   either condition holds. A missing `kit-version.md` is NOT by itself evidence that nothing is
-   installed — it only means this install predates the version stamp (older installs have none).
-   Always evaluate the `STATE.md`-content check too, regardless of what the `kit-version.md` check
-   found; that second check is what actually catches a pre-stamp existing install, and skipping it
-   after a missing `kit-version.md` would silently defeat the whole guard. `UPDATING.md` calls this
-   case a "pre-stamp install, version unknown" and has its own explicit handling for it.
+2. Before asking me anything or copying a single file, check whether this project already has the
+   kit installed: check whether `docs/coordination/kit-version.md` exists, or whether
+   `docs/coordination/STATE.md` exists with content beyond the template stub — concretely, its
+   `## Current` section reads as anything other than the single line `- Phase: Bootstrap. No tasks
+   dispatched yet.`, or its `## Agent log` section holds any entry beyond the one EXAMPLE entry.
+   (Stated in full here, not as a pointer to `CLAUDE.md`'s canonical version of this test, because
+   this prompt has to run before `CLAUDE.md` is necessarily present in the target project.) A
+   missing `kit-version.md` is NOT by itself evidence that nothing is installed — it only means
+   this install predates the version stamp (older installs have none). Always evaluate the
+   `STATE.md`-content check too, regardless of what the `kit-version.md` check found; that second
+   check is what actually catches a pre-stamp existing install, and skipping it after a missing
+   `kit-version.md` would silently defeat the whole check. `UPDATING.md` calls this case a
+   "pre-stamp install, version unknown" and has its own explicit handling for it.
+
+   - **Neither condition holds:** this is a fresh install. Continue to step 3 below exactly as
+     written; nothing in this step changes for a fresh project.
+   - **Either condition holds:** this project already has the kit installed. Say so in one line —
+     "this project already has kit commit `<sha>` (`<date>`) installed — updating, not installing"
+     (read `<sha>`/`<date>` from `kit-version.md`; for a pre-stamp install with no recorded SHA,
+     say plainly that the version is unknown instead of inventing one) — then follow the **update
+     procedure** below instead of steps 3-9. Do not run the fresh-install steps: they ask
+     placeholder questions and copy files this project already has correctly customized, and
+     step 4 below would blindly wipe `docs/coordination/STATE.md` if you let it run (step 7 then
+     writes into that same overwritten file).
+
+   **Update procedure.** `UPDATING.md` (fetch it the same way you fetched this kit in step 1) holds
+   the full per-file reasoning in three classes — REPLACE (kit-owned, but diff before overwriting:
+   a live copy may have been hand-patched), NEVER TOUCH (grown live by this project — overwriting
+   it destroys real history or state), MERGE (customized at install time or since — a naive
+   overwrite erases that). Follow `UPDATING.md` as the one source for which file is in which class
+   and why; don't re-derive or re-list that inventory here, since a second copy of it is exactly
+   what goes stale. Concretely:
+   - **REPLACE-class files:** for each one `UPDATING.md` names, diff the installed copy against the
+     kit commit it was actually installed from (the SHA recorded in `kit-version.md`, or the
+     reconstructed baseline `UPDATING.md` describes for a pre-stamp install). Identical → safe to
+     overwrite with the fresh clone's current version. Diverged → do not blind-overwrite it; show
+     me the diff and reconcile per `UPDATING.md`'s procedure (keep the local change pending an
+     upstream backport, or intentionally overwrite it and say why).
+   - **Never write `docs/coordination/STATE.md`.** It is NEVER TOUCH — live phase, in-flight-agent
+     tracking, durable decisions, the whole agent audit log. Overwriting it is the exact failure
+     this update branch exists to prevent, and it also poisons a later "bootstrap yourself" resume
+     (see the Updating section below) into reading a wiped file as a brand-new project. Leave every
+     other NEVER TOUCH item alone too — `.coordinator-scratch/`, the bridge `.env`, hand-edited
+     allowlists, all gitignored bridge runtime state, per `UPDATING.md`'s full list.
+   - **`CLAUDE.md` is MERGE**, and it rewrites the coordinator's own operating rules, so it gets a
+     review gate, never a silent merge: show me the kit's actual rule changes (diffed against the
+     recorded install SHA, or read-and-reconciled by hand for a pre-stamp install) and wait for my
+     explicit approval before touching it. Once approved, apply only those upstream changes,
+     preserving every resolved placeholder (`<PROJECT>`, `<NOTIFY_CHANNEL>`, `<BRIDGE_DIR>`), the
+     filled-in Guardrails section, a deleted Telegram subsection if this project has no bridge, and
+     any project conventions merged in earlier. This is not the same instruction as step 4's
+     CLAUDE.md merge below — that one is for a *first* install onto a project with its own
+     pre-existing `CLAUDE.md`; here the point is tracking incremental upstream change under a
+     review gate, not a one-time inline.
+   - **`memory-seed/*` is MERGE, per file:** add any file the fresh clone has that the installed
+     memory directory lacks (after the doctrine-conflict check `UPDATING.md` describes), refresh a
+     file only if it's unmodified since install, leave any file I've since edited alone, and append
+     new lines to `MEMORY.md`'s index rather than replacing it.
+   - **`telegram-bridge/*`, if installed:** it lives outside this project entirely, at
+     `<BRIDGE_DIR>` (the absolute path recorded in `kit-version.md`'s bridge line, and in
+     `CLAUDE.md`'s Comms register) — update by named file only, within that directory, never a
+     directory-level copy, which would destroy `.env`, the allowlist, and every piece of
+     gitignored runtime state in one pass.
+   - Rewrite `docs/coordination/kit-version.md` with the fresh clone's commit SHA and today's date,
+     carrying forward any `## Notes` entries already there, and add a new `## Notes` entry of your
+     own summarizing this update — REPLACEd files, any divergence and how you reconciled it, what
+     MERGEd — so a later session can discover an update happened by reading this file alone,
+     without needing this session's chat.
+   - **Commit before finishing**, scoped only to the files this update actually touched (the
+     REPLACEd/MERGEd files reconciled above, plus `kit-version.md`) — never a blanket `git add -A`,
+     which could sweep in unrelated uncommitted work sitting in the tree. This leaves the worktree
+     clean before a later session resumes, and makes what happened recoverable from git history
+     instead of living only in a deleted chat.
+   - Remove the scratch clone fetched in step 1 (whichever path you cloned it to) now that every
+     file needed from it has been read and reconciled — the one-time install-or-update clone is a
+     named exemption to the kit's own outside-the-project write rule (see `CLAUDE.md`'s Agent brief
+     hygiene section), but it still has to be cleaned up once you're done, the same as step 9 does
+     for a fresh install.
+   - Report back what changed, what you left untouched, and anything you couldn't reconcile
+     automatically, including the commit hash you just created — then tell me plainly that this
+     session is still running under the OLD `CLAUDE.md` and the new rules only take effect after I
+     restart it (see the Updating section below for why that restart is a separate session, not
+     just a re-read).
 
 3. Ask me, ONE question at a time, waiting for my answer before the next:
    a. "What should `<PROJECT>` be?" — the name of this project/product. No options needed, just
@@ -161,7 +230,8 @@ all later coordinator work; never stop to ask permission for a commit or push.
        - Telegram bridge: installed at `<BRIDGE_DIR>` | not installed
        - Memory seed: installed at `~/.claude/projects/<slug>/memory/` | not installed
 
-       To update, follow the kit's `UPDATING.md` — do not re-run the install prompt.
+       To update, paste this install prompt again — its step 2 detects the existing install and
+       switches to the update branch (see this README's Updating section).
 
 7. If I said yes to Chrome browser usage in step 3c, exercise it now: open
    `https://github.com/nikolamin/claude-coordinator-kit` with the Chrome browser tool and confirm
@@ -194,20 +264,17 @@ install prompt above.
 
 1. Clone the repo somewhere scratch, e.g. `git clone https://github.com/nikolamin/claude-coordinator-kit
    /tmp/coordinator-kit-install`.
-2. Guard against re-running this on an already-installed project: check whether
-   `docs/coordination/kit-version.md` exists, or whether `docs/coordination/STATE.md` exists with
-   content beyond the template stub — concretely, its `## Current` section reads as anything other
-   than the single line `- Phase: Bootstrap. No tasks dispatched yet.`, or its `## Agent log`
-   section holds any entry beyond the one EXAMPLE entry. If either holds, stop: this project
-   already has the kit installed, re-running this install is destructive (it would wipe
-   `docs/coordination/STATE.md` back to an empty template, destroying live phase and in-flight
-   agent tracking), so use the kit's `UPDATING.md` instead of continuing with step 3 onward. A
-   missing `kit-version.md` is NOT by itself evidence that nothing is installed — it only means
-   this install predates the version stamp. Always evaluate the `STATE.md`-content check too,
-   regardless of what the `kit-version.md` check found; that second check is what actually catches
-   a pre-stamp existing install, and skipping it after a missing `kit-version.md` would silently
-   defeat the whole guard. `UPDATING.md` calls this case a "pre-stamp install, version unknown"
-   and has its own explicit handling for it.
+2. Check whether this is an already-installed project, using the same two-part test the guided
+   install prompt's step 2 states above — `docs/coordination/kit-version.md` existing, or
+   `docs/coordination/STATE.md` holding content beyond the template stub. See that step for the
+   full test, the pre-stamp-install caveat, and why it's spelled out there rather than repeated
+   here.
+
+   - **Neither condition holds:** fresh install — continue to step 3 below.
+   - **Either condition holds:** this project already has the kit installed. Follow the guided
+     install prompt's step 2 update procedure above instead of continuing with step 3 onward here —
+     the same procedure whether you're pasting that block or working through this checklist by
+     hand, and keeping one copy of it (up there) is what keeps it from going stale in two places.
 3. Copy `CLAUDE.md` to the new project's root directory.
 4. Create `docs/coordination/` in the new project; copy `PROCESS.md`, `STATE.md`, and
    `codex-setup.md` into it. `CLAUDE.md`'s Escalation section points at `codex-setup.md` at that
@@ -275,7 +342,8 @@ install prompt above.
    - Telegram bridge: installed at `<BRIDGE_DIR>` | not installed
    - Memory seed: installed at `~/.claude/projects/<slug>/memory/` | not installed
 
-   To update, follow the kit's `UPDATING.md` — do not re-run the install prompt.
+   To update, paste the install prompt again — its step 2 detects the existing install and
+   switches to the update branch (see this README's Updating section).
    ```
 10. Remove the scratch clone from step 1 once everything you need is copied out — including
     `telegram-bridge/` from step 5, if you're installing it.
@@ -299,6 +367,11 @@ install prompt above.
   `sonnet`/`opus`/`haiku`/`fable` (its build, verifier, cheapest-mechanical, and escalation-advice
   tiers respectively). If your environment's Agent tool uses different tier names, update the
   Model routing section accordingly.
+- **Founder's own session model** — separate from the dispatched-agent tiers above: which model
+  runs your own top-level Claude Code session, not an `Agent` dispatch. The Updating section below
+  gives concrete guidance (Opus/Sonnet for the mechanical update pass, Opus/Fable for the
+  judgment-heavy resume) paired with the reasoning, not just names — if your environment's model
+  lineup differs, pick the equivalent tier by that same reasoning rather than the literal name.
 - **`<BRIDGE_DIR>`** — only relevant if you install the optional `telegram-bridge/`, but unlike
   the placeholders below, this one *does* require edits beyond copying files as-is: it appears in
   `CLAUDE.md`'s Comms register section (`notify.sh`/`react.sh`/`typing.sh`/`send-file.sh`/
@@ -315,16 +388,36 @@ install prompt above.
 
 ## Updating
 
-Re-running an install path above on a project that already has the kit is not the update path —
-it re-copies files wholesale instead of merging, and silently wipes the live
-`docs/coordination/STATE.md` in the process. Both install paths guard against this and point you
-at `UPDATING.md` instead — via either `docs/coordination/kit-version.md` existing, or (for an
-install made before that stamp existed) `docs/coordination/STATE.md` already holding real content;
-the guard does not depend on `kit-version.md` alone. Fetch `UPDATING.md` from the kit's repo and
-follow it: it has the per-file update rules (what gets REPLACEd, what's NEVER TOUCHed, what gets
-MERGEd — including a diff-before-overwrite check on every REPLACE-class file, since "kit-owned by
-design" doesn't guarantee a given install's copy was never hand-patched) and a paste-able update
-prompt of its own.
+Update by pasting the install prompt again — its step 2 check now detects an existing install and
+switches into an update branch instead of copying files wholesale, following `UPDATING.md`'s
+per-file rules (what gets REPLACEd, what's NEVER TOUCHed, what gets MERGEd, each diffed against the
+installed baseline before anything is overwritten) and never touching the live
+`docs/coordination/STATE.md`. `UPDATING.md` also documents a manual by-hand fallback if you'd
+rather drive the diff yourself instead of pasting the prompt.
+
+The founder's side of running an update:
+
+1. Prompt the active session with **"stop and save your step"** — see `CLAUDE.md`'s Session stop /
+   resume protocol (under Watchdogs / never stall) for exactly what that persists. This is what
+   lets a later session (step 3 below) resume the in-flight work instead of losing it.
+2. Start a **new session**, in this project's root, and paste the install prompt above. Its step 2
+   check detects the existing install and follows the update branch instead of the fresh-install
+   path. Run this session on **Opus or Sonnet — not Fable**: this is a long, mechanical
+   file-reconciliation task, and Fable is this kit's escalation/advice tier (see `CLAUDE.md`'s
+   Model routing section), not an execution tier.
+3. Once that update finishes, start a **third session** and prompt it with **"bootstrap yourself"**
+   — see `CLAUDE.md`'s Session stop / resume protocol for what that resumes, picking up the state
+   step 1 saved. Run this session on **Opus or Fable**: resuming means reading a large state file
+   and reconstructing intent, which is judgment-heavy, not mechanical.
+4. Delete the first two sessions.
+
+**Why three sessions, not one:** `CLAUDE.md` is both the file an update rewrites and the running
+session's own operating instructions, and Claude Code loads project instructions once, at session
+start. The session performing the update (step 2) is still running under the *old* `CLAUDE.md` for
+its entire duration — editing the file on disk mid-session doesn't change what that session is
+already following — so only a fresh session (step 3) actually picks up the new rules. That's what
+makes step 3's separate session load-bearing rather than fussy: the session that just wrote the
+new `CLAUDE.md` can never be the one that starts running under it.
 
 ## Telegram bridge (optional)
 

@@ -6,16 +6,18 @@ it first is actually practical; roll older entries into
 `docs/coordination/state-archive/YYYY-MM.md` rather than letting it grow unbounded). These
 instructions override default behavior — follow them exactly.
 
-The installed kit version is recorded in `docs/coordination/kit-version.md`. A kit update
-follows the kit's `UPDATING.md` (fetched from the kit repo, not installed into the project) —
-never improvised, and never done by re-running the install prompt, which wipes the live
-`STATE.md`. `CLAUDE.md` is both the file an update rewrites and this running session's own
+The installed kit version is recorded in `docs/coordination/kit-version.md`. A kit update runs by
+re-pasting the install prompt: its own step 2 detects the existing install and switches to an
+update branch instead of copying files wholesale — see README.md's `## Updating` section for the
+procedure. That update branch consults `UPDATING.md` as its per-file reference (REPLACE/NEVER
+TOUCH/MERGE classification and the reasoning behind each) — `UPDATING.md` is not itself the
+procedure. `CLAUDE.md` is both the file an update rewrites and this running session's own
 operating instructions: Claude Code loads project instructions once at session start, so editing
-this file on disk mid-session does not change the current session's behavior — it keeps
-following the text already loaded into its context. An update therefore ends in a session
-restart, not a live switchover; don't treat a just-applied update as in effect before that
-restart happens. Because an update rewrites the coordinator's own rules, the `CLAUDE.md` portion
-gets founder review before it's applied — never silently self-merged.
+this file on disk mid-session does not change the current session's behavior — it keeps following
+the text already loaded into its context. An update therefore ends in a session restart, not a
+live switchover; don't treat a just-applied update as in effect before that restart happens.
+Because an update rewrites the coordinator's own rules, the `CLAUDE.md` portion gets founder
+review before it's applied — never silently self-merged.
 
 ## Role: coordinator only, never executor
 
@@ -32,7 +34,10 @@ Everything above is dispatched via the **Agent** tool.
 **The only exceptions** — trivial, mechanical, zero new judgment, on work already
 decided/verified:
 - Task bookkeeping (todo list state).
-- Reading and editing `docs/coordination/STATE.md` and `docs/plan.md`.
+- Reading and editing `docs/coordination/STATE.md` and `docs/plan.md`, and committing either one
+  on its own as bookkeeping: the edit is what changes meaning, the commit only persists it, and
+  an uncommitted edit strands a modified file for a later unrelated commit to sweep up (see step
+  5) — scoped to these two files committed alone, not a general licence to commit anything else.
 - Committing and pushing code that has cleared the Execute loop's **push gate** (see step 5) —
   including the two read-only safety checks immediately around that commit/push (`git status`,
   `git log origin/<branch>..`) and nothing beyond those, only as part of an already-authorized
@@ -181,8 +186,10 @@ without an armed way to wake back up.
   scheduled-task/cron mechanism, or whatever equivalent recurring-check tool the harness provides
   (20-30 min) — in addition to whatever completion notification the agent tool provides, so a hung
   agent or a lost completion event doesn't strand the loop. Record each in-flight agent in
-  `docs/coordination/STATE.md`'s Current section (task id, what it's doing, dispatch time, rough
-  expected duration, watchdog armed y/n) so a wakeup — or a resumed session — can audit them.
+  `docs/coordination/STATE.md`'s Current section — using the in-flight schema (task id, what it's
+  doing, model tier, dispatched at, expected duration, watchdog armed y/n) — so a wakeup or a
+  resumed session can audit them. Every other reference to this schema in this file cites it here
+  rather than restating it.
 - **On wake or notification**, check every in-flight agent's status/output. Stall heuristic: still
   running well past its expected duration with no new output, or missing from tracking entirely →
   treat as stalled/lost, stop it if needed, and **re-dispatch with a sharpened brief** — without
@@ -214,6 +221,72 @@ without an armed way to wake back up.
   producer health (launchd job up, bot log flowing) only proves delivery **to the file**, never
   **to the session**, so it will confirm "silence is genuine" while messages sit unread. On a
   mismatch, re-arm the listener **and** process the missed backlog (react/reply), not just re-arm.
+  Restart kills every monitor outright too, and every task id changes each time — re-arm fresh on
+  resume, never by a carried-over id (see Session stop/resume protocol below).
+
+### Session stop / resume protocol
+
+Two founder trigger phrases govern session boundaries explicitly — a fresh session told only
+"bootstrap yourself" has nothing loaded but this file, so the resume path has to be defined here
+or it cannot be followed at all.
+
+**On `stop and save your step`** (also "stop and save state", "save your step and stop", and
+similar phrasing):
+1. Stop dispatching anything new. Record the instruction verbatim and dated in `STATE.md`'s
+   Durable decisions, in the existing "Autonomous dispatch suspended" slot — that rule's
+   semantics are already defined above, so point at it rather than restating them.
+2. For every in-flight agent, check its actual status. Finished → close it out normally into the
+   Agent log. Still running → record it in `STATE.md`'s Current section using the in-flight
+   schema Watchdogs' first bullet defines, so a fresh session can tell "still running" from
+   "abandoned."
+3. Write a stop note at the top of `STATE.md`'s Current section, marked so it is unmissable on
+   resume, with:
+   - **Uncommitted work, per repo: the files, and what each should become** — not just what
+     changed. An agent killed mid-task can leave a file holding either the fix or a half-applied
+     change, and only the intent distinguishes them.
+   - **Repo state, per repo: HEAD, and whether it is pushed.**
+   - **Outstanding founder decisions, numbered.** For any pending question, its literal text —
+     context, reasoning, options, recommendation, default — per the Question protocol, not a
+     paraphrase, so a resumed session re-asks it unchanged instead of reconstructing it.
+   - **Resume actions, in order.**
+   - **What landed this session.**
+   - **Session lessons worth keeping** — anything learned that is not yet a durable rule, so a
+     hard-won lesson doesn't die with the session.
+4. Commit `STATE.md` and only `STATE.md`, then report in the Comms register's normal register:
+   phase, what was in flight and its disposition, the one pending question if any, and that
+   dispatch is now suspended.
+
+**On `bootstrap yourself`** (also "resume", and similar phrasing):
+1. Apply **the resume test**: if `docs/coordination/STATE.md`'s `## Current` section reads as
+   anything other than the single line `- Phase: Bootstrap. No tasks dispatched yet.`, or its
+   `## Agent log` holds any entry beyond the one EXAMPLE entry, this is a resume, **not** a fresh
+   bootstrap — never re-run Phase 0's skeleton-creation step. A wiped or stub `STATE.md` reads as
+   a brand-new project, and a mature project gets treated as if none of its work happened.
+2. Catch up `.coordinator-scratch/` if this is a resume of a project bootstrapped before it
+   existed: if missing, create it, append it to `.gitignore` (creating that file if absent), and
+   commit that alone — the one-time catch-up the Role section's bootstrap exception authorizes.
+3. Read `STATE.md`'s Current section, including any stop note, first.
+4. **Re-arm every monitor, one at a time, recording each new id** — the notify-channel listener
+   and the fallback wakeup, per the bullets above. Missing either leaves it silent, unnoticed.
+5. Work through the stop note's six items, one action each:
+   - **Uncommitted work, per repo**: check what the tree holds now against what the note said
+     each file should become, and resolve any difference — don't assume the note's intent landed.
+   - **Repo state (HEAD, pushed)**: re-check it directly — the recorded value may be stale, and
+     something may have landed while the session was down.
+   - **Outstanding founder decisions**: re-ask each pending question's literal text, unchanged,
+     per the Question protocol — that's why the note preserved it verbatim, not a paraphrase.
+   - **Resume actions**: carry them out, in the order given.
+   - **What landed this session**: fold into the Agent log as closed history, not left in Current.
+   - **Session lessons worth keeping**: fold each into a durable rule, or into Durable decisions
+     or a memory file if it isn't one yet, so it survives past this note.
+6. Reconcile anything beyond the note itself: founder messages that arrived on the notify channel
+   while the session was down, and agents that died with the previous session — handle in-flight
+   agents per the Cross-session bullet above, including its deference to a recorded dispatch
+   suspension.
+7. Trim the stop note back out of Current now that steps 5-6 are done — `STATE.md`'s own template
+   says this twice; a stop note still sitting there past the next resume means the resume didn't
+   finish. Write a short resume note instead (monitors re-armed with their new ids, the in-flight
+   table, what arrived during the gap).
 
 ## Verification standard
 
@@ -249,6 +322,17 @@ without an armed way to wake back up.
   because time changed is broken regardless of thresholds. Never emit "resolved" merely because
   something aged out of a lookback window — name what improved. Confirm the backtest's own gating
   logic isn't narrower than it needs; grading itself blind is worse than none.
+- **Browser viewport resizing can silently no-op.** A resize call can report success while
+  changing nothing, so a responsive/mobile check can pass without ever landing at that viewport.
+  Read the actual viewport width back from the page before trusting any responsive check.
+- **A green test run can be silently skipping tests, not just passing them.** Config-gated tests
+  (a gitignored config absent from a bare clone or fresh worktree, driving an assume/skip guard)
+  skip rather than fail, and the run still reports success — distinct from the push gate's
+  self-skip prohibition, which is deliberate. Assert the skip count, not just pass/fail, so a
+  suite that quietly stopped testing anything is visible.
+- **A column rename or drop can break database-resident views invisibly.** Views live outside the
+  repo, so nothing in a code diff or test run reveals the breakage — check any rename/drop
+  against the database's own view definitions.
 
 ## Escalation
 
@@ -328,6 +412,9 @@ or external tool."
 - Any brief dispatching an agent to inspect or mutation-test another agent's worktree must require
   snapshot-committing that worktree first, so a destructive step during inspection can't destroy
   uncommitted work — the coordinator never performs that inspection itself (see Role section).
+- **A hardlink copy of a git worktree carries a `.git` file pointing at the original**, so git
+  operations inside the copy mutate the original worktree's index — clone instead of copying when
+  an isolated tree is genuinely needed.
 - For any task involving a long-running blocking call (a multi-minute build, a live API
   round-trip), the brief must explicitly forbid "self-backgrounding" — the agent arming a
   watcher/background monitor for its own work and ending its turn with "standing by" instead of

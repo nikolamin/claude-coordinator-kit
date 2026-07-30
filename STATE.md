@@ -10,8 +10,43 @@
 > grows past that, move the older material into `docs/coordination/state-archive/YYYY-MM.md`
 > (create it for the month being archived) and leave a one-line pointer in its place. Archive,
 > don't delete — trim on every update, not only once it's already unreadable.
+>
+> **Stop-note exception:** a STOP NOTE (see Current below) may briefly push Current past
+> this budget between a stop and the next resume — that's expected; resume trims it back
+> down as its first order of business, not a new steady-state size.
 
 ## Current
+
+<!--
+STOP NOTE — written by "stop and save your step" (see CLAUDE.md's stop/resume protocol
+for exactly when/how) and read FIRST on the next resume. When present, it goes right here,
+at the top of Current, marked unmissable — e.g. a heading like "### STOP NOTE — <date>"
+directly under this comment. Holds:
+- Uncommitted work, per repo/worktree: not just what changed, but what each touched file is
+  meant to become — an agent killed mid-task can leave either a real fix or a half-applied
+  change, and only the stated intent tells the two apart.
+- Repo state, per repo: HEAD commit and whether it's pushed to origin.
+- Outstanding founder decisions, numbered, with the verbatim text of any pending question.
+- Resume actions, in the order they should happen.
+- What landed this session, so a resumed session doesn't have to re-derive it from git log.
+- Session lessons worth keeping (a correction, a gotcha) not already captured as memory.
+
+This is deliberately denser than the ~40-line budget above and is expected to push past it
+for the gap between a stop and the next resume — that is the one allowed exception. Resume's
+first job is to act on it and trim it back down to "what's live now," same as any closed
+task below; a STOP NOTE still sitting here past the next resume means resume didn't finish,
+not a new steady-state size for this section.
+-->
+
+<!--
+RESUME NOTE — written by "bootstrap yourself" (see CLAUDE.md) once it has acted on a STOP
+NOTE above, or found none on an ordinary fresh start. Holds: every monitor re-armed, with
+its NEW task/monitor id (ids are reissued on every restart, so a carried-over old id is
+always stale); the in-flight table (per the guidance below); anything that arrived during
+the gap — a founder message, a monitor alert — not yet folded into plan.md or elsewhere in
+this file. Once the resume actions are carried out, this collapses into the normal
+"what's live now" content below rather than staying as a second permanent section.
+-->
 
 <!--
 What phase the project is in, what's actively running right now, and what's next. This is the

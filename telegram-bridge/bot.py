@@ -50,6 +50,19 @@ new `.env` variables:
   live session can tell which of its own earlier messages is being
   answered - see extract_reply_to(). Absent entirely when the message isn't
   a reply; purely additive, same convention as the group-chat fields above.
+- **Downstream-truncation defense.** A layer above this bridge (outside its
+  control - e.g. a notification/monitor layer the consuming session reads
+  through) has been observed in the field to silently truncate a long
+  inbound plain-text message mid-string before a live session ever sees it.
+  In RELAY_MODE, a plain-text message over LONG_TEXT_ARTIFACT_THRESHOLD_CHARS
+  has its full body written to a file in `media-inbox/` (the same directory
+  downloaded media already lands in - see "Media relay" above) and
+  referenced via an additive `text_path` field, so the complete text
+  survives regardless of what happens to the inline `text` copy afterward -
+  see write_inbound_text_artifact()/relay_message(). Absent entirely for a
+  short message, or if the write itself fails (degrades to "no text_path",
+  never drops or blocks the relay) - purely additive, same convention as the
+  fields above.
 
 Only stdlib + `requests` are used (no python-dotenv, no other third-party
 deps) - .env is parsed manually below.
@@ -100,6 +113,12 @@ SEEN_MEMBERS_FILE = SCRIPT_DIR / "seen-members.json"
 # media (voice/audio/video/video_note/photo/document - RELAY_MODE only, see
 # "Media relay" in SETUP.md). Not automatically pruned. Created on demand,
 # not at import time.
+#
+# Also doubles as the home for long-inbound-text artifacts (see
+# LONG_TEXT_ARTIFACT_THRESHOLD_CHARS / write_inbound_text_artifact() below) -
+# same "inbound artifact this bridge downloaded/wrote and a live session may
+# want to read directly" purpose as the media files already here, so it
+# reuses this directory rather than inventing a second one.
 MEDIA_INBOX_DIR = SCRIPT_DIR / "media-inbox"
 
 # --- Production-state write guard (defense in depth) ---------------------
@@ -170,6 +189,23 @@ TYPING_INTERVAL_SECONDS = 4  # Telegram's typing indicator lasts ~5s client-side
 # its own earlier messages is being answered, without duplicating the full
 # quoted message body into every record.
 REPLY_TEXT_PREFIX_CHARS = 120
+
+# Defense against a layer ABOVE this bridge - outside its control, e.g. a
+# notification/monitor layer the consuming session reads a relay record
+# through - silently truncating a long inbound plain-text message
+# mid-string before that session ever sees it (observed in the field; well
+# short of Telegram's own 4096-char per-message limit, so this isn't
+# Telegram truncating). A plain-text message whose length exceeds this many
+# characters gets its full body written to a file (see
+# write_inbound_text_artifact()) and referenced via the additive
+# `text_path` field on its relay-inbox.jsonl record, alongside - never
+# replacing - the inline `text` field. Counted the same way
+# REPLY_TEXT_PREFIX_CHARS/truncate() above already do: Python `len()`
+# code-point count, not UTF-16 code units or bytes - an accepted
+# approximation already used elsewhere in this file (see
+# telegram_common._extract_entity_text()'s docstring for the one place that
+# distinction is called out explicitly).
+LONG_TEXT_ARTIFACT_THRESHOLD_CHARS = 700
 
 REACTION_SEEN = "\U0001F440"  # 👀 - received, about to process
 # Telegram's setMessageReaction only accepts a fixed, curated set of emoji
@@ -692,6 +728,16 @@ def relay_message(client: TelegramClient, message_id, decision: dict, text: str,
     tell which of its own earlier messages the founder is answering. Purely
     additive, same convention as the group-chat metadata fields above - a
     consumer written before this field existed keeps working unmodified.
+
+    **`text_path` (optional, downstream-truncation defense).** When `text`
+    is longer than LONG_TEXT_ARTIFACT_THRESHOLD_CHARS, the full body is also
+    written to a file via write_inbound_text_artifact() and that path is
+    threaded into the record as `text_path` - so the complete text survives
+    even if a layer above this bridge truncates the inline `text` copy
+    afterward (see that constant's docstring). Absent for a message at or
+    under the threshold, and absent (not null) if the artifact write itself
+    fails - either way `text` keeps meaning exactly what it always meant,
+    and a consumer that only reads `text` is unaffected either way.
     """
     chat_id = decision["chat_id"]
     safe_set_reaction(client, chat_id, message_id, REACTION_SEEN)
@@ -708,6 +754,10 @@ def relay_message(client: TelegramClient, message_id, decision: dict, text: str,
     }
     if reply_to is not None:
         record["reply_to"] = reply_to
+    if len(text) > LONG_TEXT_ARTIFACT_THRESHOLD_CHARS:
+        text_path = write_inbound_text_artifact(chat_id, message_id, text)
+        if text_path is not None:
+            record["text_path"] = text_path
     guard_production_write(RELAY_INBOX_FILE, "RELAY_INBOX_FILE")
     with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -857,6 +907,49 @@ def sanitize_chat_id_for_filename(chat_id) -> str:
     if s.startswith("-"):
         return "g" + s[1:]
     return s
+
+
+def write_inbound_text_artifact(chat_id, message_id, text: str):
+    """Best-effort persist the FULL text of a long inbound message to a file
+    in MEDIA_INBOX_DIR, so it survives regardless of what a layer above this
+    bridge does to the inline `text` copy afterward (see
+    LONG_TEXT_ARTIFACT_THRESHOLD_CHARS). Only called for a message already
+    over that threshold - this function itself does not check the length.
+
+    Mirrors relay_media()'s own file-naming exactly: same directory
+    (MEDIA_INBOX_DIR), same `<YYYYMMDD>-<chat_id>-<message_id>` naming
+    (via sanitize_chat_id_for_filename(), for the same reason relay_media()
+    needs it - message_ids are per-chat sequential, not global, so a DM and
+    a group message can collide on the same id on the same day), just with a
+    fixed `.txt` extension instead of one guessed from MIME/remote path
+    (there's no MIME type for a plain-text message to guess from). Written
+    atomically (temp file + rename), same pattern as this file's other
+    on-disk state (save_offset() and friends).
+
+    Raises RuntimeError if TELEGRAM_BRIDGE_TEST_MODE is set and the
+    destination is production state. Any other failure to write (unwritable
+    path, disk full, filename collision, ...) is logged and swallowed here,
+    exactly like relay_media()'s own download-failure handling - a missing
+    text artifact must degrade the caller's relay record to "no text_path",
+    never take down the whole poll cycle. Returns the destination path as a
+    str on success, None on any write failure.
+    """
+    guard_production_write(MEDIA_INBOX_DIR, "MEDIA_INBOX_DIR")
+    date_str = datetime.now().strftime("%Y%m%d")
+    chat_id_part = sanitize_chat_id_for_filename(chat_id)
+    dest_path = MEDIA_INBOX_DIR / f"{date_str}-{chat_id_part}-{message_id}.txt"
+    try:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = dest_path.with_name(dest_path.name + ".tmp")
+        tmp_path.write_text(text, encoding="utf-8")
+        tmp_path.replace(dest_path)
+    except OSError as exc:
+        log.error(
+            "[relay] failed to write long-text artifact for message_id=%s chat_id=%s to %s: %s",
+            message_id, chat_id, dest_path, exc,
+        )
+        return None
+    return str(dest_path)
 
 
 def guess_extension(remote_file_path: str, mime: str) -> str:
