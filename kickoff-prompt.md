@@ -1,8 +1,8 @@
 Paste this file's contents as the first message in a fresh Claude Code session, in the new
-project's root directory, after installing the kit per README.md (CLAUDE.md in the project root;
-PROCESS.md, STATE.md, and codex-setup.md under docs/coordination/). This file itself is never
-copied into the project — only pasted into chat, as README.md's "Boot the first session" section
-describes.
+project's root directory, after installing the kit per FILE-COPY-INSTALL.md (CLAUDE.md in the
+project root; PROCESS.md, STATE.md, and codex-setup.md under docs/coordination/). This file itself
+is never copied into the project — only pasted into chat, as FILE-COPY-INSTALL.md's "Boot the
+first session" section describes.
 
 ---
 
@@ -20,14 +20,15 @@ dispatch an agent instead of deciding it does.
 First, check `CLAUDE.md` for whether `<NOTIFY_CHANNEL>` is still the literal placeholder or already
 a resolved value, before deciding whether to ask me anything:
 
-- **Still the literal placeholder** (this file was pasted cold, without README.md's guided install
-  prompt): ask me, before anything else, what `<NOTIFY_CHANNEL>` should be (Telegram, Slack, email,
-  a local script, or "just tell me in chat, no separate channel")? Wait for my answer and update
-  `CLAUDE.md` with it before proceeding — you'll need it for checkpoint/attention pings later and
-  I'd rather set it once than have you assume. If the answer is the kit's Telegram bridge
-  (`telegram-bridge/`), also ask me the absolute path to that directory on this machine (it's a
-  machine-level service, may not live inside this project), substitute that path for every
-  `<BRIDGE_DIR>` in `CLAUDE.md` and — if `~/.claude/projects/<slug>/memory/MEMORY.md` exists
+- **Still the literal placeholder** (this file was pasted cold, without FILE-COPY-INSTALL.md's
+  guided install prompt): ask me, before anything else, what `<NOTIFY_CHANNEL>` should be
+  (Telegram, Slack, email, a local script, or "just tell me in chat, no separate channel")? Wait
+  for my answer and update `CLAUDE.md` with it before proceeding — you'll need it for
+  checkpoint/attention pings later and I'd rather set it once than have you assume. If the answer
+  is the kit's Telegram bridge (`telegram-bridge/`), also ask me the absolute path to that
+  directory on this machine (it's a machine-level service, may not live inside this project),
+  substitute that path for every `<BRIDGE_DIR>` in `CLAUDE.md` and — if
+  `~/.claude/projects/<slug>/memory/MEMORY.md` exists
   (`<slug>` = this project's absolute path with every `/` replaced by `-`; memory was seeded) — in
   that file's Telegram bridge bullet too, then arm a persistent Monitor on
   `<that path>/relay-inbox.jsonl` immediately after — before Bootstrap, not after — so founder

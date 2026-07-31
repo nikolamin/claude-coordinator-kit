@@ -198,8 +198,9 @@ docs/playbooks/                   # optional: recurring scheduled procedures (se
 and gitignores it per `CLAUDE.md`'s Agent brief hygiene section.
 
 `STATE.md`, `PROCESS.md`, and `codex-setup.md` land in `docs/coordination/` by being copied from
-the kit at install time (see `README.md`'s install steps) — Bootstrap confirms they're present and
-initializes `STATE.md`'s live content, it does not create these three from an empty template.
+the kit at install time (see `FILE-COPY-INSTALL.md`'s install steps) — Bootstrap confirms they're
+present and initializes `STATE.md`'s live content, it does not create these three from an empty
+template.
 Everything else in this layout, from `repo-map.md` onward, is created empty (or populated) by
 whichever phase first needs it.
 

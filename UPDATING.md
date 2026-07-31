@@ -4,13 +4,13 @@
 same way you fetched `kickoff-prompt.md` — read it from the kit repo, or paste its contents into
 chat. Don't expect to find it under `docs/coordination/` in an installed project.
 
-**This file is not the update procedure.** The procedure is README.md's `## Updating` section:
-re-run the install prompt, and its own existence guard detects an already-installed project and
-switches to update mode instead of re-copying files wholesale. This file is the per-file
-reference that update mode reads when a divergence needs reconciling by hand — which of the
-three classes below (REPLACE / NEVER TOUCH / MERGE) a given file falls into and why — plus a
-manual by-hand fallback (section 3) for a founder who wants to drive an update without an agent
-at all.
+**This file is not the update procedure.** The procedure is `FILE-COPY-INSTALL.md`'s `## Updating`
+section: re-run the install prompt, and its own existence guard detects an already-installed
+project and switches to update mode instead of re-copying files wholesale. This file is the
+per-file reference that update mode reads when a divergence needs reconciling by hand — which of
+the three classes below (REPLACE / NEVER TOUCH / MERGE) a given file falls into and why — plus a
+manual by-hand fallback (section 3) for a founder who wants to drive an update without an agent at
+all.
 
 ## 1. Which version is installed
 
@@ -26,16 +26,16 @@ Installed from claude-coordinator-kit commit `<sha>` (`<YYYY-MM-DD>`).
 - Memory seed: installed at `~/.claude/projects/<slug>/memory/` | not installed
 
 To update, paste this install prompt again — its step 2 detects the existing install and
-switches to the update branch (see this README's Updating section).
+switches to the update branch (see FILE-COPY-INSTALL.md's Updating section).
 ```
 
 **If the file is missing:** this is a **pre-stamp install, version unknown** — not evidence that
-nothing is installed, and never treated as a fresh/greenfield project. (README's own install-prompt
-guard covers this: a missing `kit-version.md` alone never authorizes running the install prompt —
-it also checks whether `docs/coordination/STATE.md` already has real content, which is what
-actually catches a pre-stamp existing install.) You can still update — you just have no recorded
-baseline commit to diff the kit's files against, for either `CLAUDE.md` or any REPLACE-class file
-(see section 2) — so two things change:
+nothing is installed, and never treated as a fresh/greenfield project. (FILE-COPY-INSTALL.md's own
+install-prompt guard covers this: a missing `kit-version.md` alone never authorizes running the
+install prompt — it also checks whether `docs/coordination/STATE.md` already has real content,
+which is what actually catches a pre-stamp existing install.) You can still update — you just have
+no recorded baseline commit to diff the kit's files against, for either `CLAUDE.md` or any
+REPLACE-class file (see section 2) — so two things change:
 
 - The `CLAUDE.md` merge (normally a clean diff against the recorded baseline) becomes a full
   read-and-reconcile: read the installed `CLAUDE.md` and the fresh clone's `CLAUDE.md` in full,
@@ -92,11 +92,11 @@ those.
 by design. One named exception on top of the general diff-first check above: diffed against the
 same single baseline as every other REPLACE-class file (the recorded old SHA, or the reconstructed
 baseline for a pre-stamp install — never the fresh clone's HEAD), if that diff is exactly one hunk
-and it's the `docs/concept/` sub-structure note (Knowledge base layout section) README invites
-editing per-project, that's the invited customization, not an unexpected divergence — keep the
-note, take the rest of the new file (apply the fresh clone's version, then reapply just the note).
-Any broader divergence, even one that also includes that hunk, is a real divergence and goes
-through the general reconciliation path above instead.
+and it's the `docs/concept/` sub-structure note (Knowledge base layout section)
+FILE-COPY-INSTALL.md invites editing per-project, that's the invited customization, not an
+unexpected divergence — keep the note, take the rest of the new file (apply the fresh clone's
+version, then reapply just the note). Any broader divergence, even one that also includes that
+hunk, is a real divergence and goes through the general reconciliation path above instead.
 
 **`docs/coordination/STATE.md` — NEVER TOUCH.** Live phase, in-flight-agent tracking, durable
 decisions, agent audit log — a copy over it destroys real history.
@@ -138,13 +138,13 @@ above) so a future update doesn't re-ask the same resolved question.
 **`telegram-bridge/*.py`, `*.sh` (excluding `test_*.py`, its own bullet below) — REPLACE,
 diff-verified first — this is the highest-risk file group for divergence.** Run `git ls-files
 telegram-bridge/ | grep -E '\.(py|sh)$' | grep -v '^telegram-bridge/test_'` for the current list
-(`bot.py`, `notify.sh`, `telegram_common.py`, and the rest — the exact names are incidental, a
-new script added here inherits this same classification) — kit-owned code by design, no
-per-install customization point *intended*. In practice the bridge typically runs as a
-machine-level service maintained directly on its deployed copy (a "sibling location outside this
-project," per README) rather than through this project's own git — so a real production hotfix
-(e.g. an IMAP timeout fix applied after a live outage) can land directly on the installed file
-with zero trace anywhere except a content diff. Never assume "kit-owned" means "definitely still
+(`bot.py`, `notify.sh`, `telegram_common.py`, and the rest — the exact names are incidental, a new
+script added here inherits this same classification) — kit-owned code by design, no per-install
+customization point *intended*. In practice the bridge typically runs as a machine-level service
+maintained directly on its deployed copy (a "sibling location outside this project," per
+FILE-COPY-INSTALL.md) rather than through this project's own git — so a real production hotfix
+(e.g. an IMAP timeout fix applied after a live outage) can land directly on the installed file with
+zero trace anywhere except a content diff. Never assume "kit-owned" means "definitely still
 identical to the kit" for these files; always run the diff-first check (see the reconciliation
 recipe above) and treat a divergence as a signal to reconcile, not a stale diff to ignore.
 
@@ -180,7 +180,7 @@ tracked (not gitignored) — not kit-generated content.
 regenerated automatically, real data if it exists, nothing to install over.
 
 Evidence used to build this classification:
-- `README.md`'s guided-install step 3 and manual-install steps 2-4, 7 name exactly
+- `FILE-COPY-INSTALL.md`'s guided-install step 3 and manual-install steps 2-4, 7 name exactly
   `CLAUDE.md` → project root, `PROCESS.md`/`STATE.md`/`codex-setup.md` → `docs/coordination/`,
   `memory-seed/*` → `~/.claude/projects/<slug>/memory/`, `telegram-bridge/` → a sibling location
   outside the project — this is the complete installed-file inventory.
@@ -204,12 +204,12 @@ Evidence used to build this classification:
   config, not auto-generated runtime state, and is intentionally tracked (not gitignored)" —
   confirms it's real founder-maintained data, not a kit template, hence NEVER TOUCH rather than
   REPLACE despite being a tracked file in the bridge's own directory.
-- `README.md`'s "Manual install" section, step 7, explicitly invites editing `PROCESS.md`'s
-  `docs/concept/` sub-structure note per-project — confirmed by reading the note itself in
-  `PROCESS.md`'s Knowledge base layout section. This is a deliberate, invited customization on top
-  of the generic diff-first check every REPLACE-class file now gets, not a special case that check
-  depends on. (Cited by section name, not line number — a line reference rots the moment either
-  file gets an unrelated edit above it.)
+- `FILE-COPY-INSTALL.md`'s "Manual install" section, step 7, explicitly invites editing
+  `PROCESS.md`'s `docs/concept/` sub-structure note per-project — confirmed by reading the note
+  itself in `PROCESS.md`'s Knowledge base layout section. This is a deliberate, invited
+  customization on top of the generic diff-first check every REPLACE-class file now gets, not a
+  special case that check depends on. (Cited by section name, not line number — a line reference
+  rots the moment either file gets an unrelated edit above it.)
 - `git tag -l` returns nothing and `git log --oneline -- CLAUDE.md` shows `CLAUDE.md` present
   since the first commit (`75a0521`) — confirms the audit's "zero git tags, no version marker"
   claim and confirms a fresh clone's history reaches back far enough that
@@ -217,10 +217,10 @@ Evidence used to build this classification:
 
 ## 3. If you'd rather do it by hand
 
-The main path is re-running the install prompt (README.md's `## Updating` section) and letting it
-drive an update in an agent session. This section is the fallback for a founder who wants to drive
-the diff themselves, without an agent — the mechanics below are the same reconciliation logic
-section 2 describes, just as a script instead of prose.
+The main path is re-running the install prompt (FILE-COPY-INSTALL.md's `## Updating` section) and
+letting it drive an update in an agent session. This section is the fallback for a founder who
+wants to drive the diff themselves, without an agent — the mechanics below are the same
+reconciliation logic section 2 describes, just as a script instead of prose.
 
 This script assumes `bash` or `zsh`. **If you're on zsh (the default macOS shell), variable braces
 are load-bearing, not style** — `$VAR:something` is parsed as a history-expansion modifier (`:P`,
@@ -246,11 +246,11 @@ if git -C /tmp/coordinator-kit-update show "${OLD_SHA}:PROCESS.md" | diff -q - d
   cp /tmp/coordinator-kit-update/PROCESS.md docs/coordination/PROCESS.md
 else
   # Before treating this as a real divergence: if the ONLY difference is the docs/concept
-  # sub-structure note (Knowledge base layout section) that README invites editing per-project,
-  # that's the invited customization, not an unexpected one — keep your note, take the rest of the
-  # new file by hand instead of a straight cp. Any other difference is a real divergence — reconcile
-  # per section 2 above (show yourself the diff, decide keep-local/backport vs. drop) before
-  # touching the file.
+  # sub-structure note (Knowledge base layout section) that FILE-COPY-INSTALL.md invites editing
+  # per-project, that's the invited customization, not an unexpected one — keep your note, take
+  # the rest of the new file by hand instead of a straight cp. Any other difference is a real
+  # divergence — reconcile per section 2 above (show yourself the diff, decide
+  # keep-local/backport vs. drop) before touching the file.
   echo "DIVERGED - do not overwrite, see section 2 above: docs/coordination/PROCESS.md"
 fi
 if git -C /tmp/coordinator-kit-update show "${OLD_SHA}:codex-setup.md" | diff -q - docs/coordination/codex-setup.md >/dev/null; then
@@ -264,9 +264,10 @@ fi
 # since the bridge commonly runs outside this project's own git tracking — do NOT skip straight to
 # copying just because the names match.
 #
-# BRIDGE_DIR is the bridge's actual install location, a sibling directory OUTSIDE this project (see
-# README's install steps) — NOT a path inside this repo. Set it to the same absolute path recorded
-# in kit-version.md's "Telegram bridge: installed at <BRIDGE_DIR>" line before running this block.
+# BRIDGE_DIR is the bridge's actual install location, a sibling directory OUTSIDE this project
+# (see FILE-COPY-INSTALL.md's install steps) — NOT a path inside this repo. Set it to the same
+# absolute path recorded in kit-version.md's "Telegram bridge: installed at <BRIDGE_DIR>" line
+# before running this block.
 # Skip this whole block entirely if you didn't install the bridge. Diffing telegram-bridge/<name>
 # against a path inside the project (instead of inside BRIDGE_DIR) compares against a file that was
 # never installed there in the first place — every file reports DIVERGED, and the suggested cp would

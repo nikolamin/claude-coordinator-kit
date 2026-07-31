@@ -8,16 +8,16 @@ instructions override default behavior — follow them exactly.
 
 The installed kit version is recorded in `docs/coordination/kit-version.md`. A kit update runs by
 re-pasting the install prompt: its own step 2 detects the existing install and switches to an
-update branch instead of copying files wholesale — see README.md's `## Updating` section for the
-procedure. That update branch consults `UPDATING.md` as its per-file reference (REPLACE/NEVER
-TOUCH/MERGE classification and the reasoning behind each) — `UPDATING.md` is not itself the
-procedure. `CLAUDE.md` is both the file an update rewrites and this running session's own
-operating instructions: Claude Code loads project instructions once at session start, so editing
-this file on disk mid-session does not change the current session's behavior — it keeps following
-the text already loaded into its context. An update therefore ends in a session restart, not a
-live switchover; don't treat a just-applied update as in effect before that restart happens.
-Because an update rewrites the coordinator's own rules, the `CLAUDE.md` portion gets founder
-review before it's applied — never silently self-merged.
+update branch instead of copying files wholesale — see `FILE-COPY-INSTALL.md`'s `## Updating`
+section for the procedure. That update branch consults `UPDATING.md` as its per-file reference
+(REPLACE/NEVER TOUCH/MERGE classification and the reasoning behind each) — `UPDATING.md` is not
+itself the procedure. `CLAUDE.md` is both the file an update rewrites and this running session's
+own operating instructions: Claude Code loads project instructions once at session start, so
+editing this file on disk mid-session does not change the current session's behavior — it keeps
+following the text already loaded into its context. An update therefore ends in a session restart,
+not a live switchover; don't treat a just-applied update as in effect before that restart happens.
+Because an update rewrites the coordinator's own rules, the `CLAUDE.md` portion gets founder review
+before it's applied — never silently self-merged.
 
 ## Role: coordinator only, never executor
 
