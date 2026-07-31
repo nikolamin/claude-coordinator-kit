@@ -1,0 +1,20 @@
+{
+  "name": "coordinator-kit",
+  "displayName": "Coordinator Kit",
+  "version": "0.1.0",
+  "description": "Coordinator-role skills for turning a Claude Code session into a pure build/verify dispatcher, packaged from the claude-coordinator-kit file-copy install.",
+  "author": {
+    "name": "nikolamin"
+  },
+  "homepage": "https://github.com/nikolamin/claude-coordinator-kit",
+  "repository": "https://github.com/nikolamin/claude-coordinator-kit",
+  "license": "MIT",
+  "keywords": [
+    "coordinator",
+    "multi-agent",
+    "orchestration",
+    "phase-loop",
+    "codex",
+    "verification"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "coordinator-kit",
+  "description": "Marketplace for the claude-coordinator-kit plugin: coordinator-role skills packaged alongside the kit's existing file-copy install.",
+  "owner": {
+    "name": "nikolamin",
+    "url": "https://github.com/nikolamin/claude-coordinator-kit"
+  },
+  "plugins": [
+    {
+      "name": "coordinator-kit",
+      "source": "./plugins/coordinator-kit",
+      "repository": "https://github.com/nikolamin/claude-coordinator-kit"
+    }
+  ]
+}
