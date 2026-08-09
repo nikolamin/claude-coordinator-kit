@@ -70,8 +70,13 @@ explicitly, never inheriting the coordinator's own tier.
    coordinator's own guess — dispatch a small agent (cheapest tier for a plain pass/fail read,
    build tier if `--log-failed` needs triage) to check the actual CI run (`gh run list` /
    `gh run view --log-failed`) and report back; the coordinator never runs `gh` itself, same
-   investigative-Bash prohibition as above. A confirmed-green run closes the task; a failed run
-   means NOT done: loop back into step 3 with the failure log. If there's no CI pipeline yet
+   investigative-Bash prohibition as above. Pin that check to the pushed commit
+   (`gh run list --commit <sha>`), never `--limit 1`, which reports whatever ran last — possibly
+   another branch's run. Pass the **full 40-character sha**: an abbreviated sha matches nothing
+   and returns an empty list, which reads as "no run was triggered" for a run that exists — a
+   false negative that closes or re-opens a task on a fiction. Treat an empty result as
+   unresolved (re-query with the full sha, or wait) rather than as an answer. A confirmed-green
+   run closes the task; a failed run means NOT done: loop back into step 3 with the failure log. If there's no CI pipeline yet
    (e.g. still at Bootstrap), the push gate's local zero-new-failures report is the
    task-completion gate on its own — don't invent a CI check that doesn't exist — and standing up
    CI becomes its own task in `docs/plan.md`, not a blocker on every other task.

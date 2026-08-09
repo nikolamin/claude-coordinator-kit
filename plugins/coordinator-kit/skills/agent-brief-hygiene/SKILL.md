@@ -5,7 +5,8 @@ description: What every prompt to a dispatched agent must carry, and — the loa
   does. Load this while writing any Agent-tool dispatch — deciding whether to restate a rule or
   just point at it, naming acceptance criteria and the required verification step, adding the
   no-delegation and no-self-backgrounding constraints, requiring a snapshot commit before
-  inspecting another agent's worktree, keeping file writes inside the project root, and
+  inspecting another agent's worktree, bounding an agent's reads below a section it must not see
+  (a coordinator-only appendix or answer key), keeping file writes inside the project root, and
   restating credential/guardrail/backlog/push-gate rules that live only in a sibling skill. Also
   load this when dispatching a built-in Explore or Plan agent, or a "fork" agent — their context
   rules differ from an ordinary dispatch (see below). Not for the phase-level or per-task loop
@@ -97,6 +98,16 @@ Regardless of which case above applies:
 - Any brief dispatching an agent to inspect or mutation-test another agent's worktree must
   require snapshot-committing that worktree first, so a destructive step during inspection can't
   destroy uncommitted work.
+- **Any brief pointing an agent at a document that contains a section the agent must not read** —
+  a coordinator-only appendix, an answer key, a grading rubric, a spoiler section — must make the
+  boundary mechanical rather than advisory: require the agent to `grep -n` the restricted
+  section's header **first**, then bound **every** subsequent read of that file with an explicit
+  offset+limit ending strictly above that line number, never a default-limit read. "Stop before
+  section N" on its own does not work — a default read overshoots, and the agent discovers the
+  boundary only after it has already read past it. If the file has material *after* the restricted
+  section that the agent genuinely needs, excerpt it into the brief instead of letting the agent
+  read through the boundary to reach it. Agents overshot with default reads before this rule was
+  in the brief, and none did once it was.
 - **A hardlink copy of a git worktree carries a `.git` file pointing at the original**, so git
   operations inside the copy mutate the original worktree's index — clone instead of copying when
   an isolated tree is genuinely needed.

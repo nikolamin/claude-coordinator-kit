@@ -10,7 +10,9 @@ description: What counts as an actual pass, not a rubber-stamp, when verifying a
   local-green never substituting for a confirmed-green CI run, never blanket-suppressing stderr
   on a diagnostic feeding a real conclusion, backtesting a monitoring/detector surface against
   real history instead of synthetic fixtures, a browser viewport resize call that can silently
-  no-op, a green test run that can be silently skipping tests rather than passing them, and a
+  no-op (or land at 0x0 on a named preset), reading an email leg from the mail server over
+  read-only IMAP rather than from a lagging inbox mirror, a green test run that can be silently
+  skipping tests rather than passing them, and a
   column rename/drop that can break a database view invisibly. Load this when writing or
   checking a verifier agent's acceptance criteria, before declaring a task's tests "passing,"
   before any user-facing demo or playtest link goes out, or when a check that should have caught
@@ -62,9 +64,22 @@ and the task-completion gate); this skill is only about what makes a given check
   because time changed is broken regardless of thresholds. Never emit "resolved" merely because
   something aged out of a lookback window — name what improved. Confirm the backtest's own
   gating logic isn't narrower than it needs; grading itself blind is worse than none.
-- **Browser viewport resizing can silently no-op.** A resize call can report success while
-  changing nothing, so a responsive/mobile check can pass without ever landing at that viewport.
-  Read the actual viewport width back from the page before trusting any responsive check.
+- **Browser viewport resizing can silently no-op — and a named preset can land somewhere worse
+  than "unchanged".** A resize call can report success while changing nothing, and a named preset
+  (`desktop`, `mobile`) has reported success while the page then measured 0x0 — so a
+  responsive/mobile check can pass having never rendered at that viewport, or at any viewport.
+  Set an explicit width and height instead of a preset, read `window.innerWidth`/
+  `window.innerHeight` back from the page afterward, and attribute every finding to the viewport
+  actually **measured**, not the one requested. A check that can't confirm its own viewport
+  reports its findings as viewport-unattributed rather than labelling them desktop or mobile.
+- **Verifying an email leg means reading the mail from the mail server, not from a mirror.** Any
+  file-based inbox mirror — a poller writing messages into a local file, a cached export, a
+  notification feed — can be alive and still minutes behind, so "it isn't there" is not evidence
+  that nothing was sent. Read the delivered message directly over read-only IMAP (SELECT the
+  mailbox read-only, fetch with `BODY.PEEK` so the check can't mutate flags), and use the mirror
+  only as a cross-check. Same rule for any verification that reads a queue or inbox through a
+  cache instead of its source of truth: an absent item in a lagging cache is a false negative, not
+  a finding.
 - **A green test run can be silently skipping tests, not just passing them.** Config-gated tests
   (a gitignored config absent from a bare clone or fresh worktree, driving an assume/skip guard)
   skip rather than fail, and the run still reports success — distinct from the push gate's

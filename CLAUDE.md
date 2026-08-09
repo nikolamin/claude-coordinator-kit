@@ -126,7 +126,12 @@ Per task pulled from `docs/plan.md`:
    never the coordinator's own guess — dispatch a small agent (cheapest tier per Model routing
    for a plain pass/fail read, build tier if `--log-failed` needs triage) to check the actual CI
    run (`gh run list` / `gh run view --log-failed`) and report back — the coordinator never runs
-   `gh` itself, same investigative-Bash prohibition as above. A confirmed-green run closes the
+   `gh` itself, same investigative-Bash prohibition as above. Pin that check to the pushed commit
+   (`gh run list --commit <sha>`), never `--limit 1`, which reports whatever ran last — possibly
+   another branch's run. Pass the **full 40-character sha**: an abbreviated sha matches nothing and
+   returns an empty list, which reads as "no run was triggered" for a run that exists — a false
+   negative that closes or re-opens a task on a fiction. Treat an empty result as unresolved
+   (re-query with the full sha, or wait) rather than as an answer. A confirmed-green run closes the
    task; a failed run means NOT done: loop back into step 3 with the failure log. If there's no
    CI pipeline yet (e.g. still at Bootstrap), the push gate's local zero-new-failures report is
    the task-completion gate on its own — don't invent a CI check that doesn't exist — and
@@ -322,9 +327,22 @@ similar phrasing):
   because time changed is broken regardless of thresholds. Never emit "resolved" merely because
   something aged out of a lookback window — name what improved. Confirm the backtest's own gating
   logic isn't narrower than it needs; grading itself blind is worse than none.
-- **Browser viewport resizing can silently no-op.** A resize call can report success while
-  changing nothing, so a responsive/mobile check can pass without ever landing at that viewport.
-  Read the actual viewport width back from the page before trusting any responsive check.
+- **Browser viewport resizing can silently no-op — and a named preset can land somewhere worse
+  than "unchanged".** A resize call can report success while changing nothing, and a named preset
+  (`desktop`, `mobile`) has reported success while the page then measured 0x0 — so a
+  responsive/mobile check can pass having never rendered at that viewport, or at any viewport. Set
+  an explicit width and height instead of a preset, read `window.innerWidth`/`window.innerHeight`
+  back from the page afterward, and attribute every finding to the viewport actually **measured**,
+  not the one requested. A check that can't confirm its own viewport reports its findings as
+  viewport-unattributed rather than labelling them desktop or mobile.
+- **Verifying an email leg means reading the mail from the mail server, not from a mirror.** Any
+  file-based inbox mirror — a poller writing messages into a local file, a cached export, a
+  notification feed — can be alive and still minutes behind, so "it isn't there" is not evidence
+  that nothing was sent. Read the delivered message directly over read-only IMAP (SELECT the
+  mailbox read-only, fetch with `BODY.PEEK` so the check can't mutate flags), and use the mirror
+  only as a cross-check. Same rule for any verification that reads a queue or inbox through a
+  cache instead of its source of truth: an absent item in a lagging cache is a false negative, not
+  a finding.
 - **A green test run can be silently skipping tests, not just passing them.** Config-gated tests
   (a gitignored config absent from a bare clone or fresh worktree, driving an assume/skip guard)
   skip rather than fail, and the run still reports success — distinct from the push gate's
@@ -412,6 +430,16 @@ or external tool."
 - Any brief dispatching an agent to inspect or mutation-test another agent's worktree must require
   snapshot-committing that worktree first, so a destructive step during inspection can't destroy
   uncommitted work — the coordinator never performs that inspection itself (see Role section).
+- **Any brief pointing an agent at a document that contains a section the agent must not read** — a
+  coordinator-only appendix, an answer key, a grading rubric, a spoiler section — must make the
+  boundary mechanical rather than advisory: require the agent to `grep -n` the restricted section's
+  header **first**, then bound **every** subsequent read of that file with an explicit offset+limit
+  ending strictly above that line number, never a default-limit read. "Stop before section N" on
+  its own does not work — a default read overshoots, and the agent discovers the boundary only
+  after it has already read past it. If the file has material *after* the restricted section that
+  the agent genuinely needs, excerpt it into the brief instead of letting the agent read through
+  the boundary to reach it. Agents overshot with default reads before this rule was in the brief,
+  and none did once it was.
 - **A hardlink copy of a git worktree carries a `.git` file pointing at the original**, so git
   operations inside the copy mutate the original worktree's index — clone instead of copying when
   an isolated tree is genuinely needed.

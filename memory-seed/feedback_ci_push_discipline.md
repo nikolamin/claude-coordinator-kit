@@ -32,7 +32,11 @@ runs `gh`:**
 - **After pushing:** the coordinator does not run `gh` itself either — it dispatches a small agent
   (the cheapest tier per `CLAUDE.md`'s Model routing for a plain pass/fail read, the build tier if
   the `--log-failed` output needs triage) to check the actual CI run (`gh run list` / `gh run view
-  --log-failed`) and report back, rather than assuming local zero-new-failures implies CI green. A
+  --log-failed`) and report back, rather than assuming local zero-new-failures implies CI green.
+  Pin that check to the pushed commit (`gh run list --commit <sha>`) rather than `--limit 1`, which
+  reports whatever ran last — possibly another branch's run — and pass the **full 40-character
+  sha**: an abbreviated sha matches nothing and returns an empty list, which reads as "no run was
+  triggered" for a run that exists. Treat an empty result as unresolved, not as an answer. A
   failed Actions run means the task is NOT done — the coordinator treats it as a normal
   verification failure and loops back into the build→verify→fix cycle, re-dispatching the build
   agent with the failure log — not letting it sit unnoticed because "local was clean." (If the
