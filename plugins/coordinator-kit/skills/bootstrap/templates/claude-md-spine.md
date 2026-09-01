@@ -147,14 +147,14 @@ Full nuance, setup detail, and the brief-restating requirement:
 ## Writes stay inside the project
 
 Every file write — scratch files, generated reports, temp scripts, downloads — stays inside the
-project root, in `.coordinator-scratch/`, never `/tmp`/`$env:TEMP` or a home-directory path. An out-of-project
-write trips a local allow-click prompt that never reaches `<NOTIFY_CHANNEL>` and silently blocks
-the session — indistinguishable, from the outside, from a hung agent (`coordinator-kit:watchdogs`
-covers this failure mode in depth). Exempt: paths the kit itself names and the founder already
-approved at install time — `<BRIDGE_DIR>` and its files, Claude Code's own per-project memory
-directory, and the one-time clone used to fetch the Telegram bridge or memory-seed files, if
-installed that way. The rule targets a write location the coordinator or an agent invents for
-itself, not one that's already approved.
+project root, in `.coordinator-scratch/`, never `/tmp`/`$env:TEMP` or a home-directory path. An
+out-of-project write trips a local allow-click prompt that never reaches `<NOTIFY_CHANNEL>` and
+silently blocks the session — indistinguishable, from the outside, from a hung agent
+(`coordinator-kit:watchdogs` covers this failure mode in depth). Exempt: paths the kit itself names
+and the founder already approved at install time — `<BRIDGE_DIR>` and its files, Claude Code's own
+per-project memory directory, and the one-time clone used to fetch the Telegram bridge or
+memory-seed files, if installed that way. The rule targets a write location the coordinator or an
+agent invents for itself, not one that's already approved.
 
 ## Everything else is a skill, loaded on demand
 

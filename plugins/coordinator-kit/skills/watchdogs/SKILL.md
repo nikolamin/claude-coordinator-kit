@@ -62,13 +62,13 @@ without an armed way to wake back up.
   alone would silently violate the founder's own standing instruction.
 - **A blocked local permission prompt reads as silence, not idle — a wakeup won't rescue it.**
   General rule: never take an action whose approval prompt can't reach the notify channel. The
-  instance that has actually bitten: a write outside the project root (e.g. `/tmp`, `$env:TEMP`) triggers a
-  Claude Code allow-click prompt visible only in the local UI, so the session is genuinely
-  blocked on an unseen click, not idle. Symptom: indistinguishable from a hung agent or lost
-  completion event on the notify channel — suspect this too when a wakeup finds silence and no
-  stalled agent. Write scratch/output only inside the project (`.coordinator-scratch/`; see
-  `CLAUDE.md`'s Agent brief hygiene section, including its narrow exemption for the kit's own
-  named, install-approved paths).
+  instance that has actually bitten: a write outside the project root (e.g. `/tmp`, `$env:TEMP`)
+  triggers a Claude Code allow-click prompt visible only in the local UI, so the session is
+  genuinely blocked on an unseen click, not idle. Symptom: indistinguishable from a hung agent or
+  lost completion event on the notify channel — suspect this too when a wakeup finds silence and
+  no stalled agent. Write scratch/output only inside the project (`.coordinator-scratch/`; see
+  `CLAUDE.md`'s Agent brief hygiene section, including its narrow exemption for the kit's own named,
+  install-approved paths).
 - **A dead in-session listener reads as silence too — and no producer-side check can see it.**
   Every 2-3 idle ticks, compare the watched inbox file's last line (or mtime/line count — e.g.
   a bridge's relay-inbox file) against the last message this session actually processed:

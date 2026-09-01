@@ -126,10 +126,10 @@ Regardless of which case above applies:
 - Restate the no-side-backlog rule (see `coordinator-kit:backlog-discipline`) in every dispatched
   brief — this is the skill-only case again: a subagent that calls a suggestion-chip/spawn-task
   tool on its own creates a stray chip the coordinator can't see or clean up.
-- Every brief (the coordinator's own work included) keeps all file writes inside the project
-  root — scratch files, generated reports, temp scripts, downloads — in `.coordinator-scratch/`,
-  never `/tmp`/`$env:TEMP` or a home-directory path: an out-of-project write trips an allow-click prompt
-  invisible on the notify channel and blocks the session. Exempt: paths the kit itself names and
-  the founder already approved at install time — the Telegram bridge directory and its files,
+- Every brief (the coordinator's own work included) keeps all file writes inside the project root
+  — scratch files, generated reports, temp scripts, downloads — in `.coordinator-scratch/`,
+  never `/tmp`/`$env:TEMP` or a home-directory path: an out-of-project write trips an allow-click
+  prompt invisible on the notify channel and blocks the session. Exempt: paths the kit itself names
+  and the founder already approved at install time — the Telegram bridge directory and its files,
   Claude Code's own per-project memory directory, the one-time install or update clone, and temp
   handling inside the kit's own shipped scripts.

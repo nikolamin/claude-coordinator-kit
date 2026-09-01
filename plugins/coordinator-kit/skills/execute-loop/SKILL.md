@@ -68,21 +68,21 @@ explicitly, never inheriting the coordinator's own tier.
    git operations (`checkout --`, `reset`, `clean`) on a tree that may hold another agent's
    uncommitted work.
 
-   **Task-completion gate (necessarily after push, not before):** if the project has a CI
-   pipeline — established via `STATE.md`/the repo map or a dispatched agent's report, never the
+   **Task-completion gate (necessarily after push, not before):** if the project has a CI pipeline
+   — established via `STATE.md`/the repo map or a dispatched agent's report, never the
    coordinator's own guess — dispatch a small agent (cheapest tier for a plain pass/fail read,
    build tier if `--log-failed` needs triage) to check the actual CI run (`gh run list` /
    `gh run view --log-failed`) and report back; the coordinator never runs `gh` itself, same
    investigative-Bash prohibition as above. Pin that check to the pushed commit
    (`gh run list --commit <sha>`), never `--limit 1`, which reports whatever ran last — possibly
-   another branch's run. Pass the **full 40-character sha**: an abbreviated sha matches nothing
-   and returns an empty list, which reads as "no run was triggered" for a run that exists — a
-   false negative that closes or re-opens a task on a fiction. Treat an empty result as
-   unresolved (re-query with the full sha, or wait) rather than as an answer. A confirmed-green
-   run closes the task; a failed run means NOT done: loop back into step 3 with the failure log. If there's no CI pipeline yet
-   (e.g. still at Bootstrap), the push gate's local zero-new-failures report is the
-   task-completion gate on its own — don't invent a CI check that doesn't exist — and standing up
-   CI becomes its own task in `docs/plan.md`, not a blocker on every other task.
+   another branch's run. Pass the **full 40-character sha**: an abbreviated sha matches nothing and
+   returns an empty list, which reads as "no run was triggered" for a run that exists — a false
+   negative that closes or re-opens a task on a fiction. Treat an empty result as unresolved
+   (re-query with the full sha, or wait) rather than as an answer. A confirmed-green run closes the
+   task; a failed run means NOT done: loop back into step 3 with the failure log. If there's no CI
+   pipeline yet (e.g. still at Bootstrap), the push gate's local zero-new-failures report is the
+   task-completion gate on its own — don't invent a CI check that doesn't exist — and standing
+   up CI becomes its own task in `docs/plan.md`, not a blocker on every other task.
 6. Immediately dispatch the next unblocked task from `docs/plan.md`'s dependency graph —
    **without asking**. The plan already answers "what's next"; asking again is noise. If
    multiple tasks are unblocked, pick by the plan's stated priority/dependency order yourself —
@@ -90,25 +90,24 @@ explicitly, never inheriting the coordinator's own tier.
    same anti-pattern as "should I continue?"). When several unblocked tasks don't touch the same
    files, dispatch them in parallel by default rather than serializing one at a time.
 
-   This worktree-per-task default assumes a project where isolating each task in its own branch
-   is safe; a trunk-based or continuous-deploy project (where a push to the trunk branch is
-   itself the deploy trigger) may need the opposite convention entirely — don't assume the
-   default applies. Confirm which this project is and record it as a durable decision in
-   `STATE.md`.
+   This worktree-per-task default assumes a project where isolating each task in its own branch is
+   safe; a trunk-based or continuous-deploy project (where a push to the trunk branch is itself the
+   deploy trigger) may need the opposite convention entirely — don't assume the default applies.
+   Confirm which this project is and record it as a durable decision in `STATE.md`.
 
    Worktrees isolate the file tree only — they do not isolate a shared external service (a test
-   database, a fixed listen port, a shared schema). If the colliding tasks would also share one
-   of those, either fall back to sequential dispatch for just those tasks, or give each agent a
-   private instance: put it in each parallel build agent's own brief to claim its own
-   port/datadir (e.g. check `lsof -nP -iTCP:<port> -sTCP:LISTEN` on macOS/Linux, or
+   database, a fixed listen port, a shared schema). If the colliding tasks would also share one of
+   those, either fall back to sequential dispatch for just those tasks, or give each agent a private
+   instance: put it in each parallel build agent's own brief to claim its own port/datadir (e.g.
+   check `lsof -nP -iTCP:<port> -sTCP:LISTEN` on macOS/Linux, or
    `Get-NetTCPConnection -LocalPort <port> -State Listen` / `netstat -ano | findstr :<port>` on
    Windows, before claiming one) and drop+recreate its own schema so migrations start clean — the
-   coordinator doesn't provision
-   this itself, it's a requirement placed on each build agent's brief. A shared-service collision
-   shows up as a flaky test failure or a bogus assertion mismatch, not an obvious merge conflict,
-   so it's easy to misdiagnose as a real bug. One browser holds one session per site, so
-   login-gated persona/browser tests are the same shared-resource collision class applied to a
-   browser session instead of a service — run them sequentially too, never in parallel.
+   coordinator doesn't provision this itself, it's a requirement placed on each build agent's brief.
+   A shared-service collision shows up as a flaky test failure or a bogus assertion mismatch, not an
+   obvious merge conflict, so it's easy to misdiagnose as a real bug. One browser holds one session
+   per site, so login-gated persona/browser tests are the same shared-resource collision class
+   applied to a browser session instead of a service — run them sequentially too, never in
+   parallel.
 
 ## Re-dispatch is routine, not a decision
 

@@ -144,24 +144,23 @@ Per task pulled from `docs/plan.md`:
    unblocked, pick by the plan's stated priority/dependency order yourself — don't ask the founder
    to choose between viable options ("preference, or should I pick?" is the same anti-pattern as
    "should I continue?"). When several unblocked tasks don't touch the same files, dispatch them in
-   parallel by default rather than serializing one at a time. This worktree-per-task default
-   assumes a project where isolating each task in its own branch is safe; a trunk-based or
-   continuous-deploy project (where a push to the trunk branch is itself the deploy trigger) may
-   need the opposite convention entirely — don't assume the default applies. Confirm which this
-   project is and record it as a durable decision in `STATE.md`. Worktrees isolate the file tree
-   only — they do not isolate a shared external service (a test database, a fixed listen port, a
-   shared schema). If the colliding tasks would also share one of those, either fall back to
-   sequential dispatch for just those tasks, or give each agent a private instance: put it in each
-   parallel build agent's own brief to claim its own port/datadir (e.g. check `lsof -nP
-   -iTCP:<port> -sTCP:LISTEN` on macOS/Linux, or `Get-NetTCPConnection -LocalPort <port> -State
-   Listen` / `netstat -ano | findstr :<port>` on Windows, before claiming one) and drop+recreate
-   its own schema so migrations
-   start clean — the coordinator doesn't provision this itself, it's a requirement placed on each
-   build agent's brief. A shared-service collision shows up as a flaky test failure or a bogus
-   assertion mismatch, not an obvious merge conflict, so it's easy to misdiagnose as a real bug.
-   One browser holds one session per site, so login-gated persona/browser tests are the same
-   shared-resource collision class applied to a browser session instead of a service — run them
-   sequentially too, never in parallel.
+   parallel by default rather than serializing one at a time. This worktree-per-task default assumes
+   a project where isolating each task in its own branch is safe; a trunk-based or continuous-deploy
+   project (where a push to the trunk branch is itself the deploy trigger) may need the opposite
+   convention entirely — don't assume the default applies. Confirm which this project is and
+   record it as a durable decision in `STATE.md`. Worktrees isolate the file tree only — they do
+   not isolate a shared external service (a test database, a fixed listen port, a shared schema). If
+   the colliding tasks would also share one of those, either fall back to sequential dispatch for
+   just those tasks, or give each agent a private instance: put it in each parallel build agent's
+   own brief to claim its own port/datadir (e.g. check `lsof -nP -iTCP:<port> -sTCP:LISTEN` on
+   macOS/Linux, or `Get-NetTCPConnection -LocalPort <port> -State Listen` /
+   `netstat -ano | findstr :<port>` on Windows, before claiming one) and drop+recreate its own
+   schema so migrations start clean — the coordinator doesn't provision this itself, it's a
+   requirement placed on each build agent's brief. A shared-service collision shows up as a flaky
+   test failure or a bogus assertion mismatch, not an obvious merge conflict, so it's easy to
+   misdiagnose as a real bug. One browser holds one session per site, so login-gated persona/browser
+   tests are the same shared-resource collision class applied to a browser session instead of a
+   service — run them sequentially too, never in parallel.
 
 **Never ask permission to re-dispatch a lost, stuck, or failed agent.** Retrying a transient
 failure, re-prompting after a bad result, or recovering a dropped task ID is routine coordination
@@ -219,20 +218,20 @@ without an armed way to wake back up.
   violate the founder's own standing instruction.
 - **A blocked local permission prompt reads as silence, not idle — a wakeup won't rescue it.**
   General rule: never take an action whose approval prompt can't reach `<NOTIFY_CHANNEL>`. The
-  instance that has actually bitten: a write outside the project root (e.g. `/tmp`, `$env:TEMP`) triggers a
-  Claude Code allow-click prompt visible only in the local UI, so the session is genuinely blocked
-  on an unseen click, not idle. Symptom: indistinguishable from a hung agent or lost completion
-  event on the notify channel — suspect this too when a wakeup finds silence and no stalled agent.
-  Write scratch/output only inside the project (`.coordinator-scratch/`; see Agent brief hygiene,
-  including its narrow exemption for the kit's own named, install-approved paths).
+  instance that has actually bitten: a write outside the project root (e.g. `/tmp`, `$env:TEMP`)
+  triggers a Claude Code allow-click prompt visible only in the local UI, so the session is
+  genuinely blocked on an unseen click, not idle. Symptom: indistinguishable from a hung agent or
+  lost completion event on the notify channel — suspect this too when a wakeup finds silence and
+  no stalled agent. Write scratch/output only inside the project (`.coordinator-scratch/`; see Agent
+  brief hygiene, including its narrow exemption for the kit's own named, install-approved paths).
 - **A dead in-session listener reads as silence too — and no producer-side check can see it.**
   Every 2-3 idle ticks, compare the watched inbox file's last line (or mtime/line count — e.g.
   `<BRIDGE_DIR>/relay-inbox.jsonl`) against the last message this session actually processed:
-  producer health (launchd/systemd/Task Scheduler job up, bot log flowing) only proves delivery **to the file**, never
-  **to the session**, so it will confirm "silence is genuine" while messages sit unread. On a
-  mismatch, re-arm the listener **and** process the missed backlog (react/reply), not just re-arm.
-  Restart kills every monitor outright too, and every task id changes each time — re-arm fresh on
-  resume, never by a carried-over id (see Session stop/resume protocol below).
+  producer health (launchd/systemd/Task Scheduler job up, bot log flowing) only proves delivery **to
+  the file**, never **to the session**, so it will confirm "silence is genuine" while messages sit
+  unread. On a mismatch, re-arm the listener **and** process the missed backlog (react/reply), not
+  just re-arm. Restart kills every monitor outright too, and every task id changes each time —
+  re-arm fresh on resume, never by a carried-over id (see Session stop/resume protocol below).
 
 ### Session stop / resume protocol
 
@@ -462,13 +461,13 @@ or external tool."
   spawn-task tool on its own creates a stray chip the coordinator can't see or clean up.
 - Every brief (coordinator's own work included) keeps all file writes inside the project root —
   scratch files, generated reports, temp scripts, downloads — in `.coordinator-scratch/`, never
-  `/tmp`/`$env:TEMP` or a home-directory path: an out-of-project write trips an allow-click prompt invisible on
-  `<NOTIFY_CHANNEL>` and blocks the session (see Watchdogs). Subagents don't infer this unprompted.
-  Exempt: paths the kit itself names and the founder already approved at install time —
-  `<BRIDGE_DIR>` and its files, Claude Code's own per-project memory directory, the one-time
-  install or update clone, and temp handling inside the kit's own shipped scripts. The rule
-  targets a write location the coordinator or an agent invents for itself, not the kit's
-  already-approved paths.
+  `/tmp`/`$env:TEMP` or a home-directory path: an out-of-project write trips an allow-click prompt
+  invisible on `<NOTIFY_CHANNEL>` and blocks the session (see Watchdogs). Subagents don't infer this
+  unprompted. Exempt: paths the kit itself names and the founder already approved at install time
+  — `<BRIDGE_DIR>` and its files, Claude Code's own per-project memory directory, the one-time
+  install or update clone, and temp handling inside the kit's own shipped scripts. The rule targets
+  a write location the coordinator or an agent invents for itself, not the kit's already-approved
+  paths.
 
 ## Question protocol
 
