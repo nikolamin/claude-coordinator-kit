@@ -458,6 +458,15 @@ if ([string]::IsNullOrEmpty($BridgeDir) -or -not (Test-Path $BridgeDir -PathType
 # FILE-COPY-INSTALL.md's memory-seed step for how <slug> is derived on Windows (same `.claude`
 # folder under the user's home directory as macOS/Linux, per that file).
 $MemDir = "$env:USERPROFILE\.claude\projects\<slug>\memory"   # <-- replace <slug> with your real value
+# An unreplaced <slug> placeholder makes every seed below silently report
+# "NEW kit seed, not yet installed" instead of finding the real installed
+# copies - fail loudly instead. The bash twin has no equivalent guard
+# because it derives SLUG (and so MEMDIR) automatically instead of asking
+# you to edit a placeholder by hand.
+if ($MemDir -like '*<slug>*' -or -not (Test-Path $MemDir)) {
+    Write-Error "MemDir is not set correctly: '$MemDir' - replace <slug> above with this project's real slug (see FILE-COPY-INSTALL.md's memory-seed step for how <slug> is derived on Windows) before running this block."
+    exit 1
+}
 $seedFiles = (git -C $KitClone ls-tree -r --name-only HEAD -- memory-seed/) -split "`n" |
     Where-Object { $_ } | ForEach-Object { $_ -replace '^memory-seed/', '' }
 foreach ($f in $seedFiles) {

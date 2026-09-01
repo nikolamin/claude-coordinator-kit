@@ -115,7 +115,7 @@ function Invoke-Transcribe {
         }
 
         if (-not $whisperBin) {
-            Write-Failure "no whisper.cpp CLI found on PATH (tried whisper-cli, whisper, main)."
+            Write-Failure "no whisper.cpp CLI found on PATH (tried whisper-cli, whisper, main). See SETUP.md 'Windows (Task Scheduler)' for install pointers."
         }
 
         if (-not (Test-Path -LiteralPath $ModelPath -PathType Leaf)) {

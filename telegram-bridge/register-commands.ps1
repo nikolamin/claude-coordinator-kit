@@ -95,8 +95,9 @@ function Get-MyCommandsRaw {
     try {
         $webResponse = Invoke-WebRequest -Uri $uri -Method Get -UseBasicParsing -TimeoutSec 30
     } catch {
-        $desc = Get-TelegramErrorDescription -ErrorRecord $_
-        Write-BridgeError "getMyCommands request to the Telegram API failed.$desc"
+        # Match register-commands.sh's "Error: getMyCommands request to the
+        # Telegram API failed." wording exactly - no HTTP-detail suffix.
+        Write-BridgeError "getMyCommands request to the Telegram API failed."
     }
     $bodyText = $webResponse.Content
     # A 200 with a non-JSON body (e.g. a proxy's HTML error page) leaves
@@ -198,8 +199,9 @@ $setUri = "$apiBase/bot$token/setMyCommands"
 try {
     $setWebResponse = Invoke-WebRequest -Uri $setUri -Method Post -Body @{ commands = $mergedArrayJson } -UseBasicParsing -TimeoutSec 30
 } catch {
-    $desc = Get-TelegramErrorDescription -ErrorRecord $_
-    Write-BridgeError "setMyCommands request to the Telegram API failed.$desc"
+    # Match register-commands.sh's "Error: setMyCommands request to the
+    # Telegram API failed." wording exactly - no HTTP-detail suffix.
+    Write-BridgeError "setMyCommands request to the Telegram API failed."
 }
 $setBodyText = $setWebResponse.Content
 $setResponse = $null

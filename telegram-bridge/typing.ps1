@@ -140,14 +140,43 @@ try {
     # script travels as base64 of its UTF-16LE bytes and PowerShell decodes
     # it directly, with no command-line requoting step to mangle it.
     $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($childCommand))
+
+    # Redirect the detached child's stdout/stderr to the platform's null
+    # device. Without this the child inherits THIS process's stdout/stderr,
+    # so `typing.ps1 30 | cat` (or `$x = typing.ps1 30`) blocks the caller
+    # for the full <seconds> duration instead of returning immediately -
+    # measured 8.78s for a 6s run under a pipe, vs. 0.29s once redirected.
+    # typing.sh's own detached subshell redirects the same way
+    # (`>/dev/null 2>&1`) and its own comment calls that load-bearing.
+    #
+    # Start-Process refuses -RedirectStandardOutput and
+    # -RedirectStandardError when they're the textually-identical path
+    # ("... cannot be run because ... are same. Give different inputs...") -
+    # confirmed under pwsh 7.4.6/macOS: "/dev/null" for both throws that
+    # error. Each stream therefore needs its own distinct spelling of the
+    # null device: on Unix, "/dev/null" and "/dev/zero" are two different
+    # device files that both silently discard anything written to them
+    # (verified here); on Windows, "NUL" and the UNC-style device path
+    # "\\.\NUL" both resolve to the same null device, but as distinct
+    # strings - unverified on a real Windows host, same as the rest of
+    # this script per its own docstring above.
+    $onWindowsHost = ($env:OS -eq 'Windows_NT')
+    $nullOut = if ($onWindowsHost) { 'NUL' } else { '/dev/null' }
+    $nullErr = if ($onWindowsHost) { '\\.\NUL' } else { '/dev/zero' }
     $startArgs = @{
-        FilePath     = $hostExe
-        ArgumentList = @('-NoProfile', '-NonInteractive', '-EncodedCommand', $encodedCommand)
+        FilePath              = $hostExe
+        ArgumentList          = @('-NoProfile', '-NonInteractive', '-EncodedCommand', $encodedCommand)
+        RedirectStandardOutput = $nullOut
+        RedirectStandardError  = $nullErr
     }
     # -WindowStyle is a Windows-only Start-Process parameter - it throws on
     # pwsh under macOS/Linux (used here only for cross-platform testing
-    # against the stub API), so only pass it on an actual Windows host.
-    if ($env:OS -eq 'Windows_NT') { $startArgs['WindowStyle'] = 'Hidden' }
+    # against the stub API), so only pass it on an actual Windows host. It
+    # combines fine with -RedirectStandardOutput/-RedirectStandardError
+    # (same "Default" parameter set) - Start-Process only rejects a
+    # redirect alongside -NoNewWindow, which this script never passes, so
+    # -WindowStyle Hidden does not need to be dropped.
+    if ($onWindowsHost) { $startArgs['WindowStyle'] = 'Hidden' }
     Start-Process @startArgs | Out-Null
 } finally {
     # Clear the handoff variables from THIS process's environment now that

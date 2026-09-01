@@ -304,8 +304,11 @@ function Invoke-TelegramForm {
     try {
         $webResponse = Invoke-WebRequest -Uri $uri -Method Post -Body $Body -UseBasicParsing -TimeoutSec $TimeoutSec
     } catch {
-        $desc = Get-TelegramErrorDescription -ErrorRecord $_
-        Write-BridgeError "request to Telegram API failed.$desc"
+        # Match notify.sh/react.sh/send-file.sh's "Error: curl request to
+        # Telegram API failed." wording exactly (with the one documented
+        # substitution, "curl request" -> "request") - no HTTP-detail
+        # suffix, so the first stderr line is byte-for-byte identical.
+        Write-BridgeError "request to Telegram API failed."
     }
     $bodyText = $webResponse.Content
 
@@ -324,9 +327,10 @@ function Invoke-TelegramForm {
     }
 
     if (-not $response.ok) {
-        $desc = ""
-        try { $desc = $response.description } catch { }
-        Write-BridgeError "Telegram API returned an error response: $desc"
+        # Print the whole raw body, matching the .sh twins' `... $RESPONSE`
+        # wording exactly - not just Telegram's (possibly empty)
+        # `description` field.
+        Write-BridgeError "Telegram API returned an error response: $bodyText"
     }
 
     return $response

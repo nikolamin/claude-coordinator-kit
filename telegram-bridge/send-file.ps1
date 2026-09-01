@@ -208,19 +208,16 @@ if ($result.StatusCode -lt 200 -or $result.StatusCode -ge 300) {
 $parsed = $null
 try { $parsed = $result.Body | ConvertFrom-Json } catch { }
 
-# See telegram_common.ps1's Invoke-TelegramForm for why this guard exists:
-# a 2xx body that isn't JSON (or isn't an object with an "ok" property)
-# must not reach $parsed.ok directly - that throws under StrictMode.
-$hasOk = $false
-try { $hasOk = ($parsed -and ($parsed.PSObject.Properties.Name -contains 'ok')) } catch { }
-if (-not $hasOk) {
-    Write-BridgeError "Telegram API returned an unparseable response (HTTP $($result.StatusCode))."
-}
-
-if (-not $parsed.ok) {
-    $desc = ""
-    try { $desc = $parsed.description } catch { }
-    Write-BridgeError "Telegram API returned an error response: $desc"
+# send-file.sh's single `grep -q '"ok":true' <<< "$RESPONSE"` check does not
+# distinguish "body isn't JSON" from "valid JSON with ok:false" - both
+# simply fail the grep and print the same "returned an error response:
+# $RESPONSE" message with the raw body. Mirror that as one check (guarded
+# against $parsed.ok throwing under StrictMode when $parsed is $null or
+# lacks an "ok" property) instead of two different messages.
+$isOkTrue = $false
+try { $isOkTrue = ($parsed -and ($parsed.PSObject.Properties.Name -contains 'ok') -and ($parsed.ok -eq $true)) } catch { }
+if (-not $isOkTrue) {
+    Write-BridgeError "Telegram API returned an error response: $($result.Body)"
 }
 
 exit 0
