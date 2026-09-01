@@ -147,7 +147,7 @@ Full nuance, setup detail, and the brief-restating requirement:
 ## Writes stay inside the project
 
 Every file write — scratch files, generated reports, temp scripts, downloads — stays inside the
-project root, in `.coordinator-scratch/`, never `/tmp` or a home-directory path. An out-of-project
+project root, in `.coordinator-scratch/`, never `/tmp`/`$env:TEMP` or a home-directory path. An out-of-project
 write trips a local allow-click prompt that never reaches `<NOTIFY_CHANNEL>` and silently blocks
 the session — indistinguishable, from the outside, from a hung agent (`coordinator-kit:watchdogs`
 covers this failure mode in depth). Exempt: paths the kit itself names and the founder already

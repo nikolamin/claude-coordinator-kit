@@ -62,7 +62,7 @@ without an armed way to wake back up.
   alone would silently violate the founder's own standing instruction.
 - **A blocked local permission prompt reads as silence, not idle — a wakeup won't rescue it.**
   General rule: never take an action whose approval prompt can't reach the notify channel. The
-  instance that has actually bitten: a write outside the project root (e.g. `/tmp`) triggers a
+  instance that has actually bitten: a write outside the project root (e.g. `/tmp`, `$env:TEMP`) triggers a
   Claude Code allow-click prompt visible only in the local UI, so the session is genuinely
   blocked on an unseen click, not idle. Symptom: indistinguishable from a hung agent or lost
   completion event on the notify channel — suspect this too when a wakeup finds silence and no

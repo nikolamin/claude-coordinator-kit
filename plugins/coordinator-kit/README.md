@@ -60,7 +60,7 @@ one-time, optional install choices to the kit's own README.
 
 ## Version-bump rule
 
-`plugin.json` sets an explicit `version` (`0.1.0`) rather than leaving it unset. That is
+`plugin.json` sets an explicit `version` (`0.2.0`) rather than leaving it unset. That is
 deliberate, not an oversight: with an explicit `version`, pushing new commits to this repo does
 nothing for anyone who already installed the plugin — they only receive an update when this
 string is bumped. Left unset, Claude Code would instead use the git commit SHA as the version,

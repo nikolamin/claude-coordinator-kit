@@ -23,7 +23,8 @@ shape:
 Installed from claude-coordinator-kit commit `<sha>` (`<YYYY-MM-DD>`).
 
 - Telegram bridge: installed at `<BRIDGE_DIR>` | not installed
-- Memory seed: installed at `~/.claude/projects/<slug>/memory/` | not installed
+- Memory seed: installed at `<MEMORY_DIR>` (`~/.claude/projects/<slug>/memory/` on macOS/Linux/
+  WSL2, `%USERPROFILE%\.claude\projects\<slug>\memory\` on Windows) | not installed
 
 To update, paste this install prompt again — its step 2 detects the existing install and
 switches to the update branch (see FILE-COPY-INSTALL.md's Updating section).
@@ -118,7 +119,8 @@ scratch.
 **`.coordinator-scratch/` (project root) — NEVER TOUCH.** Working scratch space, gitignored; not
 kit content, nothing to update.
 
-**`memory-seed/*` → `~/.claude/projects/<slug>/memory/*.md` — MERGE.** Add new files, refresh
+**`memory-seed/*` → `<MEMORY_DIR>/*.md` (`~/.claude/projects/<slug>/memory/` on macOS/Linux/WSL2,
+`%USERPROFILE%\.claude\projects\<slug>\memory\` on Windows) — MERGE.** Add new files, refresh
 files unmodified since install, never overwrite one the coordinator has since edited. `MEMORY.md`
 gains new index lines, never a wholesale replace (it also carries install-time
 `<PROJECT>`/`<BRIDGE_DIR>` substitutions). "Add new files" is not unconditional: a new kit seed can
@@ -135,11 +137,12 @@ the local override (skip the new seed), or keep both deliberately (rare — only
 coexist). Record whichever they pick in `kit-version.md`'s `## Notes` section (see the bullet
 above) so a future update doesn't re-ask the same resolved question.
 
-**`telegram-bridge/*.py`, `*.sh` (excluding `test_*.py`, its own bullet below) — REPLACE,
-diff-verified first — this is the highest-risk file group for divergence.** Run `git ls-files
-telegram-bridge/ | grep -E '\.(py|sh)$' | grep -v '^telegram-bridge/test_'` for the current list
-(`bot.py`, `notify.sh`, `telegram_common.py`, and the rest — the exact names are incidental, a new
-script added here inherits this same classification) — kit-owned code by design, no per-install
+**`telegram-bridge/*.py`, `*.sh`, `*.ps1` (excluding `test_*.py`, its own bullet below) —
+REPLACE, diff-verified first — this is the highest-risk file group for divergence.** Run `git
+ls-files telegram-bridge/ | grep -E '\.(py|sh|ps1)$' | grep -v '^telegram-bridge/test_'` for the
+current list (`bot.py`, `notify.sh`/`notify.ps1`, `telegram_common.py`, and the rest — the exact
+names are incidental, a new script added here inherits this same classification) — kit-owned code
+by design, no per-install
 customization point *intended*. In practice the bridge typically runs as a machine-level service
 maintained directly on its deployed copy (a "sibling location outside this project," per
 FILE-COPY-INSTALL.md) rather than through this project's own git — so a real production hotfix
@@ -156,8 +159,9 @@ Kit-owned docs, same "lives outside this project's git" risk as the bridge code.
 
 **`telegram-bridge/*.template` — REPLACE, diff-verified first (see above).** All
 `.plist.template`/`.service.template`/`.timer.template` files — kit-owned templates. Caveat:
-replacing the template does **not** touch
-an already-installed `launchd`/`systemd` unit built from an older copy of it — see Bridge notes
+replacing the template does **not** touch an already-installed `launchd`/`systemd` unit built from
+an older copy of it, and replacing `install-windows-task.ps1` (classified under the `*.ps1` bullet
+above) does **not** touch an already-registered Task Scheduler task either — see Bridge notes
 below.
 
 **`telegram-bridge/.env.example` — REPLACE, diff-verified first (see above).** Kit-owned template,
@@ -221,6 +225,12 @@ The main path is re-running the install prompt (FILE-COPY-INSTALL.md's `## Updat
 letting it drive an update in an agent session. This section is the fallback for a founder who
 wants to drive the diff themselves, without an agent — the mechanics below are the same
 reconciliation logic section 2 describes, just as a script instead of prose.
+
+Two equivalent scripts follow, same steps and same REPLACE/NEVER TOUCH/MERGE decisions in the same
+order: a POSIX one (macOS/Linux/WSL2, `bash`/`zsh`) and a PowerShell one (Windows). Run whichever
+matches your shell — don't mix commands from one into the other's session.
+
+### POSIX (macOS, Linux, WSL2)
 
 This script assumes `bash` or `zsh`. **If you're on zsh (the default macOS shell), variable braces
 are load-bearing, not style** — `$VAR:something` is parsed as a history-expansion modifier (`:P`,
@@ -340,11 +350,152 @@ done
 rm -rf /tmp/coordinator-kit-update
 ```
 
-If `OLD_SHA` comes up empty (pre-stamp install, version unknown — see section 1), there's no exact
-baseline to diff against: for each REPLACE-class file, walk
-`git -C /tmp/coordinator-kit-update log --oneline -- <path>` to find a historical version matching
-what's installed and diff against that instead; if nothing matches, treat the file as diverged with
-unknown baseline and reconcile it by hand rather than guessing it's safe to overwrite.
+### PowerShell (Windows)
+
+Same steps, same decisions, in the same order as the POSIX script above — this is not a different
+procedure, just a different shell. File-content comparison uses `git diff --no-index --quiet`
+against a temp file (rather than piping into POSIX `diff`) so the comparison is robust to
+CRLF/LF differences instead of reporting a false DIVERGED on every file.
+
+```powershell
+# Fresh clone for comparison
+$KitClone = "$env:TEMP\coordinator-kit-update"
+git clone https://github.com/nikolamin/claude-coordinator-kit $KitClone
+
+# What changed in the kit's rules since your install (needs kit-version.md's recorded sha)
+$OldSha = (Select-String -Path docs\coordination\kit-version.md -Pattern 'commit `([a-f0-9]{7,})`').Matches[0].Groups[1].Value
+git -C $KitClone diff $OldSha HEAD -- CLAUDE.md
+
+# Helper: compare the OLD_SHA copy of a kit-repo-relative path against an installed file.
+# Returns $true if identical (safe to overwrite), $false if diverged or the OLD_SHA copy doesn't exist.
+function Test-KitFileUnchanged($RelPath, $InstalledPath) {
+    if (-not (Test-Path $InstalledPath)) { return $false }
+    $old = & git -C $KitClone show "${OldSha}:${RelPath}" 2>$null
+    if ($LASTEXITCODE -ne 0) { return $false }  # no OLD_SHA copy in the kit repo
+    $tmp = New-TemporaryFile
+    try {
+        $old | Out-File -FilePath $tmp -Encoding utf8 -NoNewline
+        git diff --no-index --quiet $tmp $InstalledPath
+        return ($LASTEXITCODE -eq 0)
+    } finally {
+        Remove-Item $tmp -Force
+    }
+}
+
+# REPLACE-class files: diff against the version YOU installed (OLD_SHA), not against the fresh
+# clone's HEAD — diffing against HEAD only tells you the kit changed, not whether your installed
+# copy diverged from it. Only copy when that diff actually came back clean; never copy
+# unconditionally on the strength of the comment above it — a diverged local fix must survive this
+# script even if you don't read every line of output.
+if (Test-KitFileUnchanged "PROCESS.md" "docs\coordination\PROCESS.md") {
+    Copy-Item "$KitClone\PROCESS.md" "docs\coordination\PROCESS.md"
+} else {
+    # Before treating this as a real divergence: if the ONLY difference is the docs/concept
+    # sub-structure note (Knowledge base layout section) that FILE-COPY-INSTALL.md invites editing
+    # per-project, that's the invited customization, not an unexpected one — keep your note, take
+    # the rest of the new file by hand instead of a straight copy. Any other difference is a real
+    # divergence — reconcile per section 2 above (show yourself the diff, decide
+    # keep-local/backport vs. drop) before touching the file.
+    Write-Host "DIVERGED - do not overwrite, see section 2 above: docs\coordination\PROCESS.md"
+}
+if (Test-KitFileUnchanged "codex-setup.md" "docs\coordination\codex-setup.md") {
+    Copy-Item "$KitClone\codex-setup.md" "docs\coordination\codex-setup.md"
+} else {
+    Write-Host "DIVERGED - do not overwrite, see section 2 above: docs\coordination\codex-setup.md"
+}
+
+# Bridge scripts/docs/templates: same divergence-first idea, per file (only the kit-owned names —
+# never a directory-level copy). This directory is the highest-risk one for a real local hotfix,
+# since the bridge commonly runs outside this project's own git tracking — do NOT skip straight to
+# copying just because the names match.
+#
+# BridgeDir is the bridge's actual install location, a sibling directory OUTSIDE this project
+# (see FILE-COPY-INSTALL.md's install steps) — NOT a path inside this repo. Set it to the same
+# absolute path recorded in kit-version.md's "Telegram bridge: installed at <BRIDGE_DIR>" line
+# before running this block.
+# Skip this whole block entirely if you didn't install the bridge. Diffing telegram-bridge\<name>
+# against a path inside the project (instead of inside BridgeDir) compares against a file that was
+# never installed there in the first place — every file reports DIVERGED, and the suggested copy
+# would create a phantom in-project copy the bridge never reads.
+$BridgeDir = "C:\absolute\path\to\your\telegram-bridge"   # <-- set this to your real install path first
+if ([string]::IsNullOrEmpty($BridgeDir) -or -not (Test-Path $BridgeDir -PathType Container)) {
+    Write-Warning "BridgeDir is not set to an existing directory - set it above before running this block. Skipping bridge files."
+} else {
+    $IgnoreRe = '\.env$|allowed-members\.json$|relay-inbox\.jsonl$|\.offset|\.last_report|bridge-config\.json|seen-members\.json|media-inbox/?$|models/?$|email-inbox\.jsonl|email-monitor-state\.json|\.log$'
+    $bridgeFiles = (git -C $KitClone ls-tree -r --name-only HEAD -- telegram-bridge/) -split "`n" |
+        Where-Object { $_ -and ($_ -notmatch $IgnoreRe) }
+    foreach ($f in $bridgeFiles) {
+        # $f is kit-repo-relative, e.g. "telegram-bridge/bot.py" (git always uses forward slashes) -
+        # strip the leading directory to get its real path inside BridgeDir.
+        $rel = $f -replace '^telegram-bridge/', ''
+        $installed = Join-Path $BridgeDir ($rel -replace '/', '\')
+        if (-not (Test-Path $installed)) {
+            Write-Host "not yet installed (new in this kit version, or BridgeDir is wrong): $rel"
+            continue
+        }
+        $oldExists = (& git -C $KitClone show "${OldSha}:${f}" 2>$null); $oldOk = ($LASTEXITCODE -eq 0)
+        if ($oldOk) {
+            if (Test-KitFileUnchanged $f $installed) {
+                Copy-Item (Join-Path $KitClone ($f -replace '/', '\')) $installed
+            } else {
+                Write-Host "DIVERGED, reconcile by hand before overwriting (see section 2 above): $rel"
+            }
+        } else {
+            Write-Host "no $OldSha copy of $rel in the kit repo - treat as diverged/unknown baseline: $rel"
+        }
+    }
+}
+# For each file reported DIVERGED above: read the diff, decide whether to keep the local change (and
+# backport it upstream to the kit as its own task) or drop it — never blind-overwrite it.
+
+# memory-seed (only if you seeded it): same per-file, diff-against-baseline idea as above, not one
+# directory-level diff against the clone's HEAD — a directory diff conflates "kit seed you don't
+# have yet" with "shared file that needs to be checked against the version YOU installed," and
+# silently skips the coordinator-edited-since-install check section 2's memory-seed rules require.
+# MemDir is the memory directory you copied memory-seed into at install time — see
+# FILE-COPY-INSTALL.md's memory-seed step for how <slug> is derived on Windows (same `.claude`
+# folder under the user's home directory as macOS/Linux, per that file).
+$MemDir = "$env:USERPROFILE\.claude\projects\<slug>\memory"   # <-- replace <slug> with your real value
+$seedFiles = (git -C $KitClone ls-tree -r --name-only HEAD -- memory-seed/) -split "`n" |
+    Where-Object { $_ } | ForEach-Object { $_ -replace '^memory-seed/', '' }
+foreach ($f in $seedFiles) {
+    $installed = Join-Path $MemDir $f
+    if ($f -eq "MEMORY.md") {
+        Write-Host "MEMORY.md: never wholesale-replace - diff the old baseline's MEMORY.md (or, with no baseline, the fresh clone's current one) against the installed one, append only the new-in-the-kit lines as index lines, keep every existing line. Skip the index line for any seed you decide below not to install."
+        continue
+    }
+    if (-not (Test-Path $installed)) {
+        Write-Host "NEW kit seed, not yet installed: $f - before copying it in, this needs a content/doctrine check, not a diff: read $f's actual content, then skim every file already in $MemDir (not just similarly-named ones) for a rule that contradicts it. Found a conflict? Don't copy it in silently - pick adopt-the-kit's-rule / keep-the-local-override / keep-both-deliberately (rare) and record the decision in kit-version.md's Notes section so a later update doesn't re-ask. See section 2's memory-seed rules above for the full procedure."
+        continue
+    }
+    if ($OldSha) {
+        $relSeed = "memory-seed/$f"
+        $oldExists = (& git -C $KitClone show "${OldSha}:${relSeed}" 2>$null); $oldOk = ($LASTEXITCODE -eq 0)
+        if ($oldOk) {
+            if (Test-KitFileUnchanged $relSeed $installed) {
+                Copy-Item (Join-Path $KitClone "memory-seed\$f") $installed
+            } else {
+                Write-Host "coordinator-edited since install, leaving alone even if the kit's own version also changed: $f"
+            }
+        } else {
+            Write-Host "no baseline for $f (pre-stamp install, or file predates your recorded SHA) - treat as possibly coordinator-edited and leave it alone rather than guessing: $f"
+        }
+    } else {
+        Write-Host "no baseline for $f (pre-stamp install, or file predates your recorded SHA) - treat as possibly coordinator-edited and leave it alone rather than guessing: $f"
+    }
+}
+
+# Clean up
+Remove-Item -Recurse -Force $KitClone
+```
+
+If `OLD_SHA` (or `$OldSha`) comes up empty (pre-stamp install, version unknown — see section 1),
+there's no exact baseline to diff against: for each REPLACE-class file, walk
+`git -C <KIT_CLONE> log --oneline -- <path>` (the scratch clone from whichever script you ran —
+`/tmp/coordinator-kit-update` on POSIX, `$env:TEMP\coordinator-kit-update` on Windows) to find a
+historical version matching what's installed and diff against that instead; if nothing matches,
+treat the file as diverged with unknown baseline and reconcile it by hand rather than guessing it's
+safe to overwrite.
 
 Update `docs/coordination/kit-version.md` yourself afterward, in the pinned shape from section 1,
 with the fresh clone's HEAD SHA and today's date — same `## Notes` carry-forward rule described in
@@ -355,19 +506,27 @@ edited on disk don't apply retroactively to the session that edited them.
 ## 4. Bridge-specific notes
 
 The bridge is a machine-level service, typically running outside this project entirely, possibly
-under `launchd` (macOS) or `systemd` (Linux). Per `telegram-bridge/SETUP.md`: *"Supervisor loop
-(launchd on macOS, systemd on Linux) relaunches `bot.py` immediately after every exit — every poll
-cycle is a fresh process, so `.env`/code edits on disk take effect on the very next cycle
-automatically, no service restart needed."* That claim covers the code files (`bot.py`,
-`telegram_common.py`, the other `.py`/`.sh` scripts) and `.env` — **the running service does not
-need to be stopped** before those are replaced; the next poll cycle already picks up the new file.
+under `launchd` (macOS), `systemd` (Linux), or Task Scheduler (Windows, registered by
+`install-windows-task.ps1`). Per `telegram-bridge/SETUP.md`: *"Supervisor loop (launchd on macOS,
+systemd on Linux) relaunches `bot.py` immediately after every exit — every poll cycle is a fresh
+process, so `.env`/code edits on disk take effect on the very next cycle automatically, no service
+restart needed."* That claim covers the code files (`bot.py`, `telegram_common.py`, the other
+`.py`/`.sh` scripts, or their `.ps1` Windows counterparts) and `.env` — **the running service does
+not need to be stopped** before those are replaced; the next poll cycle already picks up the new
+file. Confirm this holds for the Windows Task Scheduler case against `telegram-bridge/SETUP.md`'s
+own Windows section rather than assuming the launchd/systemd behavior quoted above applies
+verbatim — same relaunch-on-exit idea, but stated there for the actual mechanism.
 
 That claim does **not** cover the `.template` files (`.plist.template`/`.service.template`/
-`.timer.template`). Those are only ever read once, by hand, when the founder first copies one to
-`~/Library/LaunchAgents/` or `~/.config/systemd/user/` and loads/enables it — updating the
-template in `telegram-bridge/` has zero effect on the already-installed unit file until someone
-manually re-copies it and reloads the service. If a template update matters (a new placeholder, a
-changed setting), say so explicitly in the update's report instead of implying it took effect.
+`.timer.template`) or the Windows task registration `install-windows-task.ps1` performs. Those are
+only ever read/run once, by hand, when the founder first copies a template to
+`~/Library/LaunchAgents/` or `~/.config/systemd/user/` and loads/enables it, or runs
+`install-windows-task.ps1` to register the Scheduled Task — updating the source file in
+`telegram-bridge/` has zero effect on the already-installed unit/task until someone manually
+re-copies it and reloads the service (POSIX), or re-runs `install-windows-task.ps1` (Windows,
+`-Uninstall` first if replacing an existing registration). If a template/registration-script update
+matters (a new placeholder, a changed setting), say so explicitly in the update's report instead of
+implying it took effect.
 
 **Never do a directory-level replace of `telegram-bridge/`** (no "make destination match source,"
 no `rm -rf telegram-bridge && cp -r` from the fresh clone) — that destroys `.env`,

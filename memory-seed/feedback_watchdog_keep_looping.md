@@ -39,7 +39,7 @@ what's actually happening without asking.
 - During idle stretches, verify your own listener, not just the producers feeding it: every 2-3
   idle ticks, compare the watched inbox file's tail (last line, or mtime/line count) against the
   last message the session actually processed. Producer-side health — the daemon running, the
-  launchd/cron job green, the sender's log flowing — proves delivery **to the file** and never
+  launchd/cron/Task Scheduler job green, the sender's log flowing — proves delivery **to the file** and never
   delivery **to the session**, so an in-session poller that died quietly looks exactly like
   genuine silence. On a mismatch, re-arm the listener **and** work the missed backlog
   (acknowledge and answer), not just re-arm.

@@ -15,7 +15,9 @@ npm install -g @openai/codex
 
 Requires Node. Same PATH gotcha as the Telegram bridge: launchd/systemd-spawned processes get a
 minimal `PATH` that excludes nvm/homebrew-managed bin dirs, so a bare `codex` (like a bare
-`claude`) resolves in your interactive shell but not in a service-spawned one — see
+`claude`) resolves in your interactive shell but not in a service-spawned one. On Windows, a Task
+Scheduler task has the same problem — it doesn't see PATH additions made by a shell profile — so
+use the absolute path to the codex binary there too (typically `%APPDATA%\npm\codex.cmd`). See
 `telegram-bridge/SETUP.md`'s PATH note if anything other than an interactive session or a
 dispatched agent will invoke it.
 

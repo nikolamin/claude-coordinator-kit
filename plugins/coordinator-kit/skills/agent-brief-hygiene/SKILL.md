@@ -128,7 +128,7 @@ Regardless of which case above applies:
   tool on its own creates a stray chip the coordinator can't see or clean up.
 - Every brief (the coordinator's own work included) keeps all file writes inside the project
   root — scratch files, generated reports, temp scripts, downloads — in `.coordinator-scratch/`,
-  never `/tmp` or a home-directory path: an out-of-project write trips an allow-click prompt
+  never `/tmp`/`$env:TEMP` or a home-directory path: an out-of-project write trips an allow-click prompt
   invisible on the notify channel and blocks the session. Exempt: paths the kit itself names and
   the founder already approved at install time — the Telegram bridge directory and its files,
   Claude Code's own per-project memory directory, the one-time install or update clone, and temp

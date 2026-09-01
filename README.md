@@ -60,13 +60,22 @@ everything else:
 
 - **`memory-seed/*`** — behavioral-correction files for Claude Code's own auto-memory. No plugin
   primitive seeds a memory directory; a plugin only ships skills, commands, and templates. To use
-  it anyway, copy `memory-seed/*.md` into `~/.claude/projects/<slug>/memory/` (`<slug>` is this
-  project's absolute path with every `/` replaced by `-`) — see `FILE-COPY-INSTALL.md` for the
-  full procedure, including the conflict check against a rule already seeded.
+  it anyway, copy `memory-seed/*.md` into Claude Code's per-project memory directory
+  (`~/.claude/projects/<slug>/memory/` on macOS/Linux/WSL2,
+  `%USERPROFILE%\.claude\projects\<slug>\memory\` on Windows; `<slug>` is this project's absolute
+  path with every `/` or `\` replaced by `-`) — see `FILE-COPY-INSTALL.md` for the full procedure,
+  including the conflict check against a rule already seeded.
 - **`telegram-bridge/`** — a machine-level Telegram relay daemon. Plugin components run inside a
   Claude Code session; none can start or supervise a persistent background service outside it.
   Install it the same way the file-copy path does — see `FILE-COPY-INSTALL.md`'s "Telegram bridge
   (optional)" section.
+
+## Platforms
+
+The plugin itself is cross-platform: markdown/JSON skills, no shell dependency — works the same on
+macOS, Linux, and Windows (native PowerShell/cmd, Git Bash, or WSL2). The optional Telegram bridge
+also runs on all of them — macOS (launchd), Linux (systemd), Windows (Task Scheduler), and WSL2
+(Linux path) — see `telegram-bridge/SETUP.md`.
 
 ## Update the plugin
 
@@ -76,7 +85,7 @@ everything else:
 
 Then `/reload-plugins` (or restart) so a running session picks up the changed skills.
 
-`plugin.json` pins an explicit `version` (`0.1.0`) instead of tracking this repo's HEAD commit,
+`plugin.json` pins an explicit `version` (`0.2.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.

@@ -27,10 +27,12 @@ a resolved value, before deciding whether to ask me anything:
   checkpoint/attention pings later and I'd rather set it once than have you assume. If the answer
   is the kit's Telegram bridge (`telegram-bridge/`), also ask me the absolute path to that
   directory on this machine (it's a machine-level service, may not live inside this project),
-  substitute that path for every `<BRIDGE_DIR>` in `CLAUDE.md` and — if
-  `~/.claude/projects/<slug>/memory/MEMORY.md` exists
-  (`<slug>` = this project's absolute path with every `/` replaced by `-`; memory was seeded) — in
-  that file's Telegram bridge bullet too, then arm a persistent Monitor on
+  substitute that path for every `<BRIDGE_DIR>` in `CLAUDE.md` and — if `MEMORY.md` exists in
+  Claude Code's per-project memory directory (`~/.claude/projects/<slug>/memory/` on
+  macOS/Linux/WSL2, `%USERPROFILE%\.claude\projects\<slug>\memory\` on Windows — same `.claude`
+  folder under the user's home directory; `<slug>` = this project's absolute path with every `/`
+  or `\` replaced by `-`; memory was seeded) — in that file's Telegram bridge bullet too, then arm
+  a persistent Monitor on
   `<that path>/relay-inbox.jsonl` immediately after — before Bootstrap, not after — so founder
   messages can start arriving mid-session from the first turn onward. If instead I named a
   different channel and that same `MEMORY.md` still has an unresolved `<BRIDGE_DIR>` in its

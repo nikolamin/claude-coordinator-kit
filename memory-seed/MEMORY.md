@@ -35,7 +35,8 @@
   `<BRIDGE_DIR>/react.sh`, signal "still working" via `<BRIDGE_DIR>/typing.sh [seconds]` while a
   reply is being composed, and deliver files via `<BRIDGE_DIR>/send-file.sh <path> [caption]` —
   never hand-roll a `curl` against the Bot API (session-UI delivery doesn't reach Telegram on its
-  own either)
+  own either). Windows: substitute the `.ps1` of the same name, invoked via `powershell
+  -ExecutionPolicy Bypass -File`.
 - Existing-project onboarding — on a repo with real code/history already in it (not greenfield),
   run PROCESS.md's Phase 0.5 before interviewing: dispatch read-only analysis agents (never
   self-explore) to map the codebase, commit findings to `docs/coordination/repo-map.md`, then

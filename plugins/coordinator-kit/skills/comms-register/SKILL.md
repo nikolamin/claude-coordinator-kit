@@ -32,17 +32,20 @@ Notifications on `<NOTIFY_CHANNEL>`:
   specifically.
 - **Never put a backtick in a notify message body.** A double-quoted `notify.sh "..."` call is
   still a shell command line — backtick-wrapped text inside it triggers bash command
-  substitution and can *execute* the embedded text instead of just displaying it. Describe
+  substitution and can *execute* the embedded text instead of just displaying it. On Windows
+  (PowerShell), backtick is the escape character and `$name` expands inside a double-quoted
+  string too, so a notify body there must contain neither a backtick nor a `$`. Describe
   commands in prose, or write the literal text to a file in `.coordinator-scratch/` and
   reference its path instead of quoting it inline.
 
 **If the Telegram bridge is installed (at `<BRIDGE_DIR>` — see `<BRIDGE_DIR>/SETUP.md`) and
-`<NOTIFY_CHANNEL>` is it:**
+`<NOTIFY_CHANNEL>` is it:** on Windows substitute the `.ps1` of the same name, invoked via
+`powershell -ExecutionPolicy Bypass -File`.
 - Arm a persistent Monitor on `<BRIDGE_DIR>/relay-inbox.jsonl` at session start — create the
-  file first if it doesn't exist yet (`touch`), since it's gitignored and only created once the
-  first message actually arrives; a Monitor armed on a missing file has nothing to watch.
-  Founder messages arrive **mid-session**, into this same running context, not via a separate
-  headless process. Re-arm it if the session is ever resumed.
+  file first if it doesn't exist yet (`touch`, or `New-Item -ItemType File` on Windows), since
+  it's gitignored and only created once the first message actually arrives; a Monitor armed on a
+  missing file has nothing to watch. Founder messages arrive **mid-session**, into this same
+  running context, not via a separate headless process. Re-arm it if the session is ever resumed.
 - Signal "still working" via `<BRIDGE_DIR>/typing.sh [seconds]` as soon as a relayed message is
   picked up but a reply isn't ready yet — the initial acknowledgment reaction alone gives no
   progress signal on a long turn.

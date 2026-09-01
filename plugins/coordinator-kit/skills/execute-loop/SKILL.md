@@ -100,8 +100,10 @@ explicitly, never inheriting the coordinator's own tier.
    database, a fixed listen port, a shared schema). If the colliding tasks would also share one
    of those, either fall back to sequential dispatch for just those tasks, or give each agent a
    private instance: put it in each parallel build agent's own brief to claim its own
-   port/datadir (e.g. check `lsof -nP -iTCP:<port> -sTCP:LISTEN` before claiming one) and
-   drop+recreate its own schema so migrations start clean — the coordinator doesn't provision
+   port/datadir (e.g. check `lsof -nP -iTCP:<port> -sTCP:LISTEN` on macOS/Linux, or
+   `Get-NetTCPConnection -LocalPort <port> -State Listen` / `netstat -ano | findstr :<port>` on
+   Windows, before claiming one) and drop+recreate its own schema so migrations start clean — the
+   coordinator doesn't provision
    this itself, it's a requirement placed on each build agent's brief. A shared-service collision
    shows up as a flaky test failure or a bogus assertion mismatch, not an obvious merge conflict,
    so it's easy to misdiagnose as a real bug. One browser holds one session per site, so

@@ -25,4 +25,6 @@ for a human reader.
   `.coordinator-scratch/` and reference the file's path in the notify message, rather than
   embedding it inline.
 - This applies to every notify-style call built the same way (double-quoted shell string handed to
-  a script) — not just this kit's specific `notify.sh`.
+  a script) — not just this kit's specific `notify.sh`. On Windows (PowerShell), backtick is the
+  escape character and `$name` also expands inside a double-quoted string, so a notify body there
+  must contain neither a backtick nor a `$`.

@@ -146,7 +146,7 @@ durable decision per `CLAUDE.md`, tracked in `STATE.md`'s Durable decisions sect
   perfectly healthy — so during any idle or quiet stretch (every 2-3 idle ticks), a health check
   compares the watched file's own tail — last line, or mtime/line count — against the last message
   the session actually processed. A mismatch means the in-session listener is dead, however green
-  the producers look: checking them (the daemon, the launchd/cron job, the sender's log) proves
+  the producers look: checking them (the daemon, the launchd/cron/Task Scheduler job, the sender's log) proves
   delivery **to the file**, never delivery **to the session**, and will happily confirm "silence is
   genuine" when three messages are sitting unread. On a mismatch, re-arm the listener **and** work
   the backlog — acknowledge and answer the missed messages — not just re-arm.

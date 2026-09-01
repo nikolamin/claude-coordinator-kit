@@ -153,7 +153,9 @@ Per task pulled from `docs/plan.md`:
    shared schema). If the colliding tasks would also share one of those, either fall back to
    sequential dispatch for just those tasks, or give each agent a private instance: put it in each
    parallel build agent's own brief to claim its own port/datadir (e.g. check `lsof -nP
-   -iTCP:<port> -sTCP:LISTEN` before claiming one) and drop+recreate its own schema so migrations
+   -iTCP:<port> -sTCP:LISTEN` on macOS/Linux, or `Get-NetTCPConnection -LocalPort <port> -State
+   Listen` / `netstat -ano | findstr :<port>` on Windows, before claiming one) and drop+recreate
+   its own schema so migrations
    start clean — the coordinator doesn't provision this itself, it's a requirement placed on each
    build agent's brief. A shared-service collision shows up as a flaky test failure or a bogus
    assertion mismatch, not an obvious merge conflict, so it's easy to misdiagnose as a real bug.
@@ -217,7 +219,7 @@ without an armed way to wake back up.
   violate the founder's own standing instruction.
 - **A blocked local permission prompt reads as silence, not idle — a wakeup won't rescue it.**
   General rule: never take an action whose approval prompt can't reach `<NOTIFY_CHANNEL>`. The
-  instance that has actually bitten: a write outside the project root (e.g. `/tmp`) triggers a
+  instance that has actually bitten: a write outside the project root (e.g. `/tmp`, `$env:TEMP`) triggers a
   Claude Code allow-click prompt visible only in the local UI, so the session is genuinely blocked
   on an unseen click, not idle. Symptom: indistinguishable from a hung agent or lost completion
   event on the notify channel — suspect this too when a wakeup finds silence and no stalled agent.
@@ -226,7 +228,7 @@ without an armed way to wake back up.
 - **A dead in-session listener reads as silence too — and no producer-side check can see it.**
   Every 2-3 idle ticks, compare the watched inbox file's last line (or mtime/line count — e.g.
   `<BRIDGE_DIR>/relay-inbox.jsonl`) against the last message this session actually processed:
-  producer health (launchd job up, bot log flowing) only proves delivery **to the file**, never
+  producer health (launchd/systemd/Task Scheduler job up, bot log flowing) only proves delivery **to the file**, never
   **to the session**, so it will confirm "silence is genuine" while messages sit unread. On a
   mismatch, re-arm the listener **and** process the missed backlog (react/reply), not just re-arm.
   Restart kills every monitor outright too, and every task id changes each time — re-arm fresh on
@@ -460,7 +462,7 @@ or external tool."
   spawn-task tool on its own creates a stray chip the coordinator can't see or clean up.
 - Every brief (coordinator's own work included) keeps all file writes inside the project root —
   scratch files, generated reports, temp scripts, downloads — in `.coordinator-scratch/`, never
-  `/tmp` or a home-directory path: an out-of-project write trips an allow-click prompt invisible on
+  `/tmp`/`$env:TEMP` or a home-directory path: an out-of-project write trips an allow-click prompt invisible on
   `<NOTIFY_CHANNEL>` and blocks the session (see Watchdogs). Subagents don't infer this unprompted.
   Exempt: paths the kit itself names and the founder already approved at install time —
   `<BRIDGE_DIR>` and its files, Claude Code's own per-project memory directory, the one-time
@@ -504,15 +506,19 @@ Notifications on `<NOTIFY_CHANNEL>`:
   This is the Question protocol above applied over the notify channel specifically.
 - **Never put a backtick in a notify message body.** A double-quoted `notify.sh "..."` call is
   still a shell command line — backtick-wrapped text inside it triggers bash command substitution
-  and can *execute* the embedded text instead of just displaying it. Describe commands in prose,
+  and can *execute* the embedded text instead of just displaying it. On Windows (PowerShell),
+  backtick is the escape character and `$name` expands inside a double-quoted string too, so a
+  notify body there must contain neither a backtick nor a `$`. Describe commands in prose,
   or write the literal text to a file in `.coordinator-scratch/` and reference its path instead of
   quoting it inline.
 
 **If the Telegram bridge is installed (at `<BRIDGE_DIR>` — see `<BRIDGE_DIR>/SETUP.md`) and
-`<NOTIFY_CHANNEL>` is it:**
+`<NOTIFY_CHANNEL>` is it:** on Windows substitute the `.ps1` of the same name, invoked via
+`powershell -ExecutionPolicy Bypass -File`.
 - Arm a persistent Monitor on `<BRIDGE_DIR>/relay-inbox.jsonl` at session start — create the file
-  first if it doesn't exist yet (`touch`), since it's gitignored and only created once the first
-  message actually arrives; a Monitor armed on a missing file has nothing to watch. Founder
+  first if it doesn't exist yet (`touch`, or `New-Item -ItemType File` on Windows), since it's
+  gitignored and only created once the first message actually arrives; a Monitor armed on a
+  missing file has nothing to watch. Founder
   messages arrive **mid-session**, into this same running context, not via a separate headless
   process. Re-arm it if the session is ever resumed.
 - Signal "still working" via `<BRIDGE_DIR>/typing.sh [seconds]` as soon as a relayed message is
