@@ -35,10 +35,13 @@ explicitly, never inheriting the coordinator's own tier.
 2. Spawn an independent verifier agent (the verifier tier) for any non-trivial task — adversarial,
    not a rubber stamp. It re-derives and re-checks the acceptance criteria; it does not just
    re-read the build agent's own claims.
-3. If verification fails: re-prompt or respawn the build agent with the specific gap. Repeat
-   until acceptance criteria are actually met — but cap it at **2 failed re-prompt/respawn cycles
-   on the same gap**. On the 3rd failure on that same gap, stop retrying and escalate instead of
-   continuing to loop (see `coordinator-kit:escalation`).
+3. If verification fails: **respawn a fresh agent** with the specific gap, pointed at the files
+   on disk (build report, design doc, verify report paths) — never resume the large agent via
+   `SendMessage`. Resuming re-writes its whole grown transcript on a cold prompt cache at 2x:
+   two thrice-resumed agents were 40% of a measured 48M-token session. Repeat until acceptance
+   criteria are actually met — but cap it at **2 failed respawn cycles on the same gap**. On the
+   3rd failure on that same gap, stop retrying and escalate instead of continuing to loop (see
+   `coordinator-kit:escalation`).
 4. Update `docs/coordination/STATE.md` (build → verify → fix → re-verify, commit hashes,
    disclosed caveats).
 5. Commit and push once two conditions both hold — this is the **push gate**:

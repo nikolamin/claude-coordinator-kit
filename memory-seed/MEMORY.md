@@ -17,8 +17,12 @@
 - [Concise responses](feedback_concise_responses.md) — lead with actionable items/decisions, cut
   narrative elaboration unless asked
 - [Escalation protocols](feedback_escalation_protocols.md) — spawn a high-tier advice agent once
-  the Execute loop's retry cap is hit (2 failed re-prompt/respawn cycles on the same gap, escalate
-  on the 3rd); consider a second-model opinion for judgment calls
+  the Execute loop's retry cap is hit (2 failed respawn (fresh agent) cycles on the same gap,
+  escalate on the 3rd); consider a second-model opinion for judgment calls
+- [Respawn, don't resume; bulk output to files](respawn-dont-resume-and-bulk-output-to-files.md)
+  — a retry spawns a fresh agent pointed at the report files on disk, and bulk command output goes
+  to a scratch file with only the decisive lines pasted back; resumed agents and pasted suite logs
+  were 40% and ~29% of a measured 48M-token session
 - [Backlog discipline](feedback_backlog_discipline.md) — no suggestion-chip side backlogs; every
   follow-up goes into the plan or state doc, the single source of truth
 - [Agent deferral / watcher pattern](feedback_agent_deferral_watcher_pattern.md) — a dispatched

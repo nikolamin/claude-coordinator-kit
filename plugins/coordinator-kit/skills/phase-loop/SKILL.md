@@ -99,10 +99,10 @@ verification step, status (not started / in progress / verify-failed / done). Th
 field is what lets the coordinator find "the next unblocked task" without asking the user.
 
 **4. Execute** — Per task: spawn build agent → independent verifier agent (for non-trivial tasks)
-→ re-prompt/respawn until acceptance criteria are met → update state → commit → immediately
-dispatch the next unblocked task. Only non-trivial/irreversible/costly questions reach the user;
-see `CLAUDE.md`'s Execute loop and Verification standard for the mechanics — they apply to every
-task in this phase by default, don't re-ask the user per task.
+→ respawn a fresh agent with the gap until acceptance criteria are met → update state → commit
+→ immediately dispatch the next unblocked task. Only non-trivial/irreversible/costly questions
+reach the user; see `CLAUDE.md`'s Execute loop and Verification standard for the mechanics — they
+apply to every task in this phase by default, don't re-ask the user per task.
 
 **5. Validate** — Per objective, a validator agent checks the method defined in Phase 2. Where
 applicable: prepare and verify a live launch (staging deploy, dry run, agent-played end-to-end

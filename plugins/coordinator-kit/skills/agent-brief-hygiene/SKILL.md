@@ -77,7 +77,14 @@ Regardless of which case above applies:
   facts about this one task, never standing policy, so nothing above ever supplies them for
   free.
 - For infra/execution tasks, the no-delegation constraint from `coordinator-kit:escalation`: "do
-  not delegate, execute directly, paste raw command output."
+  not delegate, execute directly; bulk output (test suites, builds, big greps) goes to a scratch
+  file under `.coordinator-scratch/` — paste only the decisive lines (failure names, exit codes,
+  the mutation transcript)."
+- Every brief says where bulk output goes and which lines to paste back — naming the
+  `.coordinator-scratch/` file path and the decisive lines wanted, not just capping the volume. A
+  suite log pasted into a transcript is re-read by that agent on every later step of its turn
+  (~29% of agent cost in a measured 48M-token session); the coordinator gates on the decisive
+  lines regardless.
 - Any brief touching credentials, auth, secrets, or a database connection restates
   `coordinator-kit:credential-handling`'s rules explicitly, including the never-dump-
   credential-files rule verbatim (never `cat`/`head`/`tail`/`echo` a credential file's contents;

@@ -1,6 +1,6 @@
 ---
 description: When and how to escalate — spawning an advice-tier (fable) agent once the same
-  class of problem has failed its 2 allowed re-prompt/respawn cycles (per
+  class of problem has failed its 2 allowed respawn cycles (per
   coordinator-kit:execute-loop's retry cap) or a design/architecture question has no clear path
   from normal iteration, with a self-contained prompt summarizing what was tried and what's
   blocking, framed as "what would you try next" and never reached for on a first failure;
@@ -9,8 +9,9 @@ description: When and how to escalate — spawning an advice-tier (fable) agent 
   via `codex exec` (see coordinator-kit:codex-second-opinion for setup and invocation —
   engineering-only work like wire types or test scaffolding doesn't need this); and the
   no-delegation constraint every infra/execution agent brief must carry ("do not delegate,
-  execute directly, paste raw command output") so an agent with Agent/SendMessage access doesn't
-  spiral into agent-to-agent delegation instead of doing the work. Load this when an agent has
+  execute directly; bulk output to a scratch file, paste only the decisive lines") so an agent
+  with Agent/SendMessage access doesn't spiral into agent-to-agent delegation instead of doing the
+  work. Load this when an agent has
   failed the same gap twice in a row, when a judgment-heavy task (UI/UX, copy, research,
   document review) needs a second, differently-trained opinion, or when writing any
   infra/execution agent's brief. Not for counting retry cycles or defining what "same gap" means
@@ -26,11 +27,11 @@ this exact content under its own "Escalation" heading — this skill is a second
 delivery path for the same rules, not a replacement.
 
 - If an agent hits `coordinator-kit:execute-loop`'s retry cap on the **same class of problem** —
-  2 failed re-prompt/respawn cycles, escalating on the 3rd failure — or a design/architecture
-  question has no clear path forward from normal iteration, spawn an agent with the advice tier
-  (`fable`, per `CLAUDE.md`'s Model routing section) for advice. Prompt: self-contained summary
-  of what was tried and what's blocking, framed as "what would you try next." This is distinct
-  from routine re-prompting — don't reach for it on a first failure.
+  2 failed respawn cycles, escalating on the 3rd failure — or a design/architecture question has
+  no clear path forward from normal iteration, spawn an agent with the advice tier (`fable`, per
+  `CLAUDE.md`'s Model routing section) for advice. Prompt: self-contained summary of what was
+  tried and what's blocking, framed as "what would you try next." This is distinct from a routine
+  respawn — don't reach for it on a first failure.
 - For UI/UX design decisions, copy/copywriting (marketing text, UX microcopy, landing-page
   text), research tasks, and reviewing generated documents, additionally shell out to
   `codex exec` (OpenAI Codex CLI, if installed and authenticated) from within a dispatched agent
@@ -41,4 +42,8 @@ delivery path for the same rules, not a replacement.
   is judgment/perspective value, not mechanical execution.
 - An agent given unrestricted `Agent`/`SendMessage` access can spiral into agent-to-agent
   delegation instead of doing the work. For any infra/execution task, the brief must include:
-  **"do not delegate, execute directly, paste raw command output."**
+  **"do not delegate, execute directly; bulk output (test suites, builds, big greps) goes to a
+  scratch file under `.coordinator-scratch/` — paste only the decisive lines (failure names, exit
+  codes, the mutation transcript)."** A pasted suite log is re-read by that agent on every later
+  step of its own turn (~29% of agent cost in a measured 48M-token session), and the coordinator
+  gates on the decisive lines anyway.

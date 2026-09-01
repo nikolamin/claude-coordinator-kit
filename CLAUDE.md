@@ -91,10 +91,13 @@ Per task pulled from `docs/plan.md`:
 2. Spawn an independent verifier agent (the verifier tier per Model routing above) for any
    non-trivial task — adversarial, not a rubber stamp. It re-derives/re-checks, it does not just
    re-read the build agent's claims.
-3. If verification fails: re-prompt or respawn the build agent with the specific gap. Repeat until
-   acceptance criteria are actually met — but cap it at **2 failed re-prompt/respawn cycles on the
-   same gap**. On the 3rd failure on that same gap, stop retrying and escalate per the Escalation
-   section instead of continuing to loop.
+3. If verification fails: **respawn a fresh agent** with the specific gap, pointed at the files on
+   disk (build report, design doc, verify report paths) — never resume the large agent via
+   `SendMessage`. Resuming re-writes its whole grown transcript on a cold prompt cache at 2x: two
+   thrice-resumed agents were 40% of a measured 48M-token session. Repeat until acceptance criteria
+   are actually met — but cap it at **2 failed respawn cycles on the same gap**. On the 3rd failure
+   on that same gap, stop retrying and escalate per the Escalation section instead of continuing to
+   loop.
 4. Update `docs/coordination/STATE.md` (build → verify → fix → re-verify, commit hashes,
    disclosed caveats).
 5. Commit and push once two conditions both hold — this is the **push gate** (see also the Role
@@ -355,11 +358,11 @@ similar phrasing):
 ## Escalation
 
 - If an agent hits the Execute loop's retry cap on the **same class of problem** — 2 failed
-  re-prompt/respawn cycles, escalating on the 3rd failure, per Execute loop step 3 — or a design/
+  respawn cycles, escalating on the 3rd failure, per Execute loop step 3 — or a design/
   architecture question has no clear path forward from normal iteration, spawn an agent with the
   advice tier (`fable`) for advice. Prompt: self-contained summary of what was tried and what's
-  blocking, framed as "what would you try next." This is distinct from routine re-prompting —
-  don't reach for it on a first failure.
+  blocking, framed as "what would you try next." This is distinct from a routine respawn — don't
+  reach for it on a first failure.
 - For UI/UX design decisions, copy/copywriting (marketing text, UX microcopy, landing-page text),
   research tasks, and reviewing generated documents, additionally shell out to `codex exec`
   (OpenAI Codex CLI, if installed and authenticated) from within a dispatched agent for a second,
@@ -370,7 +373,11 @@ similar phrasing):
   proceed Claude-only and note it once.
 - An agent given unrestricted `Agent`/`SendMessage` access can spiral into agent-to-agent
   delegation instead of doing the work. For any infra/execution task, the brief must include:
-  **"do not delegate, execute directly, paste raw command output."**
+  **"do not delegate, execute directly; bulk output (test suites, builds, big greps) goes to a
+  scratch file under `.coordinator-scratch/` — paste only the decisive lines (failure names, exit
+  codes, the mutation transcript)."** A pasted suite log is re-read by that agent on every later
+  step of its own turn (~29% of agent cost in a measured 48M-token session), and the coordinator
+  gates on the decisive lines anyway.
 
 ## Guardrails
 

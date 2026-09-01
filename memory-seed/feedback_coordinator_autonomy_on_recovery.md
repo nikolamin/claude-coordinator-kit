@@ -26,7 +26,7 @@ user-only judgment, do ask. Report progress via checkpoint notifications rather 
 and waiting for acknowledgment.
 
 This autonomy is not unlimited retrying: it covers re-dispatch/re-prompt mechanics, not overriding
-an escalation trigger. Once the Execute loop's retry cap is hit — 2 failed re-prompt/respawn
+an escalation trigger. Once the Execute loop's retry cap is hit — 2 failed respawn (fresh agent)
 cycles on the same gap — that's a stuck-escalation case (see the escalation-protocols memory), not
 another silent retry.
 
