@@ -20,5 +20,5 @@ coordinator manages watchdogs on agents, per its own Watchdogs / never stall rul
 **How to apply:** any coordinator brief for a task with a long blocking call must say explicitly:
 "run it as one blocking foreground call and report the actual output; do not background it or set
 up watchers for yourself." If an agent still returns a "standing by" non-answer instead of a
-result, treat it the same as any other failed/incomplete task — re-prompt or respawn with the
+result, treat it the same as any other failed/incomplete task — respawn a fresh agent with the
 sharpened brief, don't accept the deferral as a pass.
