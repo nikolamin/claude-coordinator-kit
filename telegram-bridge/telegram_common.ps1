@@ -18,11 +18,12 @@
     in SETUP.md - `notify.ps1 "<text>"`, `react.ps1 <message_id> ok|fail`,
     etc. - is unaffected either way).
 
-    Written to run unmodified on BOTH Windows PowerShell 5.1 and
-    PowerShell 7+ (pwsh) on Windows: no `??`, no ternary `? :`, no `-Parallel`,
-    no `?.`, no PS7-only cmdlet parameters. See SETUP.md "Windows (Task
-    Scheduler)" for the execution-policy note needed to actually run any of
-    these scripts.
+    Written for BOTH Windows PowerShell 5.1 and PowerShell 7+ (pwsh) on
+    Windows: no `??`, no ternary `? :`, no `-Parallel`, no `?.`, no
+    PS7-only cmdlet parameters. Exercised under PowerShell 7 against a
+    stub API, not yet under 5.1 or on a real Windows host. See SETUP.md
+    "Windows (Task Scheduler)" for the execution-policy note needed to
+    actually run any of these scripts.
 
     CREDENTIAL HANDLING: every function in this file that can encounter the
     bot token (in a URL, in a caught exception) treats it the same way this
@@ -38,6 +39,19 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell 5.1 runs on .NET Framework, whose HTTP stack
+# (WebRequest/HttpWebRequest, and the ServicePointManager-backed
+# HttpClient default handler that send-file.ps1's HttpClient also relies
+# on) can default to an old SecurityProtocol that TLS-1.2-only endpoints
+# like api.telegram.org reject outright - explicitly opt in here, once,
+# before any request in this directory is made. No-op on PowerShell 7
+# (.NET Core), where TLS 1.2 is already the OS-negotiated default and
+# ServicePointManager.SecurityProtocol is a vestigial/no-op property; the
+# try/catch is defense in depth for either case.
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+} catch { }
 
 $Script:TelegramDefaultApiBase = "https://api.telegram.org"
 
@@ -281,11 +295,32 @@ function Invoke-TelegramForm {
     )
 
     $uri = "$ApiBase/bot$Token/$Method"
+    # Invoke-WebRequest (not Invoke-RestMethod) so the raw response body
+    # text is always available for the error message below, matching the
+    # .sh twins' `grep -q '"ok":true' <<< "$RESPONSE"` / `... $RESPONSE`
+    # wording exactly, including for a 200 whose body isn't JSON at all -
+    # Invoke-RestMethod would instead silently content-type-sniff a body
+    # like `<html>...</html>` into an XmlDocument, losing the original text.
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method Post -Body $Body -UseBasicParsing -TimeoutSec $TimeoutSec
+        $webResponse = Invoke-WebRequest -Uri $uri -Method Post -Body $Body -UseBasicParsing -TimeoutSec $TimeoutSec
     } catch {
         $desc = Get-TelegramErrorDescription -ErrorRecord $_
         Write-BridgeError "request to Telegram API failed.$desc"
+    }
+    $bodyText = $webResponse.Content
+
+    # A 200 response with a non-JSON body (e.g. an HTML page from a proxy
+    # sitting in front of the real API) means $response below stays $null -
+    # under StrictMode, $response.ok on $null throws an unhandled
+    # PropertyNotFoundException instead of the intended error path. Check
+    # the property exists before reading it, same as the .sh twins never
+    # assume the body parses at all.
+    $response = $null
+    try { $response = $bodyText | ConvertFrom-Json } catch { }
+    $hasOk = $false
+    try { $hasOk = ($response -and ($response.PSObject.Properties.Name -contains 'ok')) } catch { }
+    if (-not $hasOk) {
+        Write-BridgeError "Telegram API returned an error response: $bodyText"
     }
 
     if (-not $response.ok) {

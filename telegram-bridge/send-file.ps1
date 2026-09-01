@@ -23,8 +23,9 @@
     Multipart upload is implemented directly against
     System.Net.Http.HttpClient / MultipartFormDataContent (not
     Invoke-RestMethod -Form, which is PowerShell 7-only) so this one
-    implementation works unmodified on both Windows PowerShell 5.1 and
-    PowerShell 7+ (pwsh).
+    implementation is written for both Windows PowerShell 5.1 and
+    PowerShell 7+ (pwsh); exercised under PowerShell 7 against a stub API,
+    not yet under 5.1 or on a real Windows host.
 
 .EXIT CODES
     0 on success. 1 on any failure (bad usage, missing/unreadable file,
@@ -98,6 +99,11 @@ function Send-TelegramFile {
 
     Add-Type -AssemblyName System.Net.Http -ErrorAction SilentlyContinue
 
+    # TLS 1.2: on Windows PowerShell 5.1 (.NET Framework) this HttpClient's
+    # default handler honors [Net.ServicePointManager]::SecurityProtocol,
+    # set once at telegram_common.ps1 load time (dot-sourced above this
+    # script's own code); on PowerShell 7 (.NET Core) the OS negotiates TLS
+    # and ServicePointManager plays no role here, so nothing else is needed.
     $client = New-Object System.Net.Http.HttpClient
     $client.Timeout = [TimeSpan]::FromSeconds(300)
     $content = New-Object System.Net.Http.MultipartFormDataContent
@@ -186,13 +192,28 @@ try {
     # $_.Exception.Message raw, since HttpClient exceptions can echo the
     # request URI (which embeds the token); redact defensively regardless.
     $safe = Get-RedactedText -Text $_.Exception.Message
-    Write-BridgeError "curl request to Telegram API failed. $safe"
+    Write-BridgeError "request to Telegram API failed. $safe"
+}
+
+# send-file.sh's curl call uses --fail, so curl itself already fails (and
+# never looks at the body) on ANY non-2xx HTTP status, not only a
+# transport-level failure - HttpClient.PostAsync above does not do this on
+# its own (it only throws for a real transport failure), so mirror --fail
+# explicitly: a non-2xx status is "request failed", the same as .sh, not a
+# {"ok":false,...} body to extract a description from.
+if ($result.StatusCode -lt 200 -or $result.StatusCode -ge 300) {
+    Write-BridgeError "request to Telegram API failed."
 }
 
 $parsed = $null
-try {
-    $parsed = $result.Body | ConvertFrom-Json
-} catch {
+try { $parsed = $result.Body | ConvertFrom-Json } catch { }
+
+# See telegram_common.ps1's Invoke-TelegramForm for why this guard exists:
+# a 2xx body that isn't JSON (or isn't an object with an "ok" property)
+# must not reach $parsed.ok directly - that throws under StrictMode.
+$hasOk = $false
+try { $hasOk = ($parsed -and ($parsed.PSObject.Properties.Name -contains 'ok')) } catch { }
+if (-not $hasOk) {
     Write-BridgeError "Telegram API returned an unparseable response (HTTP $($result.StatusCode))."
 }
 

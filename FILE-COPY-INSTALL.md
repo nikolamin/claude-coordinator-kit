@@ -216,8 +216,11 @@ all later coordinator work; never stop to ask permission for a commit or push.
    copied memory-seed, the Telegram bridge bullet near the end of `memory-seed/MEMORY.md`, instead,
    since their instructions describe machinery I don't have.
    Then run `grep -rn '<PROJECT>\|<NOTIFY_CHANNEL>\|<BRIDGE_DIR>' CLAUDE.md docs/coordination/`
-   (PowerShell: `Select-String -Path CLAUDE.md,docs\coordination\* -Pattern
-   '<PROJECT>|<NOTIFY_CHANNEL>|<BRIDGE_DIR>'`) (and the memory-seed destination if you copied it) to
+   (PowerShell: `Get-ChildItem -Recurse -File docs\coordination | Select-String -Pattern
+   '<PROJECT>|<NOTIFY_CHANNEL>|<BRIDGE_DIR>'; Select-String -Path CLAUDE.md -Pattern
+   '<PROJECT>|<NOTIFY_CHANNEL>|<BRIDGE_DIR>'` — `-Recurse` matches `grep -rn`'s recursion into
+   `docs/coordination/`'s subdirectories, since a bare `docs\coordination\*` only reaches that
+   directory's own top-level files) (and the memory-seed destination if you copied it) to
    confirm zero matches remain — don't suppress stderr on this check (no `2>/dev/null`): a real
    error, like a bad path, must surface as one instead of being swallowed into a false "zero
    matches" pass. Fix any you find.

@@ -40,7 +40,9 @@
     line below exists to make that explicit to whatever reads this
     script's stdout.
 
-    Compatible with Windows PowerShell 5.1 and PowerShell 7+ (pwsh).
+    Written for Windows PowerShell 5.1 and PowerShell 7+ (pwsh); exercised only via a
+    PowerShell 7 parse check, not yet under 5.1, on a real Windows host, or against
+    real ffmpeg/whisper-cli output.
 
 .EXIT CODES
     0 on success (including the no-op photo/unknown-type paths). 1 on any

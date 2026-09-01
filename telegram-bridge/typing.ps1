@@ -28,7 +28,8 @@
     next to this script (NOT the caller's working directory) - same
     resolution as notify.ps1.
 
-    Compatible with Windows PowerShell 5.1 and PowerShell 7+ (pwsh).
+    Written for Windows PowerShell 5.1 and PowerShell 7+ (pwsh); exercised under
+    PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host.
 
 .EXIT CODES
     0 on success (including "keep-alive process started" - its own
@@ -69,10 +70,10 @@ if ($duration -le 0) {
         $response = Invoke-RestMethod -Uri "$apiBase/bot$token/sendChatAction" -Method Post `
             -Body @{ chat_id = $chatId; action = "typing" } -UseBasicParsing -TimeoutSec 10
         if (-not $response.ok) {
-            Write-BridgeError "curl request to Telegram API failed, or Telegram API returned an error response."
+            Write-BridgeError "request to Telegram API failed, or Telegram API returned an error response."
         }
     } catch {
-        Write-BridgeError "curl request to Telegram API failed, or Telegram API returned an error response."
+        Write-BridgeError "request to Telegram API failed, or Telegram API returned an error response."
     }
     exit 0
 }
@@ -129,8 +130,25 @@ while ((Get-Date) -lt $endTime) {
 '@
 
 try {
-    Start-Process -FilePath $hostExe -ArgumentList @('-NoProfile', '-NonInteractive', '-Command', $childCommand) `
-        -WindowStyle Hidden | Out-Null
+    # -ArgumentList joins its elements into a single unquoted command-line
+    # string, and the child process's own argv parser strips the double
+    # quotes back out of $childCommand before PowerShell ever sees them -
+    # so `action = "typing"` arrives as `action = typing`, an unquoted bare
+    # word that throws CommandNotFoundException deep inside the child
+    # (silently swallowed by its own try/catch), producing zero pings but
+    # still exit 0. -EncodedCommand sidesteps quoting entirely: the child
+    # script travels as base64 of its UTF-16LE bytes and PowerShell decodes
+    # it directly, with no command-line requoting step to mangle it.
+    $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($childCommand))
+    $startArgs = @{
+        FilePath     = $hostExe
+        ArgumentList = @('-NoProfile', '-NonInteractive', '-EncodedCommand', $encodedCommand)
+    }
+    # -WindowStyle is a Windows-only Start-Process parameter - it throws on
+    # pwsh under macOS/Linux (used here only for cross-platform testing
+    # against the stub API), so only pass it on an actual Windows host.
+    if ($env:OS -eq 'Windows_NT') { $startArgs['WindowStyle'] = 'Hidden' }
+    Start-Process @startArgs | Out-Null
 } finally {
     # Clear the handoff variables from THIS process's environment now that
     # Start-Process has copied them into the child's own environment block

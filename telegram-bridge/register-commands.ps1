@@ -27,7 +27,8 @@
     docstring for the shared credential-handling discipline every script
     in this directory follows.
 
-    Compatible with Windows PowerShell 5.1 and PowerShell 7+ (pwsh).
+    Written for Windows PowerShell 5.1 and PowerShell 7+ (pwsh); exercised under
+    PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host.
 
 .EXIT CODES
     0 on success (including the "nothing to register" no-op path). 1 on
@@ -86,11 +87,28 @@ $apiBase = Get-TelegramApiBase -EnvVars $envVars
 function Get-MyCommandsRaw {
     param([string]$ApiBase, [string]$Token)
     $uri = "$ApiBase/bot$Token/getMyCommands"
+    # Invoke-WebRequest (not Invoke-RestMethod), same reasoning as
+    # telegram_common.ps1's Invoke-TelegramForm: keeps the raw response
+    # body text available for the error message below, matching
+    # register-commands.sh's `grep -q '"ok":true' <<< "$EXISTING"` / `...
+    # $EXISTING` wording even when the body isn't JSON at all.
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method Get -UseBasicParsing -TimeoutSec 30
+        $webResponse = Invoke-WebRequest -Uri $uri -Method Get -UseBasicParsing -TimeoutSec 30
     } catch {
         $desc = Get-TelegramErrorDescription -ErrorRecord $_
         Write-BridgeError "getMyCommands request to the Telegram API failed.$desc"
+    }
+    $bodyText = $webResponse.Content
+    # A 200 with a non-JSON body (e.g. a proxy's HTML error page) leaves
+    # $response $null - under StrictMode, $response.ok on $null would throw
+    # an unhandled PropertyNotFoundException instead of taking the intended
+    # error path.
+    $response = $null
+    try { $response = $bodyText | ConvertFrom-Json } catch { }
+    $hasOk = $false
+    try { $hasOk = ($response -and ($response.PSObject.Properties.Name -contains 'ok')) } catch { }
+    if (-not $hasOk) {
+        Write-BridgeError "getMyCommands returned an error response: $bodyText"
     }
     if (-not $response.ok) {
         Write-BridgeError "getMyCommands returned an error response: $($response | ConvertTo-Json -Compress)"
@@ -178,10 +196,18 @@ if (-not $mergedArrayJson.TrimStart().StartsWith('[')) {
 
 $setUri = "$apiBase/bot$token/setMyCommands"
 try {
-    $setResponse = Invoke-RestMethod -Uri $setUri -Method Post -Body @{ commands = $mergedArrayJson } -UseBasicParsing -TimeoutSec 30
+    $setWebResponse = Invoke-WebRequest -Uri $setUri -Method Post -Body @{ commands = $mergedArrayJson } -UseBasicParsing -TimeoutSec 30
 } catch {
     $desc = Get-TelegramErrorDescription -ErrorRecord $_
     Write-BridgeError "setMyCommands request to the Telegram API failed.$desc"
+}
+$setBodyText = $setWebResponse.Content
+$setResponse = $null
+try { $setResponse = $setBodyText | ConvertFrom-Json } catch { }
+$setHasOk = $false
+try { $setHasOk = ($setResponse -and ($setResponse.PSObject.Properties.Name -contains 'ok')) } catch { }
+if (-not $setHasOk) {
+    Write-BridgeError "Telegram API returned an error response: $setBodyText"
 }
 if (-not $setResponse.ok) {
     Write-BridgeError "Telegram API returned an error response: $($setResponse | ConvertTo-Json -Compress)"

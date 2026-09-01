@@ -34,7 +34,7 @@ below is the fully-manual path, for a human running it themselves with no agent 
 | `typing.sh` | Post (or keep alive) a "typing…" indicator: `./typing.sh [seconds]` — see (j). |
 | `register-commands.sh` | Publish the bot's `/command` menu to Telegram (additive + idempotent): `./register-commands.sh` (or `--list` to read it back). Ships with an empty command list — see (m). |
 | `telegram_common.py` | Shared helper module (message chunking, group-chat gating, file download) used by `bot.py` and `daily_report.py`. Required — `bot.py` imports it. |
-| `notify.ps1`, `react.ps1`, `typing.ps1`, `send-file.ps1`, `register-commands.ps1`, `process-media.ps1` | **Windows** PowerShell ports of the `.sh` scripts above — identical contract/usage, invoked with `powershell -ExecutionPolicy Bypass -File <script>.ps1 ...` (or `pwsh -File ...`) instead of `./<script>.sh ...`. Work unmodified on both Windows PowerShell 5.1 and PowerShell 7+. See "Windows (Task Scheduler)" under (e). |
+| `notify.ps1`, `react.ps1`, `typing.ps1`, `send-file.ps1`, `register-commands.ps1`, `process-media.ps1` | **Windows** PowerShell ports of the `.sh` scripts above — identical contract/usage, invoked with `powershell -ExecutionPolicy Bypass -File <script>.ps1 ...` (or `pwsh -File ...`) instead of `./<script>.sh ...`. Written for Windows PowerShell 5.1 and PowerShell 7+; exercised under PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host. See "Windows (Task Scheduler)" under (e). |
 | `telegram_common.ps1` | Shared helper module for the `.ps1` scripts above (`.env` parsing, Telegram HTTP-call plumbing, credential redaction) — the PowerShell counterpart to `telegram_common.py`. Dot-sourced automatically; nothing to run directly. |
 | `install-windows-task.ps1` | **Windows only.** Registers `bot.py` and (optionally) `daily_report.py` as Windows Task Scheduler tasks — the Windows equivalent of loading the launchd `.plist`/systemd `.service`+`.timer` templates below. `-Uninstall` removes them. See "Windows (Task Scheduler)" under (e). |
 | `get_chat_id.py` | Optional helper to print your chat id from recent bot updates (alternative to the curl one-liner in step (a)). |
@@ -51,6 +51,11 @@ below is the fully-manual path, for a human running it themselves with no agent 
 | `claude-telegram-bridge.service.template` | Linux systemd template for the always-on bot loop. |
 | `claude-telegram-bridge-daily-report.service.template` + `.timer.template` | Linux systemd templates for the optional daily digest. |
 | `claude-email-monitor.service.template` + `.timer.template` | Linux systemd templates for the optional email monitor — see (l). |
+
+One deliberate wording deviation: the `.sh` scripts' transport-failure errors say "curl request to
+Telegram API failed" since they shell out to `curl`, but the `.ps1` scripts use PowerShell's own
+HTTP client instead, so their equivalent errors drop "curl" and just say "request to Telegram API
+failed" — everything else about the message is unchanged.
 
 ## Architecture at a glance
 

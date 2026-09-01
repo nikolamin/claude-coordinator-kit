@@ -101,13 +101,15 @@
     powershell -ExecutionPolicy Bypass -File install-windows-task.ps1 -Uninstall
 
 .NOTES
-    Requires the ScheduledTasks module (ships with Windows; works
-    unmodified under both Windows PowerShell 5.1 and PowerShell 7+ on
-    Windows - it is a CDXML module, not a compiled binary module, so PS7
-    loads it natively with no compatibility shim). Must be run from an
-    elevated OR a normal user PowerShell session - registering a task that
-    runs as the CURRENT user (this script's default) does not require
-    admin rights.
+    Requires the ScheduledTasks module (ships with Windows; documented to
+    work unmodified under both Windows PowerShell 5.1 and PowerShell 7+ on
+    Windows, since it is a CDXML module, not a compiled binary module, so
+    PS7 loads it natively with no compatibility shim - this script itself
+    is written for both but has only been exercised via a PowerShell 7
+    parse check, not yet under 5.1, on a real Windows host, or against a
+    real Task Scheduler registration). Must be run from an elevated OR a
+    normal user PowerShell session - registering a task that runs as the
+    CURRENT user (this script's default) does not require admin rights.
 #>
 
 [CmdletBinding()]

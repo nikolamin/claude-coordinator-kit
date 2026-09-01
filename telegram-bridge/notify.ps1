@@ -25,7 +25,8 @@
     "$", same class of hazard notify.sh already warns about for bash
     backtick command substitution.
 
-    Compatible with Windows PowerShell 5.1 and PowerShell 7+ (pwsh).
+    Written for Windows PowerShell 5.1 and PowerShell 7+ (pwsh); exercised under
+    PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host.
 
 .EXIT CODES
     0 on success. 1 on any failure (missing .env, missing token/chat id,

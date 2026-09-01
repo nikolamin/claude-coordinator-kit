@@ -353,9 +353,12 @@ rm -rf /tmp/coordinator-kit-update
 ### PowerShell (Windows)
 
 Same steps, same decisions, in the same order as the POSIX script above — this is not a different
-procedure, just a different shell. File-content comparison uses `git diff --no-index --quiet`
-against a temp file (rather than piping into POSIX `diff`) so the comparison is robust to
-CRLF/LF differences instead of reporting a false DIVERGED on every file.
+procedure, just a different shell. File-content comparison uses git blob-id equality (the OLD_SHA
+copy's blob id from `git rev-parse` against `git hash-object` on the installed file, run inside
+this repo) instead of a POSIX `diff`, so it never has to write a temp file, and the installed
+file's hash picks up this repo's own `core.autocrlf`/`.gitattributes` normalization the same way
+`git status` would, rather than a CRLF-robustness claim the temp-file approach never actually
+delivered.
 
 ```powershell
 # Fresh clone for comparison
@@ -370,16 +373,15 @@ git -C $KitClone diff $OldSha HEAD -- CLAUDE.md
 # Returns $true if identical (safe to overwrite), $false if diverged or the OLD_SHA copy doesn't exist.
 function Test-KitFileUnchanged($RelPath, $InstalledPath) {
     if (-not (Test-Path $InstalledPath)) { return $false }
-    $old = & git -C $KitClone show "${OldSha}:${RelPath}" 2>$null
+    $oldBlob = & git -C $KitClone rev-parse "${OldSha}:${RelPath}" 2>$null
     if ($LASTEXITCODE -ne 0) { return $false }  # no OLD_SHA copy in the kit repo
-    $tmp = New-TemporaryFile
-    try {
-        $old | Out-File -FilePath $tmp -Encoding utf8 -NoNewline
-        git diff --no-index --quiet $tmp $InstalledPath
-        return ($LASTEXITCODE -eq 0)
-    } finally {
-        Remove-Item $tmp -Force
-    }
+    # Run from inside the target repo (not $KitClone) so this file's own
+    # core.autocrlf/.gitattributes normalization applies to the hash, the
+    # same normalization `git status`/`git diff` would use to decide
+    # whether the working-tree copy differs from what's committed.
+    $newBlob = & git hash-object -- $InstalledPath 2>$null
+    if ($LASTEXITCODE -ne 0) { return $false }
+    return ($oldBlob -eq $newBlob)
 }
 
 # REPLACE-class files: diff against the version YOU installed (OLD_SHA), not against the fresh

@@ -9,14 +9,23 @@
 
     <result> maps a friendly word to one of Telegram's curated allowed-emoji
     reactions (identical vocabulary/meaning to react.sh):
-        ok, done, check, thumbup   -> (thumbs up)  finished, all good
-        fail, down, thumbdown, x   -> (thumbs down) failed / went wrong
-        seen, working              -> (eyes) picked up, still working
-        thinking                   -> (thinking face) actively reasoning
+        ok, done, check, thumbup   -> thumbs-up    finished, all good
+        fail, down, thumbdown, x   -> thumbs-down  failed / went wrong
+        seen, working              -> eyes         picked up, still working
+        thinking                   -> thinking-face actively reasoning
         an ASCII word (letters only) not in the list above -> rejected
             locally, exit 1, before any network call.
         anything else (an actual emoji, or other non-word input) -> used
             AS-IS as a literal emoji.
+    (This doc comment spells the emoji out as words rather than pasting the
+    literal characters in: this file has no encoding declaration/BOM, and
+    Windows PowerShell 5.1 reads a .ps1 with its console's default ANSI
+    codepage absent one, which would mangle a literal multi-byte emoji
+    sitting in the source text. The usage/error strings actually printed at
+    runtime build the real emoji via [char]::ConvertFromUtf32 instead - see
+    Get-ReactionEmoji below - which is encoding-independent because the
+    codepoint is computed by .NET at runtime, not read byte-for-byte from
+    the file.)
 
     By default the reaction is set in TELEGRAM_CHAT_ID (the founder's
     private DM) - pass --chat <chat_id> to react on a message in a
@@ -27,7 +36,8 @@
     next to this script (NOT the caller's working directory) - same
     resolution as notify.ps1.
 
-    Compatible with Windows PowerShell 5.1 and PowerShell 7+ (pwsh).
+    Written for Windows PowerShell 5.1 and PowerShell 7+ (pwsh); exercised under
+    PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host.
 
 .EXIT CODES
     0 on success. 1 on any failure (bad usage, unrecognized reaction word,
@@ -45,6 +55,16 @@ if ([string]::IsNullOrEmpty($ScriptDir)) {
 
 . (Join-Path $ScriptDir "telegram_common.ps1")
 
+# Built via ConvertFromUtf32 rather than pasted as literal source
+# characters - see the .DESCRIPTION note above on this file's ANSI/UTF-8
+# encoding risk under Windows PowerShell 5.1. Reused both for the actual
+# Telegram reaction (Get-ReactionEmoji) and for the usage/error text below,
+# so a caller sees the same emoji react.sh's own usage/error text shows.
+$Script:EmojiThumbsUp = [char]::ConvertFromUtf32(0x1F44D)
+$Script:EmojiThumbsDown = [char]::ConvertFromUtf32(0x1F44E)
+$Script:EmojiEyes = [char]::ConvertFromUtf32(0x1F440)
+$Script:EmojiThinking = [char]::ConvertFromUtf32(0x1F914)
+
 function Get-ReactionEmoji {
     <#
     .SYNOPSIS
@@ -60,10 +80,10 @@ function Get-ReactionEmoji {
     #>
     param([Parameter(Mandatory = $true)][string]$Result)
 
-    if ($Result -cmatch '^(ok|done|check|thumbup)$') { return [char]::ConvertFromUtf32(0x1F44D) }   # (thumbs up)
-    if ($Result -cmatch '^(fail|down|thumbdown|x)$') { return [char]::ConvertFromUtf32(0x1F44E) }    # (thumbs down)
-    if ($Result -cmatch '^(seen|working)$') { return [char]::ConvertFromUtf32(0x1F440) }             # (eyes)
-    if ($Result -cmatch '^(thinking)$') { return [char]::ConvertFromUtf32(0x1F914) }                 # (thinking face)
+    if ($Result -cmatch '^(ok|done|check|thumbup)$') { return $Script:EmojiThumbsUp }
+    if ($Result -cmatch '^(fail|down|thumbdown|x)$') { return $Script:EmojiThumbsDown }
+    if ($Result -cmatch '^(seen|working)$') { return $Script:EmojiEyes }
+    if ($Result -cmatch '^(thinking)$') { return $Script:EmojiThinking }
 
     if ($Result -cmatch '^[A-Za-z]+$') {
         return $null
@@ -95,7 +115,7 @@ if ($argv.Count -ge 1) { $messageId = $argv[0] }
 if ($argv.Count -ge 2) { $resultWord = $argv[1] }
 
 if ([string]::IsNullOrEmpty($messageId) -or [string]::IsNullOrEmpty($resultWord)) {
-    Write-BridgeError "usage: react.ps1 [--chat <chat_id>] <message_id> <result>`n  <result>: ok|done|check|thumbup, fail|down|thumbdown|x, seen|working (eyes), thinking, or any other literal emoji."
+    Write-BridgeError "usage: react.ps1 [--chat <chat_id>] <message_id> <result>`n  <result>: ok|done|check|thumbup ($Script:EmojiThumbsUp), fail|down|thumbdown|x ($Script:EmojiThumbsDown),`n  seen|working ($Script:EmojiEyes), thinking ($Script:EmojiThinking), or any other literal emoji."
 }
 
 if ($messageId -notmatch '^[0-9]+$') {
@@ -104,7 +124,7 @@ if ($messageId -notmatch '^[0-9]+$') {
 
 $emoji = Get-ReactionEmoji -Result $resultWord
 if ($null -eq $emoji) {
-    Write-BridgeError "unrecognized reaction word: $resultWord`n  known words: ok|done|check|thumbup, fail|down|thumbdown|x, seen|working, thinking. Pass a literal emoji instead if that's what you meant."
+    Write-BridgeError "unrecognized reaction word: $resultWord`n  known words: ok|done|check|thumbup ($Script:EmojiThumbsUp), fail|down|thumbdown|x ($Script:EmojiThumbsDown),`n  seen|working ($Script:EmojiEyes), thinking ($Script:EmojiThinking). Pass a literal emoji instead if`n  that's what you meant."
 }
 
 # --- config ------------------------------------------------------------------
