@@ -378,9 +378,9 @@ install prompt above.
   "Infrastructure" section is where the coordinator records deploy URLs, server access patterns,
   and CI/deploy pipeline state once your project has them. Nothing to customize up front.
 - **Model tier names** — `CLAUDE.md` assumes the Agent tool's model parameter accepts
-  `sonnet`/`opus`/`haiku`/`fable` (its build, verifier, cheapest-mechanical, and escalation-advice
-  tiers respectively). If your environment's Agent tool uses different tier names, update the
-  Model routing section accordingly.
+  `fable`/`opus`/`haiku` (its build-and-advice, verifier, and cheapest-mechanical tiers
+  respectively; `sonnet` is retired). If your environment's Agent tool uses different tier
+  names, update the Model routing section accordingly.
 - **Founder's own session model** — separate from the dispatched-agent tiers above: which model
   runs your own top-level Claude Code session, not an `Agent` dispatch. The Updating section below
   gives concrete guidance (Opus/Sonnet for the mechanical update pass, Opus/Fable for the
@@ -416,9 +416,9 @@ The founder's side of running an update:
    lets a later session (step 3 below) resume the in-flight work instead of losing it.
 2. Start a **new session**, in this project's root, and paste the install prompt above. Its step 2
    check detects the existing install and follows the update branch instead of the fresh-install
-   path. Run this session on **Opus or Sonnet — not Fable**: this is a long, mechanical
-   file-reconciliation task, and Fable is this kit's escalation/advice tier (see `CLAUDE.md`'s
-   Model routing section), not an execution tier.
+   path. Run this session on **Opus — not Fable**: this is a long, mechanical
+   file-reconciliation task, and Fable is this kit's build and escalation/advice tier (see
+   `CLAUDE.md`'s Model routing section), reserved for development and judgment work.
 3. Once that update finishes, start a **third session** and prompt it with **"bootstrap yourself"**
    — see `CLAUDE.md`'s Session stop / resume protocol for what that resumes, picking up the state
    step 1 saved. Run this session on **Opus or Fable**: resuming means reading a large state file

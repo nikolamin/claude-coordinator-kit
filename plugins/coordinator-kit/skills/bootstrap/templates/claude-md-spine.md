@@ -50,12 +50,13 @@ Every `Agent` dispatch sets `model` explicitly. Never omit it — an omitted `mo
 dispatched agent silently inherit the dispatching session's own model, which may be an expensive
 tier.
 
-- `sonnet` — build, fix, infra, and read-only analysis/research agents (default for execute-phase
-  work).
-- `opus` — adversarial/independent verifier agents.
+- `fable` — build, fix, refactor, and infra agents (the build tier, default for execute-phase
+  work) — and escalation/advice.
+- `opus` — adversarial/independent verifier, review, design, investigation, and read-only
+  analysis/research agents (the verifier tier).
 - `haiku` — cheapest tier: tiny mechanical fixes (typo, config bump, one-line change) and plain
   pass/fail reads with nothing to triage.
-- `fable` — escalation/advice only. Never used for normal build/verify work.
+- `sonnet` — retired as a default; don't reach for it.
 
 ## Execute loop: stop conditions and suspension
 

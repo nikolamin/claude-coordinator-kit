@@ -1,6 +1,7 @@
 ---
 description: The coordinator's per-task build/verify/commit/dispatch loop — spawning a build
-  agent then an independent verifier, the 2-cycle retry cap before escalating, updating
+  agent then an independent verifier (one structural — generated/fuzz/property — verification
+  per task, not rounds of hand-written cases), the 2-cycle retry cap before escalating, updating
   STATE.md, the push gate's two conditions (zero-new-failures rebase report plus a verifier
   pass or exemption), the post-push CI task-completion gate and its no-CI fallback, and
   immediately dispatching the next unblocked task from docs/plan.md — including parallel
@@ -35,6 +36,12 @@ explicitly, never inheriting the coordinator's own tier.
 2. Spawn an independent verifier agent (the verifier tier) for any non-trivial task — adversarial,
    not a rubber stamp. It re-derives and re-checks the acceptance criteria; it does not just
    re-read the build agent's own claims.
+   Each task gets **one structural verification** — a generated/fuzz/property-style criterion
+   (random inputs against an invariant, a mutation run, a generated-case sweep) written into the
+   verifier's brief — not repeated rounds of hand-written cases: a hand-written round finds only
+   the bugs its author imagined, and every further round is one more full agent transcript. A
+   structural check still failing at step 3's cap is the escalation trigger
+   (`coordinator-kit:escalation`), never a third round of cases.
 3. If verification fails: **respawn a fresh agent** with the specific gap, pointed at the files
    on disk (build report, design doc, verify report paths) — never resume the large agent via
    `SendMessage`. Resuming re-writes its whole grown transcript on a cold prompt cache at 2x:

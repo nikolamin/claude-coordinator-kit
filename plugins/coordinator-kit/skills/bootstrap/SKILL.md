@@ -89,7 +89,7 @@ happened, so check the actual file content, not just whether it exists.
 7. **Decide greenfield vs. existing**, per `coordinator-kit:phase-loop`'s Phase 0.5: a repo that's
    just the doc skeleton just created, with no real code and no meaningful git history, is
    greenfield — skip straight to Concept. Otherwise, before asking the founder anything, dispatch
-   read-only repo-analysis agents (`sonnet`, per the spine's Model routing) to map the codebase and
+   read-only repo-analysis agents (`opus`, per the spine's Model routing) to map the codebase and
    commit their consolidated findings to `docs/coordination/repo-map.md` before the first
    interview question goes out. Either path, ask the founder the push-to-deploy question named in
    step 3 above now if it hasn't been asked yet, and record the answer as a durable decision.

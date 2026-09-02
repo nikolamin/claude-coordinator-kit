@@ -33,3 +33,10 @@ grows into, re-read and re-written on every step.
   lines are pure re-read tax on every later step of that agent's turn.
 - Both are brief-writing requirements, not coordinator-only habits — a dispatched agent won't
   infer either one, so state them in the brief.
+
+**Second measurement (2026-09-02):** 60% of agent cost was an agent re-reading its own context;
+81% of tool-result bytes came from the 18% of results over 4 KB. Four brief rules followed, all in
+`coordinator-kit:agent-brief-hygiene`: step cap ~150 per agent with handover through files and a
+fresh agent continuing from disk; bulk output never enters the transcript (a hook caps Bash results
+at 3 KB, the brief still says so); screenshots are final proof only, max 2 per task; reads carry
+line ranges (a whole-file Read over 400 lines is denied).

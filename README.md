@@ -85,7 +85,7 @@ also runs on all of them — macOS (launchd), Linux (systemd), Windows (Task Sch
 
 Then `/reload-plugins` (or restart) so a running session picks up the changed skills.
 
-`plugin.json` pins an explicit `version` (`0.2.0`) instead of tracking this repo's HEAD commit,
+`plugin.json` pins an explicit `version` (`0.2.1`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.

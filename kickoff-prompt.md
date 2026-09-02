@@ -72,7 +72,7 @@ Next, check which path this project is on (PROCESS.md Phase 0.5):
   history. Skip straight to the Concept interview below.
 - **Existing project** — the repo already has real code (source files, build config) and/or
   meaningful git history. Before asking me anything, dispatch read-only repo-analysis agents
-  (`sonnet` — the build tier per `CLAUDE.md`'s Model routing section, which explicitly covers
+  (`opus` — the verifier tier per `CLAUDE.md`'s Model routing section, which explicitly covers
   read-only analysis/research agents; split by area / run in parallel if the repo is large) to
   map languages/frameworks/toolchain, architecture/module layout, how to build/test/run
   it, CI/deploy setup, real test coverage, existing docs, active areas/conventions from git

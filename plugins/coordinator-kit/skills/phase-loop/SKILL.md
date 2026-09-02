@@ -56,7 +56,7 @@ record the answer as a durable decision in `docs/coordination/STATE.md`, and sta
 branching/worktree convention plainly — this determines whether the worktree default in
 Cross-cutting rules applies as-is or inverted for this project. Per the Role section, the
 coordinator never explores the repo itself for this — it dispatches read-only analysis agents
-(`sonnet` — the build tier per `CLAUDE.md`'s Model routing section, which explicitly covers
+(`opus` — the verifier tier per `CLAUDE.md`'s Model routing section, which explicitly covers
 read-only analysis/research agents; split by area and run in parallel if the repo is large) to
 map: languages/frameworks/toolchain, module/architecture layout, how to build/test/run
 it, CI/deploy setup, actual test-coverage state, existing docs, active areas and conventions

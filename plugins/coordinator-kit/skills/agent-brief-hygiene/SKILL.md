@@ -4,7 +4,9 @@ description: What every prompt to a dispatched agent must carry, and — the loa
   already reaches a dispatched subagent automatically, versus what a plugin skill's body never
   does. Load this while writing any Agent-tool dispatch — deciding whether to restate a rule or
   just point at it, naming acceptance criteria and the required verification step, adding the
-  no-delegation and no-self-backgrounding constraints, requiring a snapshot commit before
+  no-delegation and no-self-backgrounding constraints, keeping an agent inside its token budget
+  (step cap with file handover, bulk output to a file, screenshots as final proof only,
+  line-ranged reads), requiring a snapshot commit before
   inspecting another agent's worktree, bounding an agent's reads below a section it must not see
   (a coordinator-only appendix or answer key), keeping file writes inside the project root, and
   restating credential/guardrail/backlog/push-gate rules that live only in a sibling skill. Also
@@ -85,6 +87,22 @@ Regardless of which case above applies:
   suite log pasted into a transcript is re-read by that agent on every later step of its turn
   (~29% of agent cost in a measured 48M-token session); the coordinator gates on the decisive
   lines regardless.
+- **Token budget rules** (measured 2026-09-02: 60% of agent cost is the agent re-reading its own
+  context; 81% of tool-result bytes came from the 18% of results over 4 KB — the budget is the
+  transcript, not the prompt). Each goes in the brief; a subagent infers none of them:
+  - **Step cap ~150 per agent.** A brief expected to exceed it is split by file group; the agent
+    reports what it has, writes its state to `.coordinator-scratch/`, and a FRESH agent continues
+    from disk. Cost per step grows with the history, so two half-agents cost about half of one
+    long one.
+  - **Bulk output never enters the transcript.** Suites, builds, big greps → a scratch file, only
+    the decisive lines back (the bullet above). A hook caps any Bash result over 3 KB (head+tail
+    plus the file path) — the rule still goes in the brief so the agent plans for it instead of
+    losing the middle of a log.
+  - **Screenshots are final proof only, max 2 per task** (hook-enforced: 2 per 10 min). Verify
+    with `read_page` / `get_page_text` / `javascript_tool` measurements, not pictures.
+  - **Reads carry line ranges** (`offset`/`limit`, or `git show HEAD:path | sed -n`); a
+    whole-file Read over 400 lines is denied by hook — brief the ranges, or the `grep -n` that
+    finds them.
 - Any brief touching credentials, auth, secrets, or a database connection restates
   `coordinator-kit:credential-handling`'s rules explicitly, including the never-dump-
   credential-files rule verbatim (never `cat`/`head`/`tail`/`echo` a credential file's contents;

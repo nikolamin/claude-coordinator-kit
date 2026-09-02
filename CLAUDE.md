@@ -76,12 +76,13 @@ message it happens in, never discovered later.
 Every `Agent` dispatch sets `model` explicitly. Never omit it — an omitted `model` makes the
 agent silently inherit the coordinator's own model, which may be an expensive tier.
 
-- `sonnet` — build, fix, infra, and read-only analysis/research agents (default for execute-phase
-  work).
-- `opus` — adversarial/independent verifier agents.
+- `fable` — build, fix, refactor, and infra agents (the build tier, default for execute-phase
+  work) — and escalation/advice (see below).
+- `opus` — adversarial/independent verifier, review, design, investigation, and read-only
+  analysis/research agents (the verifier tier).
 - `haiku` — cheapest tier: tiny mechanical fixes (typo, config bump, one-line change) and plain
   pass/fail reads with nothing to triage (e.g. a CI status check).
-- `fable` — escalation/advice only (see below). Never used for normal build/verify work.
+- `sonnet` — retired as a default; don't reach for it.
 
 ## Execute loop
 
@@ -90,7 +91,12 @@ Per task pulled from `docs/plan.md`:
    acceptance criteria + required verification step (see Verification standard).
 2. Spawn an independent verifier agent (the verifier tier per Model routing above) for any
    non-trivial task — adversarial, not a rubber stamp. It re-derives/re-checks, it does not just
-   re-read the build agent's claims.
+   re-read the build agent's claims. Each task gets **one structural verification** — a
+   generated/fuzz/property-style criterion (random inputs against an invariant, a mutation run, a
+   generated-case sweep) in the verifier's brief — not repeated rounds of hand-written cases: a
+   hand-written round finds only the bugs its author imagined, and every further round is one more
+   full agent transcript. A structural check still failing at step 3's cap is the Escalation
+   trigger, never a third round of cases.
 3. If verification fails: **respawn a fresh agent** with the specific gap, pointed at the files on
    disk (build report, design doc, verify report paths) — never resume the large agent via
    `SendMessage`. Resuming re-writes its whole grown transcript on a cold prompt cache at 2x: two
@@ -418,6 +424,22 @@ or external tool."
   messages, no memory).
 - Include acceptance criteria and the required verification step explicitly in the brief.
 - For infra/execution tasks, add the no-delegation constraint above.
+- **Token budget rules** (measured 2026-09-02: 60% of agent cost is the agent re-reading its own
+  context; 81% of tool-result bytes came from the 18% of results over 4 KB — the budget is the
+  transcript, not the prompt). Each goes in the brief; a subagent infers none of them:
+  - **Step cap ~150 per agent.** A brief expected to exceed it is split by file group; the agent
+    reports what it has, writes its state to `.coordinator-scratch/`, and a FRESH agent continues
+    from disk. Cost per step grows with the history, so two half-agents cost about half of one
+    long one.
+  - **Bulk output never enters the transcript.** Suites, builds, big greps → a scratch file, only
+    the decisive lines back (the no-delegation constraint above). A hook caps any Bash result over 3 KB (head+tail
+    plus the file path) — the rule still goes in the brief so the agent plans for it instead of
+    losing the middle of a log.
+  - **Screenshots are final proof only, max 2 per task** (hook-enforced: 2 per 10 min). Verify
+    with `read_page` / `get_page_text` / `javascript_tool` measurements, not pictures.
+  - **Reads carry line ranges** (`offset`/`limit`, or `git show HEAD:path | sed -n`); a
+    whole-file Read over 400 lines is denied by hook — brief the ranges, or the `grep -n` that
+    finds them.
 - Name the exact files/paths/commands already known from `STATE.md` or a prior agent's report —
   don't go investigate the repo yourself to find them (that's substantive work, see Role above);
   if unknown, let the dispatched agent discover them.
