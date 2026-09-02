@@ -163,20 +163,22 @@ try {
     $onWindowsHost = ($env:OS -eq 'Windows_NT')
     $nullOut = if ($onWindowsHost) { 'NUL' } else { '/dev/null' }
     $nullErr = if ($onWindowsHost) { '\\.\NUL' } else { '/dev/zero' }
+    # -NoNewWindow (rather than -WindowStyle Hidden) suppresses the
+    # detached child's console window here: on Windows PowerShell 5.1,
+    # -WindowStyle sits in a different parameter set from
+    # -RedirectStandardOutput/-RedirectStandardError, so combining them
+    # fails to bind; -NoNewWindow shares the redirect parameter set on
+    # both PS 5.1 and PowerShell 7 (pwsh), and is supported on pwsh under
+    # macOS/Linux too (used here for cross-platform testing against the
+    # stub API). A hidden window would buy nothing anyway, since the
+    # child's output already goes to the null device above.
     $startArgs = @{
-        FilePath              = $hostExe
-        ArgumentList          = @('-NoProfile', '-NonInteractive', '-EncodedCommand', $encodedCommand)
+        FilePath               = $hostExe
+        ArgumentList           = @('-NoProfile', '-NonInteractive', '-EncodedCommand', $encodedCommand)
         RedirectStandardOutput = $nullOut
         RedirectStandardError  = $nullErr
+        NoNewWindow            = $true
     }
-    # -WindowStyle is a Windows-only Start-Process parameter - it throws on
-    # pwsh under macOS/Linux (used here only for cross-platform testing
-    # against the stub API), so only pass it on an actual Windows host. It
-    # combines fine with -RedirectStandardOutput/-RedirectStandardError
-    # (same "Default" parameter set) - Start-Process only rejects a
-    # redirect alongside -NoNewWindow, which this script never passes, so
-    # -WindowStyle Hidden does not need to be dropped.
-    if ($onWindowsHost) { $startArgs['WindowStyle'] = 'Hidden' }
     Start-Process @startArgs | Out-Null
 } finally {
     # Clear the handoff variables from THIS process's environment now that

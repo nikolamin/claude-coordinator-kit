@@ -60,7 +60,7 @@ $Script:TelegramDefaultApiBase = "https://api.telegram.org"
 # same pattern as telegram_common.py's _TOKEN_URL_RE. Used as a
 # defense-in-depth scrub on any text that might end up printed; the
 # primary defense is simply never printing a raw exception message or a
-# request URL in the first place (see Get-TelegramErrorDescription below).
+# request URL in the first place.
 $Script:TelegramTokenRegex = 'bot\d+:[A-Za-z0-9_-]+'
 
 function Get-RedactedText {
@@ -155,84 +155,6 @@ function Write-BridgeError {
     param([Parameter(Mandatory = $true)][string]$Message)
     [Console]::Error.WriteLine("Error: " + $Message)
     exit 1
-}
-
-function Get-TelegramErrorDescription {
-    <#
-    .SYNOPSIS
-        Best-effort extraction of "(HTTP <code>: <description>)" from a
-        failed Invoke-RestMethod call's ErrorRecord, WITHOUT ever touching
-        $ErrorRecord.Exception.Message directly (that message can embed
-        the full request URL, including the bot token, on both Windows
-        PowerShell 5.1's WebException and PowerShell 7's
-        HttpResponseException - see the module docstring). Only the parsed
-        HTTP status code and Telegram's own `description` JSON field
-        (never secret) are ever surfaced.
-    .OUTPUTS
-        [string] - empty string if nothing could be recovered, otherwise
-        " (HTTP <code>: <description>)" or a subset of that.
-    #>
-    param([Parameter(Mandatory = $true)]$ErrorRecord)
-
-    $statusCode = $null
-    $bodyText = $null
-
-    try {
-        if ($ErrorRecord.Exception.Response) {
-            $resp = $ErrorRecord.Exception.Response
-            # PowerShell 7 / .NET Core: System.Net.Http.HttpResponseMessage.
-            if ($resp.PSObject.Properties.Name -contains 'StatusCode') {
-                try { $statusCode = [int]$resp.StatusCode } catch { }
-            }
-        }
-    } catch { }
-
-    # PowerShell 7's Invoke-RestMethod captures the response body on
-    # HttpResponseException into $ErrorRecord.ErrorDetails.Message.
-    try {
-        if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
-            $bodyText = $ErrorRecord.ErrorDetails.Message
-        }
-    } catch { }
-
-    # Windows PowerShell 5.1 (.NET Framework): System.Net.HttpWebResponse -
-    # the body must be read from its response stream explicitly; it is
-    # never present in ErrorDetails there.
-    if (-not $bodyText) {
-        try {
-            $resp = $ErrorRecord.Exception.Response
-            if ($resp -and ($resp.GetType().FullName -eq 'System.Net.HttpWebResponse')) {
-                if (-not $statusCode) {
-                    try { $statusCode = [int]$resp.StatusCode } catch { }
-                }
-                $stream = $resp.GetResponseStream()
-                if ($stream) {
-                    $reader = New-Object System.IO.StreamReader($stream)
-                    $bodyText = $reader.ReadToEnd()
-                    $reader.Close()
-                }
-            }
-        } catch { }
-    }
-
-    $description = $null
-    if ($bodyText) {
-        try {
-            $parsed = $bodyText | ConvertFrom-Json
-            if ($parsed.PSObject.Properties.Name -contains 'description') {
-                $description = $parsed.description
-            }
-        } catch { }
-    }
-
-    if ($statusCode -and $description) {
-        return " (HTTP ${statusCode}: ${description})"
-    } elseif ($statusCode) {
-        return " (HTTP ${statusCode})"
-    } elseif ($description) {
-        return " (${description})"
-    }
-    return ""
 }
 
 function Assert-BridgeConfigured {

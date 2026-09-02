@@ -52,10 +52,13 @@ below is the fully-manual path, for a human running it themselves with no agent 
 | `claude-telegram-bridge-daily-report.service.template` + `.timer.template` | Linux systemd templates for the optional daily digest. |
 | `claude-email-monitor.service.template` + `.timer.template` | Linux systemd templates for the optional email monitor — see (l). |
 
-One deliberate wording deviation: the `.sh` scripts' transport-failure errors say "curl request to
-Telegram API failed" since they shell out to `curl`, but the `.ps1` scripts use PowerShell's own
-HTTP client instead, so their equivalent errors drop "curl" and just say "request to Telegram API
-failed" — everything else about the message is unchanged.
+Deliberate wording deviations: the `.sh` scripts' transport-failure errors say "curl request to
+Telegram API failed" since they shell out to `curl`, but every Telegram-calling `.ps1` script uses
+PowerShell's own HTTP client instead, so their equivalent errors drop "curl" and just say "request
+to Telegram API failed" — everything else about the message is unchanged. `process-media.ps1`
+additionally replaces `process-media.sh`'s `brew install ...` install hints (ffmpeg, whisper-cpp)
+with a pointer to this file's "Windows (Task Scheduler)" section, since Homebrew doesn't apply on
+Windows.
 
 ## Architecture at a glance
 

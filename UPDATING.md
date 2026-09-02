@@ -464,35 +464,35 @@ $MemDir = "$env:USERPROFILE\.claude\projects\<slug>\memory"   # <-- replace <slu
 # because it derives SLUG (and so MEMDIR) automatically instead of asking
 # you to edit a placeholder by hand.
 if ($MemDir -like '*<slug>*' -or -not (Test-Path $MemDir)) {
-    Write-Error "MemDir is not set correctly: '$MemDir' - replace <slug> above with this project's real slug (see FILE-COPY-INSTALL.md's memory-seed step for how <slug> is derived on Windows) before running this block."
-    exit 1
-}
-$seedFiles = (git -C $KitClone ls-tree -r --name-only HEAD -- memory-seed/) -split "`n" |
-    Where-Object { $_ } | ForEach-Object { $_ -replace '^memory-seed/', '' }
-foreach ($f in $seedFiles) {
-    $installed = Join-Path $MemDir $f
-    if ($f -eq "MEMORY.md") {
-        Write-Host "MEMORY.md: never wholesale-replace - diff the old baseline's MEMORY.md (or, with no baseline, the fresh clone's current one) against the installed one, append only the new-in-the-kit lines as index lines, keep every existing line. Skip the index line for any seed you decide below not to install."
-        continue
-    }
-    if (-not (Test-Path $installed)) {
-        Write-Host "NEW kit seed, not yet installed: $f - before copying it in, this needs a content/doctrine check, not a diff: read $f's actual content, then skim every file already in $MemDir (not just similarly-named ones) for a rule that contradicts it. Found a conflict? Don't copy it in silently - pick adopt-the-kit's-rule / keep-the-local-override / keep-both-deliberately (rare) and record the decision in kit-version.md's Notes section so a later update doesn't re-ask. See section 2's memory-seed rules above for the full procedure."
-        continue
-    }
-    if ($OldSha) {
-        $relSeed = "memory-seed/$f"
-        $oldExists = (& git -C $KitClone show "${OldSha}:${relSeed}" 2>$null); $oldOk = ($LASTEXITCODE -eq 0)
-        if ($oldOk) {
-            if (Test-KitFileUnchanged $relSeed $installed) {
-                Copy-Item (Join-Path $KitClone "memory-seed\$f") $installed
+    Write-Warning "MemDir is not set correctly: '$MemDir' - replace <slug> above with this project's real slug (see FILE-COPY-INSTALL.md's memory-seed step for how <slug> is derived on Windows) before running this block. Skipping memory-seed."
+} else {
+    $seedFiles = (git -C $KitClone ls-tree -r --name-only HEAD -- memory-seed/) -split "`n" |
+        Where-Object { $_ } | ForEach-Object { $_ -replace '^memory-seed/', '' }
+    foreach ($f in $seedFiles) {
+        $installed = Join-Path $MemDir $f
+        if ($f -eq "MEMORY.md") {
+            Write-Host "MEMORY.md: never wholesale-replace - diff the old baseline's MEMORY.md (or, with no baseline, the fresh clone's current one) against the installed one, append only the new-in-the-kit lines as index lines, keep every existing line. Skip the index line for any seed you decide below not to install."
+            continue
+        }
+        if (-not (Test-Path $installed)) {
+            Write-Host "NEW kit seed, not yet installed: $f - before copying it in, this needs a content/doctrine check, not a diff: read $f's actual content, then skim every file already in $MemDir (not just similarly-named ones) for a rule that contradicts it. Found a conflict? Don't copy it in silently - pick adopt-the-kit's-rule / keep-the-local-override / keep-both-deliberately (rare) and record the decision in kit-version.md's Notes section so a later update doesn't re-ask. See section 2's memory-seed rules above for the full procedure."
+            continue
+        }
+        if ($OldSha) {
+            $relSeed = "memory-seed/$f"
+            $oldExists = (& git -C $KitClone show "${OldSha}:${relSeed}" 2>$null); $oldOk = ($LASTEXITCODE -eq 0)
+            if ($oldOk) {
+                if (Test-KitFileUnchanged $relSeed $installed) {
+                    Copy-Item (Join-Path $KitClone "memory-seed\$f") $installed
+                } else {
+                    Write-Host "coordinator-edited since install, leaving alone even if the kit's own version also changed: $f"
+                }
             } else {
-                Write-Host "coordinator-edited since install, leaving alone even if the kit's own version also changed: $f"
+                Write-Host "no baseline for $f (pre-stamp install, or file predates your recorded SHA) - treat as possibly coordinator-edited and leave it alone rather than guessing: $f"
             }
         } else {
             Write-Host "no baseline for $f (pre-stamp install, or file predates your recorded SHA) - treat as possibly coordinator-edited and leave it alone rather than guessing: $f"
         }
-    } else {
-        Write-Host "no baseline for $f (pre-stamp install, or file predates your recorded SHA) - treat as possibly coordinator-edited and leave it alone rather than guessing: $f"
     }
 }
 

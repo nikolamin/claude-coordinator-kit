@@ -132,6 +132,10 @@ function Invoke-Transcribe {
     }
 }
 
+# Known divergence from process-media.sh on a dot-less filename: bash's
+# `${INPUT##*.}` falls back to the whole filename when there's no dot,
+# while .NET's GetExtension() correctly returns "" here - the .NET result
+# is more correct, so this is left as-is rather than matched to bash.
 $extRaw = [System.IO.Path]::GetExtension($inputPath)
 $extLower = ""
 if (-not [string]::IsNullOrEmpty($extRaw) -and $extRaw.StartsWith('.')) {
