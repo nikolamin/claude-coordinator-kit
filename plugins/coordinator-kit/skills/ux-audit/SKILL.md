@@ -1,9 +1,15 @@
 ---
 name: ux-audit
-description: Run a requested pre-launch UX audit with a feature-by-persona matrix, isolated browser tests, and an evidence-backed HTML report.
+description: Run a requested pre-launch UX audit with a feature-by-persona matrix, isolated browser tests, and HTML report. If the user has not supplied scope, ask for scope immediately and wait before any project inspection, file listing, bootstrap or agent dispatch. Do not infer scope by scanning the workspace.
 ---
 
 # Pre-launch UX audit
+
+**First response gate:** if the invocation/current request supplies no clear feature scope,
+ask which feature areas to cover and stop the turn. Reading this skill is sufficient for that
+response. Do not batch loading it with project commands or discovery; do not inspect the
+working directory to infer scope. Read the runtime adapter and follow the remaining stages
+only after scope is supplied. An empty invocation never means "everything".
 
 In Codex, invoke this skill with `$ux-audit`; in Claude Code use
 `/coordinator-kit:ux-audit`. Follow the [runtime adapter](../../references/runtime.md).

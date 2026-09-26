@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+- Put the UX audit's scope-first gate in its discovery description as well as its body so Codex
+  does not batch workspace inspection with the initial skill read. An empty invocation asks
+  for scope before listing files, running bootstrap or dispatching agents.
+
 ## 0.6.0
 
 - Support both Claude Code and Codex with native manifests and repository marketplace catalogs.

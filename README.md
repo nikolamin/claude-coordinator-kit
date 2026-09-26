@@ -122,7 +122,7 @@ codex plugin marketplace upgrade coordinator-kit
 codex plugin add coordinator-kit@coordinator-kit
 ```
 
-Both host manifests pin an explicit `version` (`0.6.0`) instead of tracking this repo's HEAD commit,
+Both host manifests pin an explicit `version` (`0.6.1`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.

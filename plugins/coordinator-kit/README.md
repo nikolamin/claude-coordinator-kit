@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.6.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.6.1** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,

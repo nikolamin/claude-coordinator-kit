@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 import time
 
-VERSION = '0.6.0'
+VERSION = '0.6.1'
 SCHEMA = 1
 KINDS = ('task', 'decision', 'question', 'lane', 'profile', 'handoff', 'guideline')
 STATUSES = {
