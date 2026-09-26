@@ -13,7 +13,8 @@ instructions remain files. Retired filenames contain compatibility pointers, not
 
 Use the script's resolved absolute path and explicit workspace root (which may contain several
 Git repos). The plugin's SessionStart hook runs migration on startup/resume in recognized
-coordinator workspaces. If hooks are disabled, unavailable, or the workspace is new, bootstrap
+coordinator workspaces when supported, enabled and trusted. Codex requires user trust for bundled
+hooks. If hooks are untrusted, disabled, unavailable, or the workspace is new, bootstrap
 must run the same `ensure --init` command before coordination. Never claim migration succeeded
 from plugin installation alone.
 

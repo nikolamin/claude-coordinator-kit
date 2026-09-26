@@ -2,7 +2,8 @@
 
 Canonical state is `.coordinator/coord.db`. On first use/resume, run the bundled coordinator-kit
 `scripts/coord.py --root <workspace> ensure --init`, then read `summary` and active profile/handoff
-records. The startup hook normally runs ensure automatically. Reconcile all pending migration
+records. The startup hook runs ensure when supported, enabled and trusted. Bootstrap must run
+the same command when it does not. Reconcile all pending migration
 sections before dispatch; old STATE/plan/decision companions are retired pointers. Keep this spine
 short: one rule and its reason, with detail in skills and evidence in database records.
 
@@ -34,11 +35,13 @@ The database's `profile workspace` record names repository lanes, branches, depl
 shared services, active holds, notification policy, receiver ownership and snapshot persistence.
 A workspace root may not be a repository. Do not infer production from a URL or branch name.
 
-Every native Agent dispatch selects a supported model alias explicitly. Respect existing project
+Use the active host's native subagent tools and supported model/effort settings. Respect existing project
 choices. For a new project, establish mappings for build, investigation/design, verification,
 advice and mechanical work using the available runtime and the user's quality/cost preferences.
 Record them in the profile before dispatch. Verify aliases are supported by the installed runtime;
-don't invent version ids or silently substitute an unavailable model.
+don't invent version ids or silently substitute an unavailable model. When the host requires
+inheritance for a dispatch mode, record the inherited model rather than supplying invalid overrides.
+Do not create user-owned Codex tasks as worker agents unless the user explicitly requests that.
 
 ## Work boundaries
 
@@ -112,3 +115,4 @@ Restate operative permissions, resource ownership, evidence requirements and sec
 - `coordinator-kit:escalation` — repeated gaps and judgment-heavy second opinions.
 - `coordinator-kit:codex-second-opinion` — optional external-model review setup.
 - `coordinator-kit:credential-handling` — account access and secret/DB constraints.
+- `coordinator-kit:ux-audit` — scoped feature/persona audit, approved runs and HTML synthesis.

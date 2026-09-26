@@ -1,11 +1,12 @@
 ---
+name: ux-audit
 description: Run a requested pre-launch UX audit with a feature-by-persona matrix, isolated browser tests, and an evidence-backed HTML report.
-argument-hint: "[feature scope | everything]"
 ---
 
 # Pre-launch UX audit
 
-Requested scope: $ARGUMENTS
+In Codex, invoke this skill with `$ux-audit`; in Claude Code use
+`/coordinator-kit:ux-audit`. Follow the [runtime adapter](../../references/runtime.md).
 
 Coordinate the five-stage workflow below for the current project. This is an audit of a
 pre-launch product with derived personas, not observed user research. Create audit artifacts;
@@ -31,16 +32,15 @@ application changes and implementation of recommendations need their own authori
    project's recorded deliverable directory, and record that location in the audit task.
 
 The coordinator dispatches research, browser testing and synthesis; it does not impersonate
-all personas itself. Set an explicitly supported model from the workspace profile on each
-dispatch. Follow `coordinator-kit:agent-brief-hygiene`: bounded inputs, owned outputs and no
+all personas itself. Select the workspace's supported model or record the inherited model when
+the host requires it. Follow `coordinator-kit:agent-brief-hygiene`: bounded inputs, owned outputs and no
 recursive delegation. Forward blockers to the coordinator; workers do not ask the user directly.
 
 ## 1. Feature map
 
 Dispatch one read-only researcher with the exact scope and
-[feature-map prompt](../references/ux-audit/01-feature-map.md). Read the prompt from
-`${CLAUDE_PLUGIN_ROOT}/references/ux-audit/01-feature-map.md` and fill its scope slot before
-dispatch; do not send an unresolved paste placeholder. Wait for `feature-map.md`.
+[feature-map prompt](../../references/ux-audit/01-feature-map.md). Resolve the linked reference relative to this
+SKILL.md and fill its scope slot before dispatch; do not send an unresolved paste placeholder. Wait for `feature-map.md`.
 
 Require stable feature ids, reachable entry points, core/supporting labels, audience evidence,
 excluded areas and explicit coverage uncertainty. If purpose or scope cannot be established,
@@ -50,7 +50,7 @@ entry URL and startup instructions for later testers; this does not authorize br
 ## 2. Grounded personas
 
 Dispatch one researcher with the feature map and
-[persona prompt](../references/ux-audit/02-personas.md). Wait for `personas.md`.
+[persona prompt](../../references/ux-audit/02-personas.md). Wait for `personas.md`.
 
 Derive 3–13 personas from the scope, product evidence and sourced market/competitor research.
 Label assumptions and synthetic details; do not copy real personal data into personas. Cover
@@ -61,7 +61,7 @@ access limits remain disclosed uncertainties, not invented facts or analytics.
 ## 3. Matrix and approval
 
 Dispatch one planner with both artifacts and
-[matrix prompt](../references/ux-audit/03-matrix.md). Wait for `matrix.md` and self-contained
+[matrix prompt](../../references/ux-audit/03-matrix.md). Wait for `matrix.md` and self-contained
 numbered run briefs. Fill every input slot; use stable feature, persona, story and run ids.
 
 Use targeted assignments plus a few deliberate cross-type runs. Each feature and each persona
@@ -84,7 +84,7 @@ needed; coordinate ownership and disable unintended outbound effects per project
 Launch one fresh agent per approved runnable item, in parallel up to available agent/browser
 capacity; queue the remainder without merging cells or carrying a tester's context across runs.
 
-Use the [tester prompt](../references/ux-audit/04-tester.md), filled with only that item's full
+Use the [tester prompt](../../references/ux-audit/04-tester.md), filled with only that item's full
 persona brief, story, intention, feature/run ids, entry point and success/failure criterion.
 Supply verified environment details, a new output path
 `runs/<run-id>/<attempt-id>/report.md` and evidence paths in that attempt's directory.
@@ -108,7 +108,7 @@ accounted for; preserve original reports intact for synthesis.
 
 Dispatch one synthesis agent with the feature map, full persona set, approved matrix, execution
 ledger, every report/evidence path and relevant canonical task references, using the
-[synthesis prompt](../references/ux-audit/05-synthesis.md). It produces a draft HTML report with
+[synthesis prompt](../../references/ux-audit/05-synthesis.md). It produces a draft HTML report with
 feature/persona/cell rollups, positioning issues first, cross-type hypotheses, conflicting needs,
 ranked abandonment findings and before/after mockups in the product's actual design language.
 

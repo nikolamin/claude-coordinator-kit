@@ -5,15 +5,18 @@ description: Initialize or resume a coordinator through the bundled database, au
 
 # Bootstrap, migration and resume
 
+Read the [runtime adapter](../../references/runtime.md) for the active host. Use AGENTS.md
+for Codex and CLAUDE.md for Claude Code; both hosts share the same workspace database.
+
 The canonical state is `<workspace>/.coordinator/coord.db`. Load `coordinator-kit:coordination-state`
 and run the bundled `scripts/coord.py --root <workspace> ensure --init` before coordination.
-The SessionStart hook normally does this automatically for an existing coordinator workspace;
+The SessionStart hook does this automatically when supported, enabled and trusted;
 repeat ensure safely when entering bootstrap or when hook execution is unavailable. This is the
 first-run migration supplied by the plugin, not a task to defer or an optional Markdown backend.
 
 ## First updated-plugin run
 
-1. Resolve the existing workspace (including multi-repo parents). Preserve CLAUDE.md/CHARTER.md/
+1. Resolve the existing workspace (including multi-repo parents). Preserve AGENTS.md/CLAUDE.md/CHARTER.md/
    PROCESS.md and project constraints. Treat their instructions to write old state companions as
    superseded by this database migration; other authority and behavioral rules remain in force.
 2. Run ensure. It imports exact source bytes and recognizable records, archives originals,
@@ -26,7 +29,7 @@ first-run migration supplied by the plugin, not a task to defer or an optional M
    Reconcile imported needs_review records too. Existing SQLite sources also require repointing
    legacy coordinator/bridge integrations; their original DB files are preserved untouched.
 4. Continue only after `summary.ready_for_dispatch` is true, then apply the actual task/hold
-   authorization. Migration readiness is not production permission. Record plugin version 0.5.0
+   authorization. Migration readiness is not production permission. Record plugin version 0.6.0
    and the adopted spine version separately in the workspace profile.
 
 Existing work remains existing even if all old state filenames now contain short pointers.
@@ -38,9 +41,10 @@ For nonstandard source locations, use `.coordinator/migration.json` per the stat
 1. Initialize the database using ensure --init. If no legacy sources exist, it starts empty.
    Resolve project name and notification preference from existing context; ask only unknown
    user choices, one at a time. The plugin does not grant new communication authority.
-2. Install [the spine](templates/claude-md-spine.md) only when CLAUDE.md is missing; substitute
+2. Install [the spine](templates/coordinator-spine.md) into the active host's instruction file
+   only when it is missing; substitute
    PROJECT/NOTIFY_CHANNEL/BRIDGE_DIR placeholders and remove unused bridge clauses. Read back
-   to confirm all placeholders resolved. Preserve an existing CLAUDE.md; an explicitly requested
+   to confirm all placeholders resolved. Preserve existing instruction files; an explicitly requested
    spine upgrade uses a targeted, authorized diff and a fresh session, never template overwrite.
 3. Populate `profile put workspace --data FILE` using the fields in
    [the profile seed](templates/operating-profile.json), replacing empty values with established

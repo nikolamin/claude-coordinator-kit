@@ -1,0 +1,20 @@
+{
+  "name": "coordinator-kit",
+  "interface": {
+    "displayName": "Coordinator Kit"
+  },
+  "plugins": [
+    {
+      "name": "coordinator-kit",
+      "source": {
+        "source": "local",
+        "path": "./plugins/coordinator-kit"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

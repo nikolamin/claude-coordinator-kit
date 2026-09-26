@@ -3,11 +3,19 @@
   "status": "active",
   "project": "",
   "phase": "bootstrap",
-  "plugin_version": "0.5.0",
+  "plugin_version": "0.6.0",
   "spine_version": "",
   "workspace_root": "",
   "coordination_repository": "",
   "repositories": [],
+  "runtime": {
+    "host": "",
+    "instruction_file": "",
+    "agent_tools": [],
+    "browser": "",
+    "scheduler": "",
+    "second_opinion": {}
+  },
   "models": {},
   "notification": {
     "channel": "",

@@ -1,6 +1,6 @@
 # Coordinator kit
 
-Turns a Claude Code session into a **coordinator**: it plans and dispatches build, research,
+Turns a Claude Code or Codex session into a **coordinator**: it plans and dispatches build, research,
 design and verification work to agents, keeping durable state so a fresh session can resume.
 New products start with an interview; existing approved work enters a continuous operating loop.
 
@@ -14,6 +14,8 @@ project; kept for existing installs and anyone who prefers it — see `FILE-COPY
 
 ## Install the plugin
 
+For **Claude Code**:
+
 ```
 claude plugin marketplace add nikolamin/claude-coordinator-kit
 claude plugin install coordinator-kit@coordinator-kit
@@ -24,19 +26,30 @@ just the one you ran the command from. If the current session was started before
 run `/reload-plugins` (or restart) — a session only loads plugin state present at its own start.
 
 Confirm it took: `claude plugin list` shows `coordinator-kit`; `claude plugin details
-coordinator-kit@coordinator-kit` shows 15 entries: 14 workflow skills and the UX audit command.
-The plugin loads detailed workflows on demand; the installed project spine holds only standing
-rules. Local CLI inspection projects
-about 1,351 always-on tokens for 0.5.0, compared with the roughly 3,896 documented for 0.2.0.
-These are estimates, not measured session usage.
+coordinator-kit@coordinator-kit` shows 15 skills, including UX audit.
+
+For **Codex**:
+
+```sh
+codex plugin marketplace add nikolamin/claude-coordinator-kit
+codex plugin add coordinator-kit@coordinator-kit
+```
+
+Start a new Codex task after installation. Use `$bootstrap` to initialize/resume the coordinator
+and `$ux-audit onboarding` for the audit command. `codex plugin list` confirms installation.
+For development, register this repository's absolute local path instead of the GitHub source.
+Both hosts load the same 15 skills on demand, use the same SQLite state and preserve project
+instructions. See the [runtime adapter](plugins/coordinator-kit/references/runtime.md) for
+host-specific tools, instruction files and hook trust.
 
 ## Run it
 
-In the project's root directory, start Claude Code and say **"bootstrap yourself"** (or
+In the project's root directory, start Claude Code or Codex and say **"bootstrap yourself"** (or
 "resume" — same trigger; it's also meant to fire on its own the moment a session starts in a
 project with no coordinator work done yet). That loads `coordinator-kit:bootstrap`, which asks
 one question for `<NOTIFY_CHANNEL>` if it isn't already known (Telegram bridge, another
-mechanism, or plain chat). Fresh setup installs a missing `CLAUDE.md` from the plugin's thin
+mechanism, or plain chat). Fresh setup installs a missing `CLAUDE.md` (Claude Code) or `AGENTS.md`
+(Codex) from the plugin's thin
 spine and creates the database profile, tasks and other missing coordination records.
 Existing instructions and source content are preserved. Scratch stays in `.coordinator-scratch/`;
 the bundled CLI creates `.coordinator/coord.db`. Consistent database snapshots are committed
@@ -56,13 +69,14 @@ new projects default to meaningful completion and decisions rather than per-agen
 Version 0.4.0 adds database-backed coordination and recoverable first-run migration. See the
 [release and upgrade notes](plugins/coordinator-kit/CHANGELOG.md). The plugin includes a
 Python/SQLite CLI and a SessionStart hook that automatically migrates legacy state on the first
-updated-plugin run. The database replaces writable STATE, plan, decision/question, profile and
+updated-plugin run when enabled and trusted. Bootstrap runs the same migration explicitly,
+including when Codex hooks have not yet been trusted. The database replaces writable STATE, plan, decision/question, profile and
 log companions. Original bytes are archived and recoverable; old filenames become pointers only
 after verified import. Ambiguous requirements/holds stay pending for coordinator reconciliation
 before dispatch. Python 3.9+ with sqlite3 is required; no database server or pip install is needed.
 
-For a pre-launch feature/persona audit, run **`/coordinator-kit:ux-audit [scope]`**, for example
-`/coordinator-kit:ux-audit onboarding`. Version 0.5.0 adds this five-stage command, which asks
+For a pre-launch feature/persona audit, run **`/coordinator-kit:ux-audit [scope]`** in Claude Code
+or **`$ux-audit [scope]`** in Codex. This five-stage workflow asks
 for run-count approval before launching isolated testers and produces a self-contained HTML
 report with before/after mockups. See [command usage](plugins/coordinator-kit/README.md#ux-audit-command).
 
@@ -86,12 +100,14 @@ everything else:
 ## Platforms
 
 The skills and SQLite CLI support macOS, Linux and Windows with Python 3.9+. The automatic
-startup hook also needs Bash (Git Bash with Claude Code on Windows, or WSL2). If hooks are disabled
+startup hook also needs Bash (Git Bash on Windows, or WSL2). If hooks are disabled or untrusted
 or the interpreter is unavailable, bootstrap runs/retries the documented CLI migration before work. The optional Telegram bridge
 also runs on all of them — macOS (launchd), Linux (systemd), Windows (Task Scheduler), and WSL2
 (Linux path) — see `telegram-bridge/SETUP.md`.
 
 ## Update the plugin
+
+In Claude Code:
 
 ```
 /plugin update coordinator-kit
@@ -99,26 +115,34 @@ also runs on all of them — macOS (launchd), Linux (systemd), Windows (Task Sch
 
 Then `/reload-plugins` (or restart) so a running session picks up the changed skills.
 
-`plugin.json` pins an explicit `version` (`0.5.0`) instead of tracking this repo's HEAD commit,
+In Codex, refresh the configured Git marketplace and reinstall, then start a new task:
+
+```sh
+codex plugin marketplace upgrade coordinator-kit
+codex plugin add coordinator-kit@coordinator-kit
+```
+
+Both host manifests pin an explicit `version` (`0.6.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.
 
-**First run after updating:** start a fresh session so the new SessionStart hook loads. In an
-existing coordinator workspace it imports legacy state automatically, preserves exact originals,
+**First run after updating:** start a fresh session so the new SessionStart hook loads. Codex
+requires trust for command hooks; use the host's hook interface to review them, or run `$bootstrap`
+to perform migration explicitly. In an existing coordinator workspace the migration preserves exact originals,
 then retires the old files to database pointers. `bootstrap yourself` reconciles imported records
 and resumes from the database. A repeat run is safe; interrupted cutover resumes. Nonstandard
 sources can be listed in `.coordinator/migration.json`.
 
 Save/stop older coordinators before upgrading so they no longer write legacy files. Existing
-CLAUDE.md, PROCESS.md and CHARTER.md are preserved; a spine upgrade remains a targeted edit, not
+AGENTS.md, CLAUDE.md, PROCESS.md and CHARTER.md are preserved; a spine upgrade remains a targeted edit, not
 an overwrite. Database migration supersedes their old state-file editing instructions only.
 The root file-copy templates remain unchanged for file-copy-only installs.
 See [migration and recovery details](plugins/coordinator-kit/skills/coordination-state/references/database-adapter.md).
 
 ## What's in it
 
-14 skills, loaded on demand instead of sitting in every session's always-on context:
+15 skills, loaded on demand instead of sitting in every session's always-on context:
 
 - `bootstrap` — fresh-project bootstrap, and the "bootstrap yourself" resume path.
 - `stop-and-save` — the "stop and save your step" half of the same protocol.
@@ -127,25 +151,35 @@ See [migration and recovery details](plugins/coordinator-kit/skills/coordination
 - `coordination-state` — bundled SQLite CLI, first-run migration, canonical records and recovery.
 - `verification-standard` — what makes a verifier's pass/fail judgment actually trustworthy.
 - `escalation` — when to escalate to an advice-tier agent, or route to a second opinion.
-- `codex-second-opinion` — install/auth/invocation for a second opinion via `codex exec`.
+- `codex-second-opinion` — a genuinely different reviewer model, including optional `codex exec` setup.
 - `watchdogs` — never going silently idle: monitor arming, stall detection, session recovery.
 - `question-protocol` — the one-at-a-time structure for every founder-facing question.
 - `comms-register` — goal-oriented status, quiet notification policies and bridge etiquette.
 - `backlog-discipline` — one canonical backlog, source requirements and stale-premise checks.
 - `credential-handling` — task-authorized account access, secret handling and user-only steps.
 - `agent-brief-hygiene` — source intent, task scope, resource ownership and required evidence.
+- `ux-audit` — scoped feature/persona audit, approved isolated runs and an evidence-backed HTML report.
 
 ## Uninstall
+
+Claude Code:
 
 ```
 claude plugin uninstall coordinator-kit@coordinator-kit
 claude plugin marketplace remove coordinator-kit
 ```
 
+Codex:
+
+```sh
+codex plugin remove coordinator-kit@coordinator-kit
+codex plugin marketplace remove coordinator-kit
+```
+
 ## Status
 
-Claude Code discovers 14 workflow skills, the UX audit command and the SessionStart migration
-hook; strict manifest validation passes. Fixture-based migration/runtime tests cover preservation, repeats, interruption, concurrent
+The shared plugin exposes 15 skills and a SessionStart migration hook, with separate Claude Code
+and Codex manifests and marketplace catalogs. Fixture-based migration/runtime tests cover preservation, repeats, interruption, concurrent
 writers and hook behavior. See the [release notes](plugins/coordinator-kit/CHANGELOG.md#validation)
 for current results and limitations. Real-model skill auto-routing is a separate
 [routing test](plugins/coordinator-kit/routing-test.md).

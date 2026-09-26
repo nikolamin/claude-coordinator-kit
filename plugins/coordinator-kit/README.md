@@ -1,7 +1,7 @@
 # Coordinator Kit plugin
 
-Version **0.5.0** packages the coordinator workflow as a project spine, **14 on-demand skills**
-and the **ux-audit command** (Claude Code lists all 15 under Skills).
+Version **0.6.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
 memory seed and optional Telegram bridge are unchanged.
@@ -36,11 +36,12 @@ when blocked. Liveness and recent evidence guide recovery, not elapsed time alon
 | `question-protocol` | One presented decision, exact options and reply correlation |
 | `comms-register` | Goal-oriented status and the project's notification preference |
 | `escalation` | Repeated gaps and useful second perspectives |
-| `codex-second-opinion` | Optional Codex CLI setup/invocation |
+| `codex-second-opinion` | A different reviewer model and optional Codex CLI setup/invocation |
 | `credential-handling` | Authorized account access and secret/DB handling |
+| `ux-audit` | Scoped feature/persona matrix, isolated browser runs and HTML synthesis |
 
-The package includes a project CLAUDE.md spine, a JSON operating-profile seed, Python 3.9+
-SQLite CLI/schema, and a SessionStart migration hook. On the first updated-plugin startup it
+The package includes an AGENTS.md/CLAUDE.md spine, a JSON operating-profile seed, Python 3.9+
+SQLite CLI/schema, and a SessionStart migration hook. On the first updated-plugin startup with trusted hooks it
 imports legacy STATE/plan/decision/question/profile/log companions, verifies preserved bytes,
 and replaces Markdown sources with database pointers. The database is mandatory for plugin
 coordination; original artifacts and instruction files remain available.
@@ -51,17 +52,25 @@ commands own state transitions, and agents append `event` evidence. `backup` mak
 SQLite snapshots. Full usage: [coordination-state](skills/coordination-state/SKILL.md).
 
 No server/pip dependency. Automatic startup requires Bash plus Python; bootstrap also runs ensure
-explicitly if hooks are disabled. A hook failure is reported, not falsely labelled migrated.
+explicitly if hooks are disabled or untrusted. Codex requires hook trust separately from plugin
+installation; bootstrap still performs the first-run migration. A hook failure is reported, not falsely labelled migrated.
 External communication bridges, agent registries and schedulers are configured by each project.
+The [runtime adapter](references/runtime.md) maps instruction files, skill invocation, native
+subagents and model review to each host. Switching hosts reuses the existing workspace database.
 
 ## UX audit command
 
 ```text
+# Claude Code
 /coordinator-kit:ux-audit onboarding and first purchase
 /coordinator-kit:ux-audit everything
+
+# Codex
+$ux-audit onboarding and first purchase
+$ux-audit everything
 ```
 
-Omit the argument to choose scope interactively. The [command](commands/ux-audit.md) maps
+Omit the argument to choose scope interactively. The [skill](skills/ux-audit/SKILL.md) maps
 features, derives 3–13 grounded personas, builds a targeted feature/persona matrix, asks for
 approval of its exact run count, dispatches isolated browser testers, and synthesizes a
 self-contained HTML report with before/after mockups and a second-model design opinion.
@@ -75,16 +84,32 @@ The command produces an audit and proposed fixes; it does not implement them aut
 
 ## Install and update
 
+Claude Code:
+
 ```text
 claude plugin marketplace add nikolamin/claude-coordinator-kit
 claude plugin install coordinator-kit@coordinator-kit
 ```
 
 Use `/plugin update coordinator-kit` and reload/restart according to the installed CLI.
-The manifest pins a version; deliberately bump it when preparing a release. A source checkout
+
+Codex:
+
+```sh
+codex plugin marketplace add nikolamin/claude-coordinator-kit
+codex plugin add coordinator-kit@coordinator-kit
+```
+
+Start a new Codex task, then invoke `$bootstrap` or `$ux-audit`. For an update, run
+`codex plugin marketplace upgrade coordinator-kit`, reinstall with `codex plugin add`, and
+start another task. Local development uses `codex plugin marketplace add /absolute/path/to/claude-coordinator-kit`
+instead of the GitHub source. The `.agents/plugins/marketplace.json` catalog points to this package;
+`.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` describe their respective hosts.
+
+The manifests pin a version; deliberately bump it when preparing a release. A source checkout
 change is not publication or proof that an installed cache has updated.
 
-A fresh session after updating loads the migration hook. Normal "bootstrap yourself" ensures and
+A fresh session after updating loads the migration hook when enabled and trusted. Normal "bootstrap yourself" ensures and
 reconciles the database, then resumes. Existing instruction files are preserved; an explicit spine
 upgrade merges a targeted diff while keeping local decisions. Stop old legacy-file writers before
 upgrading; existing DB integrations must be repointed during migration review. See the

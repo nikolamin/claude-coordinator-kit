@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from migrate import ensure, workspace
+from storage import VERSION
 
 
 def main():
@@ -19,9 +20,10 @@ def main():
         if not result.get('detected'):
             return 0
         cli = str(Path(__file__).with_name('coord.py').resolve())
-        context = ('Coordinator Kit 0.5.0: canonical state is ' + result['database'] + '. '
+        skill = str(Path(__file__).resolve().parents[1] / 'skills/coordination-state/SKILL.md')
+        context = ('Coordinator Kit ' + VERSION + ': canonical state is ' + result['database'] + '. '
                    'Use Python 3.9+ with script ' + cli + ' and --root ' + result['root'] + '. '
-                   'Load coordinator-kit:coordination-state before coordinating. Run summary first, '
+                   'Read the coordination-state skill at ' + skill + ' before coordinating. Run summary first, '
                    'then review list/show and reconcile all imported requirements, holds, questions, '
                    'profile and handoff into canonical records before dispatch. '
                    'Migration review sections: ' + str(result['migration_review_sections']) + '; unresolved records: '

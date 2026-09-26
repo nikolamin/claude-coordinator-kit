@@ -45,17 +45,19 @@ def named_files(directory, names):
 
 def detected(root):
     root = Path(root).resolve()
-    # This repository's root STATE/CLAUDE files are distributable templates, not live state.
-    if (root / 'plugins/coordinator-kit/.claude-plugin/plugin.json').is_file():
+    # The kit's root instruction/state files are distributable templates, not live state.
+    if any((root / ('plugins/coordinator-kit/' + kind + '/plugin.json')).is_file()
+           for kind in ('.claude-plugin', '.codex-plugin')):
         return False
     if (root / '.coordinator/coord.db').is_file() or (root / '.coordinator/migration.json').is_file():
         return True
     if any(named_files(p, ('STATE.md', 'coord.db')) for p in roots(root)):
         return True
-    claude = root / 'CLAUDE.md'
-    if claude.is_file():
-        text = claude.read_text(encoding='utf-8')
-        return 'coordinator-kit' in text or ('Coordinator Instructions' in text and bool(named_files(root, ('STATE.md',))))
+    for instructions in named_files(root, ('CLAUDE.md', 'AGENTS.md')):
+        if instructions.is_file():
+            text = instructions.read_text(encoding='utf-8')
+            if 'coordinator-kit' in text or ('Coordinator Instructions' in text and bool(named_files(root, ('STATE.md',)))):
+                return True
     return False
 
 

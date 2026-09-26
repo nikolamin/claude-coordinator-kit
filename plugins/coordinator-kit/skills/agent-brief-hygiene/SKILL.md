@@ -8,7 +8,7 @@ description: Write bounded, self-contained coordinator dispatch briefs with orig
 A brief is a task contract, not a transcript dump. Context inheritance differs between ordinary,
 forked, Explore/Plan, and external agents. Do not assume the agent has the coordinator's
 conversation, auto-memory, previously read files, or skill bodies. Even if the harness supplies
-CLAUDE.md, restate the operative task-specific constraints. A fork with full history still needs
+AGENTS.md or CLAUDE.md, restate the operative task-specific constraints. A fork with full history still needs
 clear scope and ownership, and is not automatically an independent verifier.
 
 ## Required brief

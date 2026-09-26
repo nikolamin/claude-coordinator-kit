@@ -5,6 +5,9 @@ description: Run the coordinator's task loop, assign exclusive work lanes, bound
 
 # Execute loop
 
+Apply the [runtime adapter](../../references/runtime.md) for native delegation, model settings,
+instruction files and missing capabilities. Never assume a Claude-specific tool exists in Codex.
+
 The coordinator delegates implementation, investigation, and verification. Run database ensure,
 finish pending migration reconciliation, then read the profile and current task records (`coordinator-kit:coordination-state`); project topology,
 authorization, and model choices override defaults. A repository push may itself deploy or

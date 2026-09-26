@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0
+
+- Support both Claude Code and Codex with native manifests and repository marketplace catalogs.
+- Move UX audit into a shared skill: `/coordinator-kit:ux-audit` in Claude Code and `$ux-audit`
+  in Codex. Preserve the scope gate, approved run count and all five reference prompts.
+- Bootstrap AGENTS.md in Codex or CLAUDE.md in Claude Code only when missing. Preserve both
+  existing instruction files and use one workspace database across hosts.
+- Recognize AGENTS.md coordinator workspaces for first-run migration, including nested checkouts.
+  Keep the explicit bootstrap migration available when command hooks are untrusted or disabled.
+- Adapt native subagents, inherited model settings, browser/scheduler capabilities and genuinely
+  different reviewer models to the active host. Do not substitute user-owned Codex tasks for workers.
+- Add nine isolated compatibility tests covering preserved instructions, cross-host repeats,
+  hook payloads/environment, installed paths with spaces and hookless first-run migration.
+
+Validation: all 42 offline tests pass, all 15 skill frontmatters and relative links validate,
+and both native manifests validate. Claude Code discovers 15 skills and the SessionStart hook;
+Codex recognizes the repository marketplace and package. Full live-project audits, native
+hook trust and every-platform execution remain separate from these checks.
+
 ## 0.5.0
 
 - Add `/coordinator-kit:ux-audit [scope]` for pre-launch feature-by-persona UX audits.

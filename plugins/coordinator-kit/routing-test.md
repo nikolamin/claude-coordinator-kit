@@ -1,6 +1,6 @@
 # Skill routing test — coordinator-kit plugin
 
-Tests whether each of the 14 `coordinator-kit` skills fires on the kind of prompt a founder or
+Tests whether the 15 `coordinator-kit` skills fire on the kind of prompt a founder or
 a coordinator session actually produces mid-work — not on a paraphrase of its own description.
 Run this after the plugin is installed and loaded (see Prerequisites).
 
@@ -237,8 +237,9 @@ Exercises canonical-store adoption and decision supersession, not generic databa
 
 For every prompt, watch the transcript **before** reading the assistant's reply:
 
-- A skill firing shows up as a tool invocation naming the plugin-qualified skill, e.g.
-  `coordinator-kit:escalation` — record the exact name(s) shown, in the order they appear.
+- A skill firing shows up as a Claude Code tool invocation naming the plugin-qualified skill,
+  e.g. `coordinator-kit:escalation`, or a Codex skill load/read of its installed SKILL.md.
+  Record the actual host, model and exact name(s)/paths in the order they appear.
 - **Nothing loaded**: no such invocation appears; the reply is a plain, generic answer.
 - **Wrong skill loaded**: an invocation appears, but names a skill other than the one this
   document targeted.
@@ -313,11 +314,11 @@ AB=agent-brief-hygiene, CS=coordination-state, NEG=none (negative control).
 
 ## A5 — Prerequisites
 
-- Confirm the plugin is installed at user scope: `coordinator-kit@coordinator-kit`. Run
-  `/help` (Custom commands tab) and confirm the 14 workflow skills and `coordinator-kit:ux-audit` are listed, or
+- Confirm `coordinator-kit@coordinator-kit` is installed using the host's plugin list. In Claude
+  Code, use `/help`; in Codex, use the `$` skill picker. Confirm all 15 shared skills are listed, or
   ask any question expected to trigger one and watch for the invocation per Section A3.
 - If the current session was started **before** the plugin was installed or last updated, run
-  `/reload-plugins`, or restart the session — a session only picks up plugin state present at
+  `/reload-plugins` in Claude Code, or start a new Codex task — a session only picks up plugin state present at
   its own start.
 - Every session in Section A2 must be a genuinely fresh session (new session, not a resumed or
   continued one) — reusing an old session for an S1-S16 slot silently violates Rule 1/2/3
@@ -351,7 +352,7 @@ Schedulers and agent registries remain project-provided capabilities.
 
 ## A7 — UX audit command
 
-Invoke `/coordinator-kit:ux-audit` in an isolated test project. No live project, external
+Invoke `/coordinator-kit:ux-audit` in Claude Code or `$ux-audit` in Codex in an isolated test project. No live project, external
 messages, production data or purchases are needed to check the initial scope gate.
 
 | Invocation/state | Expected next action |

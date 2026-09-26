@@ -7,8 +7,9 @@ there is no prepopulated binary containing another project's data.
 ## Discovery and first run
 
 The SessionStart hook runs from `hooks/hooks.json` through a Bash launcher which finds Python
-3.9+ (`python3` or `python`). Windows needs the Bash environment supplied with Claude Code and
-Python on PATH. It resolves the nearest established coordinator workspace, including a session
+3.9+ (`python3` or `python`). Windows needs Git Bash or WSL and Python on PATH. Codex supplies
+the compatible plugin-root environment variable and requires trust before bundled hooks run.
+It resolves the nearest established coordinator workspace from AGENTS.md, CLAUDE.md or existing state, including a session
 started inside a child product repo. Unrelated directories and this kit's source checkout are
 not auto-initialized. Explicit bootstrap uses `coord.py --root WORKSPACE ensure --init`.
 
@@ -16,7 +17,7 @@ Recognized sources: root coordination companions; `docs/coordination/` (also `Do
 workspace child directories named coordination or autopilot; STATE.md, plan.md,
 objectives.md, DECISIONS.md, DECISION-QUEUE.md, COORD.md, operating-profile.md, repo-map.md;
 coord.db alongside those records; state-archive Markdown; `docs/plan.md`, `docs/objectives.md`
-and `docs/decisions/**/*.md`. CLAUDE.md, PROCESS.md, CHARTER.md, concept/design/validation evidence
+and `docs/decisions/**/*.md`. AGENTS.md, CLAUDE.md, PROCESS.md, CHARTER.md, concept/design/validation evidence
 and auto-memory remain instruction/artifact files, not retired state.
 
 For nonstandard paths, create `.coordinator/migration.json` before ensure:
@@ -65,7 +66,7 @@ upgrading. Migration provides recovery, not mutual exclusion against unrelated l
 
 The SessionStart event adds migration status/context; it cannot mechanically block tools. Bootstrap
 and execute instructions require successful ensure/reconciliation before dispatch, including in
-hosts with hooks disabled. A missing interpreter or unsupported newer schema reports a failure,
+hosts with hooks disabled or awaiting trust. A missing interpreter or unsupported newer schema reports a failure,
 never a successful migration. Do not force schema downgrades.
 
 `coord.py --root WORKSPACE check` checks integrity, foreign keys and each archive/source digest.
@@ -75,5 +76,7 @@ snapshot before returning. Store snapshots and migration archives according to t
 persistence policy; a rendered report is not a complete backup. Restoring a backup is an explicit
 recovery operation with all coordinator writers stopped, not something ensure improvises.
 
-SessionStart packaging follows the official [hook reference](https://code.claude.com/docs/en/hooks#sessionstart)
-and [plugin hook discovery](https://code.claude.com/docs/en/plugins-reference#hooks).
+SessionStart packaging follows the official [Claude hook reference](https://code.claude.com/docs/en/hooks#sessionstart),
+[Claude plugin hook discovery](https://code.claude.com/docs/en/plugins-reference#hooks),
+[Codex plugin packaging](https://developers.openai.com/plugins/build/plugins) and
+[Codex hook reference](https://learn.chatgpt.com/docs/hooks).

@@ -70,7 +70,7 @@ and handoffs. The bundled CLI's summary/search/read commands replace reading gro
 First-run migration imports legacy STATE.md, plan.md, objectives and decision/profile companions,
 then retires them to compatibility pointers after verified archival; details are in
 `coordinator-kit:coordination-state`. Existing concept/design/validation artifacts stay linked
-from records. CLAUDE.md, PROCESS.md and CHARTER.md remain instructions, not operational state.
+from records. AGENTS.md, CLAUDE.md, PROCESS.md and CHARTER.md remain instructions, not operational state.
 
 Use docs/concept/ and docs/validation/ for substantial artifacts when needed. Temporary task
 logs go in .coordinator-scratch/. Rendered database views are disposable reports; consistent

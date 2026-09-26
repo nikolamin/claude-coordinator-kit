@@ -5,12 +5,19 @@ description: Set up and invoke the optional Codex CLI for a coordinator agent's 
 
 # Codex / GPT second-opinion — setup
 
-Optional. Gives the coordinator's dispatched agents a second, differently-trained model opinion
-(GPT, via OpenAI's Codex CLI) on judgment-heavy work: UI/UX design decisions, copy/copywriting,
-research tasks, and reviewing generated documents. Why bother: a coordinator that only
-self-reviews with the same model family has a blind-spot problem — a second model catches
-different failure modes. See `coordinator-kit:escalation` for when it applies; this file covers
-install and invocation.
+This skill documents the optional Codex CLI reviewer. On a Claude Code coordinator it can
+provide a different model's opinion on UI/UX, copy, research or documents. On a Codex
+coordinator, another Codex process is not automatically a different model. Compare the actual
+primary and reviewer models; select a genuinely different configured reviewer when the audit
+requires one. Use the [runtime adapter](../../references/runtime.md) and project permissions.
+
+For a Codex-hosted second opinion, a dispatched agent can use an already configured alternate
+model or external reviewer, including Claude Code when authorized and available. Check that
+reviewer's installed CLI/tool contract, permissions and actual model; do not invent flags,
+install it or authenticate another account implicitly. Record the model, review artifact and
+disagreements. Keep a required UX audit opinion pending when no suitable reviewer is available.
+See `coordinator-kit:escalation` for optional review and its fallback; the following commands
+apply only when Codex CLI is the selected reviewer.
 
 ## Install
 
@@ -60,11 +67,11 @@ if a flag errors as unrecognized, try again without it before assuming the insta
 
 ## Usage pattern
 
-The codex call is made **from within a dispatched agent's Bash** — the coordinator never shells
-out itself (see `CLAUDE.md`'s Role section; a "quick codex check" is investigative Bash like any
-other). For qualifying task types (UI/UX design, copy/copywriting, research, document review),
+The Codex call is made from the dispatched reviewer's supported shell tool, following the
+project's AGENTS.md or CLAUDE.md role boundary. For qualifying task types (UI/UX design,
+copy/copywriting, research, document review),
 the coordinator writes the codex instruction into the agent's brief: what to ask, which sandbox
-level, and what to do with the answer (present alongside a Claude-native alternative when the
+level, and what to do with the answer (present alongside the primary model's alternative when the
 choice is user-facing; adopt outright for mechanical asks).
 
 ## Graceful degradation
@@ -74,3 +81,5 @@ with the available review and record the limitation once in the canonical task r
 it in a completion/status report only when the project's notification policy calls for one;
 do not create a checkpoint ping in decisions-only mode. The second opinion is an enhancement,
 never an implicit dependency or permission to install/configure tools beyond the task's scope.
+An explicitly required second opinion, such as the UX audit's design review, follows that
+workflow's pending/waiver rule instead of this optional-review fallback.

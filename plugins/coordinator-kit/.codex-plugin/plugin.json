@@ -1,0 +1,33 @@
+{
+  "name": "coordinator-kit",
+  "version": "0.6.0",
+  "description": "Database-backed coordinator workflows with automatic legacy-state migration, exclusive work lanes, evidence-based verification, safe recovery, and goal-oriented reporting.",
+  "author": {
+    "name": "nikolamin"
+  },
+  "homepage": "https://github.com/nikolamin/claude-coordinator-kit",
+  "repository": "https://github.com/nikolamin/claude-coordinator-kit",
+  "license": "MIT",
+  "keywords": [
+    "coordinator",
+    "multi-agent",
+    "orchestration",
+    "phase-loop",
+    "codex",
+    "verification"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Coordinator Kit",
+    "shortDescription": "Coordinate agents with durable state and evidence.",
+    "longDescription": "Coordinate project work in Codex with a SQLite task store, first-run migration, bounded agent workflows, verification and feature-by-persona UX audits.",
+    "developerName": "nikolamin",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Bootstrap the coordinator for this workspace.",
+      "Run a scoped pre-launch UX audit.",
+      "Resume the coordinator from its saved handoff."
+    ]
+  }
+}
