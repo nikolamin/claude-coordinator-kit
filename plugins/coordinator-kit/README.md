@@ -1,6 +1,7 @@
 # Coordinator Kit plugin
 
-Version **0.4.0** packages the coordinator workflow as a project spine plus **14 on-demand skills**.
+Version **0.5.0** packages the coordinator workflow as a project spine, **14 on-demand skills**
+and the **ux-audit command** (Claude Code lists all 15 under Skills).
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
 memory seed and optional Telegram bridge are unchanged.
@@ -52,6 +53,25 @@ SQLite snapshots. Full usage: [coordination-state](skills/coordination-state/SKI
 No server/pip dependency. Automatic startup requires Bash plus Python; bootstrap also runs ensure
 explicitly if hooks are disabled. A hook failure is reported, not falsely labelled migrated.
 External communication bridges, agent registries and schedulers are configured by each project.
+
+## UX audit command
+
+```text
+/coordinator-kit:ux-audit onboarding and first purchase
+/coordinator-kit:ux-audit everything
+```
+
+Omit the argument to choose scope interactively. The [command](commands/ux-audit.md) maps
+features, derives 3–13 grounded personas, builds a targeted feature/persona matrix, asks for
+approval of its exact run count, dispatches isolated browser testers, and synthesizes a
+self-contained HTML report with before/after mockups and a second-model design opinion.
+
+Progress, approvals and findings use the coordinator database. Browser/account isolation,
+test environment and model choices come from the workspace profile. Abandonment and blocked
+runs remain visible; the report distinguishes simulated findings from measured user behaviour
+and execution coverage from untested risks. Final artifacts go under
+`docs/validation/ux-audit/<audit-id>/` unless the project specifies another deliverable location.
+The command produces an audit and proposed fixes; it does not implement them automatically.
 
 ## Install and update
 

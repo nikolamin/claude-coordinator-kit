@@ -24,9 +24,10 @@ just the one you ran the command from. If the current session was started before
 run `/reload-plugins` (or restart) — a session only loads plugin state present at its own start.
 
 Confirm it took: `claude plugin list` shows `coordinator-kit`; `claude plugin details
-coordinator-kit@coordinator-kit` shows all 14 skills. The plugin loads detailed workflows on
-demand; the installed project spine holds only standing rules. Local CLI inspection projects
-about 1,289 always-on tokens for 0.4.0, compared with the roughly 3,896 documented for 0.2.0.
+coordinator-kit@coordinator-kit` shows 15 entries: 14 workflow skills and the UX audit command.
+The plugin loads detailed workflows on demand; the installed project spine holds only standing
+rules. Local CLI inspection projects
+about 1,351 always-on tokens for 0.5.0, compared with the roughly 3,896 documented for 0.2.0.
 These are estimates, not measured session usage.
 
 ## Run it
@@ -59,6 +60,11 @@ updated-plugin run. The database replaces writable STATE, plan, decision/questio
 log companions. Original bytes are archived and recoverable; old filenames become pointers only
 after verified import. Ambiguous requirements/holds stay pending for coordinator reconciliation
 before dispatch. Python 3.9+ with sqlite3 is required; no database server or pip install is needed.
+
+For a pre-launch feature/persona audit, run **`/coordinator-kit:ux-audit [scope]`**, for example
+`/coordinator-kit:ux-audit onboarding`. Version 0.5.0 adds this five-stage command, which asks
+for run-count approval before launching isolated testers and produces a self-contained HTML
+report with before/after mockups. See [command usage](plugins/coordinator-kit/README.md#ux-audit-command).
 
 ## Optional: memory seed and Telegram bridge
 
@@ -93,7 +99,7 @@ also runs on all of them — macOS (launchd), Linux (systemd), Windows (Task Sch
 
 Then `/reload-plugins` (or restart) so a running session picks up the changed skills.
 
-`plugin.json` pins an explicit `version` (`0.4.0`) instead of tracking this repo's HEAD commit,
+`plugin.json` pins an explicit `version` (`0.5.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.
@@ -138,8 +144,8 @@ claude plugin marketplace remove coordinator-kit
 
 ## Status
 
-Claude Code discovers 14 skills and the SessionStart migration hook; strict manifest validation
-passes. Fixture-based migration/runtime tests cover preservation, repeats, interruption, concurrent
+Claude Code discovers 14 workflow skills, the UX audit command and the SessionStart migration
+hook; strict manifest validation passes. Fixture-based migration/runtime tests cover preservation, repeats, interruption, concurrent
 writers and hook behavior. See the [release notes](plugins/coordinator-kit/CHANGELOG.md#validation)
 for current results and limitations. Real-model skill auto-routing is a separate
 [routing test](plugins/coordinator-kit/routing-test.md).

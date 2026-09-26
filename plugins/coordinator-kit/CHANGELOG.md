@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Add `/coordinator-kit:ux-audit [scope]` for pre-launch feature-by-persona UX audits.
+- Package five detailed prompts: feature mapping, grounded personas, targeted matrix planning,
+  isolated browser testing, and HTML synthesis with before/after mockups.
+- Preserve scope and run-count approval, source-blind testers, honest abandonment, risk gaps,
+  second-model design review and a plan for real post-launch instrumentation.
+- Track progress, approvals and resumable run outcomes in the coordinator database; leave
+  product changes as sourced proposals. Browser/model configuration remains project-specific.
+
 ## 0.4.0
 
 ### Database and migration

@@ -314,7 +314,7 @@ AB=agent-brief-hygiene, CS=coordination-state, NEG=none (negative control).
 ## A5 — Prerequisites
 
 - Confirm the plugin is installed at user scope: `coordinator-kit@coordinator-kit`. Run
-  `/help` (Custom commands tab) and confirm the 14 `coordinator-kit:*` skills are listed, or
+  `/help` (Custom commands tab) and confirm the 14 workflow skills and `coordinator-kit:ux-audit` are listed, or
   ask any question expected to trigger one and watch for the invocation per Section A3.
 - If the current session was started **before** the plugin was installed or last updated, run
   `/reload-plugins`, or restart the session — a session only picks up plugin state present at
@@ -348,3 +348,20 @@ Record textual review separately from an actual harness run. Start cold for each
 The bundled DB migration and SessionStart hook have executable fixture tests under tests/.
 These textual cases remain distinct from running that suite or observing real-model routing.
 Schedulers and agent registries remain project-provided capabilities.
+
+## A7 — UX audit command
+
+Invoke `/coordinator-kit:ux-audit` in an isolated test project. No live project, external
+messages, production data or purchases are needed to check the initial scope gate.
+
+| Invocation/state | Expected next action |
+| --- | --- |
+| No scope argument or scope in the current request | Ask which areas to cover immediately and wait; do not inspect the repo or start setup/research |
+| Explicit bounded scope | Preserve the wording, ensure canonical state, then dispatch the feature-map phase within scope |
+| Everything, matrix prepared but count not approved | Present the actual matrix/count and wait before any tester dispatch |
+| Approved matrix resumed with completed and blocked runs | Reconcile live agents; retain completed reports and create new attempt paths only for resumed runs |
+| Separate tabs but shared account/server-side data | Establish isolation/reset or record blocked cells; never call this persona abandonment |
+| Second-model reviewer unavailable | Save the draft and named pending review; complete without it only under an explicit user waiver |
+
+Use the command's five reference prompts to check feature/persona/matrix fidelity separately.
+Discovery and a no-scope smoke check do not prove that a full browser audit or HTML synthesis ran.

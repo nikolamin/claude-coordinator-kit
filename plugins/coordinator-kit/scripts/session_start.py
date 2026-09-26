@@ -19,7 +19,7 @@ def main():
         if not result.get('detected'):
             return 0
         cli = str(Path(__file__).with_name('coord.py').resolve())
-        context = ('Coordinator Kit 0.4.0: canonical state is ' + result['database'] + '. '
+        context = ('Coordinator Kit 0.5.0: canonical state is ' + result['database'] + '. '
                    'Use Python 3.9+ with script ' + cli + ' and --root ' + result['root'] + '. '
                    'Load coordinator-kit:coordination-state before coordinating. Run summary first, '
                    'then review list/show and reconcile all imported requirements, holds, questions, '
