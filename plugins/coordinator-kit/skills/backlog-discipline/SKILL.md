@@ -1,31 +1,28 @@
 ---
-description: Where a newly discovered follow-up or an outside signal goes — docs/plan.md and
-  docs/coordination/STATE.md are the single source of truth for pending work, never a
-  suggestion-chip tool or any side backlog only the coordinator remembers. Load this the moment
-  something new surfaces that isn't already tracked — a follow-up noticed mid-work (a bug seen in
-  passing, a piece of debt, an idea for later), or a signal arriving from outside the
-  coordinator's own work entirely — a crash report, a support ticket, a monitor alert, a
-  mid-session founder message. It becomes a new docs/plan.md task, or a note on existing work in
-  STATE.md — nothing else. Also load this before writing a dispatched agent's brief, to restate
-  the same no-side-backlog rule for that agent (a subagent's own call to a suggestion-chip/
-  spawn-task tool creates a stray chip the coordinator cannot see or clean up). Not for the
-  routine mechanics of editing plan.md/STATE.md once you already know an item belongs there —
-  only for the "where does this go" decision itself.
+name: backlog-discipline
+description: Route coordinator follow-ups and external signals into the canonical task record, check stale ticket premises, and preserve the founder's original intent. Use at intake or when an agent discovers work outside its current scope.
 ---
 
 # Backlog discipline
 
-`docs/plan.md` and `docs/coordination/STATE.md` are the single source of truth for pending work.
-Do not use suggestion-chip tools or any side backlog. A follow-up discovered mid-work becomes a
-new task in `docs/plan.md`, or a note on existing work in `docs/coordination/STATE.md` — never a
-separate list only the coordinator remembers. The same applies to signals arriving from outside
-the coordinator's own work — crash reports, support tickets, monitor alerts, mid-session founder
-messages — per the Intake rule in `coordinator-kit:phase-loop`'s Cross-cutting rules: they become
-a plan task or a STATE.md note too, never a side list of their own.
+Use the bundled `.coordinator/coord.db` through `coordinator-kit:coordination-state`.
+First-run migration replaces the legacy plan/state/decision companions. No suggestion-chip tools,
+unrequested user tasks, scratch-file backlog, or list only the coordinator remembers.
 
-This rule also has to travel with every dispatched agent, not just live in the coordinator's own
-head: a subagent that calls a suggestion-chip/spawn-task tool on its own creates a stray chip the
-coordinator cannot see or clean up. Restate it explicitly in the brief of any dispatched agent
-whose task could plausibly turn up a follow-up worth flagging — see
-`coordinator-kit:agent-brief-hygiene` for where this fits alongside the rest of what a brief must
-carry.
+A founder message, crash report, ticket, monitor alert, or agent discovery becomes a task or an
+event on an existing task. Record source id and verbatim requirement (redact secrets), goal,
+acceptance criteria, dependency, priority, scope and next action. Tracking a signal does not
+authorize every proposed remedy; apply the project's approved scope and hold rules.
+
+Before dispatching an old item, search the live record and resolved decisions, then have the
+agent cheaply verify its premise against current behavior. A suggested fix also contains a
+causal hypothesis: "make A match B" may name the wrong side. Already shipped or disproven items
+get corrected with evidence at their original record so the next session cannot rediscover them.
+A repeatedly cited access blocker deserves a fresh check against existing grants and tooling.
+
+Keep the entire user goal visible across repository tasks. A half-shipped integration or an
+on-test change awaiting production approval remains distinguishable from done. Record follow-up
+ownership and next steps yourself; do not hand the user an audit list they must manage.
+
+Agents return findings or append task events only; the coordinator owns task status, priorities,
+dependency changes and closure. Put this no-side-backlog rule in each dispatch brief.

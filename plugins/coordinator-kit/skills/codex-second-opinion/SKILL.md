@@ -1,12 +1,6 @@
 ---
-description: Install, auth-check, and invoke OpenAI's `codex exec` CLI to get a second,
-  differently-trained model opinion on judgment-heavy work — UI/UX design decisions,
-  copy/copywriting (marketing text, UX microcopy, landing-page text), research tasks, and
-  reviewing generated documents. Load this when a coordinator's Escalation step calls for a second
-  opinion, when a dispatched agent needs to shell out to `codex exec` from its own Bash, when
-  checking whether Codex is installed/logged in, or when deciding how to degrade gracefully if it
-  isn't available. Not for engineering-only work (wire types, plumbing, test scaffolding) — that
-  doesn't need a second opinion.
+name: codex-second-opinion
+description: Set up and invoke the optional Codex CLI for a coordinator agent's independent opinion on UI/UX, copy, research, or document review. Use when that second-opinion path is selected; escalation decides when it is useful.
 ---
 
 # Codex / GPT second-opinion — setup
@@ -15,7 +9,7 @@ Optional. Gives the coordinator's dispatched agents a second, differently-traine
 (GPT, via OpenAI's Codex CLI) on judgment-heavy work: UI/UX design decisions, copy/copywriting,
 research tasks, and reviewing generated documents. Why bother: a coordinator that only
 self-reviews with the same model family has a blind-spot problem — a second model catches
-different failure modes. See `CLAUDE.md`'s Escalation section for when it fires; this file covers
+different failure modes. See `coordinator-kit:escalation` for when it applies; this file covers
 install and invocation.
 
 ## Install
@@ -76,6 +70,7 @@ choice is user-facing; adopt outright for mechanical asks).
 ## Graceful degradation
 
 If codex isn't installed or isn't logged in, don't block and don't retry around it: proceed
-Claude-only, and note it once in the next checkpoint ping ("codex second-opinion unavailable —
-install/login per this skill if wanted"). One note, not a nag — the second opinion is an
-enhancement, never a dependency.
+with the available review and record the limitation once in the canonical task record. Mention
+it in a completion/status report only when the project's notification policy calls for one;
+do not create a checkpoint ping in decisions-only mode. The second opinion is an enhancement,
+never an implicit dependency or permission to install/configure tools beyond the task's scope.

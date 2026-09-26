@@ -1,14 +1,12 @@
 # Coordinator kit
 
-Turns a Claude Code session into a pure **coordinator**: it interviews you, plans, then dispatches
-every build/research/design/verification step to `Agent` sub-dispatches, keeping a durable,
-git-committed record of state so any session — this one resumed, or a fresh one — can pick up
-where it left off.
+Turns a Claude Code session into a **coordinator**: it plans and dispatches build, research,
+design and verification work to agents, keeping durable state so a fresh session can resume.
+New products start with an interview; existing approved work enters a continuous operating loop.
 
 Works for both a brand-new project and an existing codebase. On an existing repo, it dispatches
 read-only analysis agents to map the code first — languages/frameworks, layout, build/test/CI,
-conventions, debt — before interviewing you, so the interview only asks what the code can't
-already answer.
+conventions, debt — and asks only what the code and current decisions cannot already answer.
 
 Two install paths exist side by side: a **plugin** (primary, below — install from GitHub, update
 centrally) and the original **file-copy install** (a paste-able prompt that copies files into the
@@ -26,8 +24,10 @@ just the one you ran the command from. If the current session was started before
 run `/reload-plugins` (or restart) — a session only loads plugin state present at its own start.
 
 Confirm it took: `claude plugin list` shows `coordinator-kit`; `claude plugin details
-coordinator-kit@coordinator-kit` shows all 13 skills, at roughly 3,900 always-on tokens, versus
-the file-copy path's ~545-line `CLAUDE.md` paid in full every turn.
+coordinator-kit@coordinator-kit` shows all 14 skills. The plugin loads detailed workflows on
+demand; the installed project spine holds only standing rules. Local CLI inspection projects
+about 1,289 always-on tokens for 0.4.0, compared with the roughly 3,896 documented for 0.2.0.
+These are estimates, not measured session usage.
 
 ## Run it
 
@@ -35,23 +35,30 @@ In the project's root directory, start Claude Code and say **"bootstrap yourself
 "resume" — same trigger; it's also meant to fire on its own the moment a session starts in a
 project with no coordinator work done yet). That loads `coordinator-kit:bootstrap`, which asks
 one question for `<NOTIFY_CHANNEL>` if it isn't already known (Telegram bridge, another
-mechanism, or plain chat), installs this project's own `CLAUDE.md` from the plugin's thin spine
-template (not this repo's root `CLAUDE.md` — that one belongs to the file-copy path), and creates
-the `docs/` knowledge-base skeleton (`docs/coordination/STATE.md`, `docs/concept/`,
-`docs/objectives.md`, `docs/plan.md`, `docs/decisions/`, `docs/validation/`) plus
-`.coordinator-scratch/` (gitignored), then commits it.
+mechanism, or plain chat). Fresh setup installs a missing `CLAUDE.md` from the plugin's thin
+spine and creates the database profile, tasks and other missing coordination records.
+Existing instructions and source content are preserved. Scratch stays in `.coordinator-scratch/`;
+the bundled CLI creates `.coordinator/coord.db`. Consistent database snapshots are committed
+in the designated coordination repo, which may differ from the workspace root.
 
-Then it branches: a **new project** goes straight into the Concept interview, one question at a
-time; an **existing codebase** gets read-only analysis agents first, committed to
-`docs/coordination/repo-map.md`, before the interview is tailored to what they found; an
-**already-bootstrapped project** resumes instead on the same phrase — reads `STATE.md`'s Current
-section, re-arms monitors, works any stop note a previous session left.
+Then it branches: a **new project** enters the Concept interview, one question at a time;
+an **existing codebase** gets read-only analysis of its repositories, build/test/deploy topology,
+and existing coordination state. Approved existing work can enter the continuous loop directly.
+An **already-bootstrapped project** resumes its actual task store, holds, lanes and inbox ownership;
+a short database-backed STATE file is not mistaken for an empty project.
 
-From there, answer the interview across as many turns as it takes; a dispatched agent writes each
-round into `docs/concept/`, and you approve before Objectives, then Plan (another approval gate),
-then Execute runs autonomously with checkpoint pings.
+Greenfield Concept and Plan retain approval gates. Execution then uses exclusive work lanes,
+independent behavioral verification, revision/environment-specific test evidence, and the
+project's authorized push/CI/release flow. Notifications follow the project's preference;
+new projects default to meaningful completion and decisions rather than per-agent narration.
 
-This flow is not yet verified end to end on a real project — see Status below.
+Version 0.4.0 adds database-backed coordination and recoverable first-run migration. See the
+[release and upgrade notes](plugins/coordinator-kit/CHANGELOG.md). The plugin includes a
+Python/SQLite CLI and a SessionStart hook that automatically migrates legacy state on the first
+updated-plugin run. The database replaces writable STATE, plan, decision/question, profile and
+log companions. Original bytes are archived and recoverable; old filenames become pointers only
+after verified import. Ambiguous requirements/holds stay pending for coordinator reconciliation
+before dispatch. Python 3.9+ with sqlite3 is required; no database server or pip install is needed.
 
 ## Optional: memory seed and Telegram bridge
 
@@ -72,8 +79,9 @@ everything else:
 
 ## Platforms
 
-The plugin itself is cross-platform: markdown/JSON skills, no shell dependency — works the same on
-macOS, Linux, and Windows (native PowerShell/cmd, Git Bash, or WSL2). The optional Telegram bridge
+The skills and SQLite CLI support macOS, Linux and Windows with Python 3.9+. The automatic
+startup hook also needs Bash (Git Bash with Claude Code on Windows, or WSL2). If hooks are disabled
+or the interpreter is unavailable, bootstrap runs/retries the documented CLI migration before work. The optional Telegram bridge
 also runs on all of them — macOS (launchd), Linux (systemd), Windows (Task Scheduler), and WSL2
 (Linux path) — see `telegram-bridge/SETUP.md`.
 
@@ -85,41 +93,41 @@ also runs on all of them — macOS (launchd), Linux (systemd), Windows (Task Sch
 
 Then `/reload-plugins` (or restart) so a running session picks up the changed skills.
 
-`plugin.json` pins an explicit `version` (`0.2.1`) instead of tracking this repo's HEAD commit,
+`plugin.json` pins an explicit `version` (`0.4.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.
 
-**If the update changed the spine** (`plugins/coordinator-kit/skills/bootstrap/templates/
-claude-md-spine.md` — the `CLAUDE.md` a plugin-based coordinator installs at your project root), a
-project that already bootstrapped is still running its old copy: updating the plugin alone
-doesn't touch a file it already wrote into your project. Getting the new spine into a live
-project takes the same three-session dance the file-copy path uses (see `FILE-COPY-INSTALL.md`'s
-"Updating" section for the reasoning) — `CLAUDE.md` is both the file being changed and the running
-session's own operating instructions, loaded once at session start, so no single session can both
-write the new file and run under it:
-1. Tell the running session **"stop and save your step"**.
-2. New session: re-run bootstrap (or hand-copy the new spine over the project's `CLAUDE.md`
-   yourself).
-3. Fresh session: **"bootstrap yourself"** to resume from the saved step.
+**First run after updating:** start a fresh session so the new SessionStart hook loads. In an
+existing coordinator workspace it imports legacy state automatically, preserves exact originals,
+then retires the old files to database pointers. `bootstrap yourself` reconciles imported records
+and resumes from the database. A repeat run is safe; interrupted cutover resumes. Nonstandard
+sources can be listed in `.coordinator/migration.json`.
+
+Save/stop older coordinators before upgrading so they no longer write legacy files. Existing
+CLAUDE.md, PROCESS.md and CHARTER.md are preserved; a spine upgrade remains a targeted edit, not
+an overwrite. Database migration supersedes their old state-file editing instructions only.
+The root file-copy templates remain unchanged for file-copy-only installs.
+See [migration and recovery details](plugins/coordinator-kit/skills/coordination-state/references/database-adapter.md).
 
 ## What's in it
 
-13 skills, loaded on demand instead of sitting in every session's always-on context:
+14 skills, loaded on demand instead of sitting in every session's always-on context:
 
 - `bootstrap` — fresh-project bootstrap, and the "bootstrap yourself" resume path.
 - `stop-and-save` — the "stop and save your step" half of the same protocol.
 - `phase-loop` — the full phase loop (Bootstrap through Iterate) and the doc layout.
-- `execute-loop` — build/verify/commit loop: retry cap, push gate, CI gate, parallel defaults.
+- `execute-loop` — exclusive lanes, bounded retries, reusable test evidence, push and CI gates.
+- `coordination-state` — bundled SQLite CLI, first-run migration, canonical records and recovery.
 - `verification-standard` — what makes a verifier's pass/fail judgment actually trustworthy.
 - `escalation` — when to escalate to an advice-tier agent, or route to a second opinion.
 - `codex-second-opinion` — install/auth/invocation for a second opinion via `codex exec`.
 - `watchdogs` — never going silently idle: monitor arming, stall detection, session recovery.
 - `question-protocol` — the one-at-a-time structure for every founder-facing question.
-- `comms-register` — status-update format and notify-channel cadence/etiquette.
-- `backlog-discipline` — `plan.md`/`STATE.md` as the sole backlog, never a side list.
-- `credential-handling` — standing authorization, pasted-credential handling, one-honest-bound.
-- `agent-brief-hygiene` — what a dispatched agent's brief must carry, since it inherits nothing.
+- `comms-register` — goal-oriented status, quiet notification policies and bridge etiquette.
+- `backlog-discipline` — one canonical backlog, source requirements and stale-premise checks.
+- `credential-handling` — task-authorized account access, secret handling and user-only steps.
+- `agent-brief-hygiene` — source intent, task scope, resource ownership and required evidence.
 
 ## Uninstall
 
@@ -130,14 +138,20 @@ claude plugin marketplace remove coordinator-kit
 
 ## Status
 
-Verified with real command output: `marketplace add`, `install`, `list`, and `details` (all 13
-skills listed, ~3,896 always-on tokens).
+Claude Code discovers 14 skills and the SessionStart migration hook; strict manifest validation
+passes. Fixture-based migration/runtime tests cover preservation, repeats, interruption, concurrent
+writers and hook behavior. See the [release notes](plugins/coordinator-kit/CHANGELOG.md#validation)
+for current results and limitations. Real-model skill auto-routing is a separate
+[routing test](plugins/coordinator-kit/routing-test.md).
 
-Not yet verified: whether each skill actually fires at the right moment in practice — the routing
-test in `plugins/coordinator-kit/routing-test.md` has never been run — and whether `bootstrap`
-works end to end on a real project. `claude --plugin-dir ./plugins/coordinator-kit` loads the
-plugin in place for testing, without installing it — run the routing test yourself with that if
-you want either claim verified before relying on it.
+```text
+python3 -m unittest discover -s plugins/coordinator-kit/tests -v
+claude plugin validate --strict ./plugins/coordinator-kit
+claude --plugin-dir ./plugins/coordinator-kit plugin details coordinator-kit
+```
+
+Local preview loads the hook too: use a fixture workspace when testing migration rather than a
+live coordinator workspace. The kit's own source checkout is excluded from automatic migration.
 
 ## File-copy install
 

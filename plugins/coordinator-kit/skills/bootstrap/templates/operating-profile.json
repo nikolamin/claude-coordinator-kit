@@ -1,0 +1,29 @@
+{
+  "title": "Workspace operating profile",
+  "status": "active",
+  "project": "",
+  "phase": "bootstrap",
+  "plugin_version": "0.4.0",
+  "spine_version": "",
+  "workspace_root": "",
+  "coordination_repository": "",
+  "repositories": [],
+  "models": {},
+  "notification": {
+    "channel": "",
+    "policy": "completion-and-decisions",
+    "recipient": ""
+  },
+  "inbox": {
+    "owner": "",
+    "receiver": "",
+    "cursor": ""
+  },
+  "authorized_scope": [],
+  "fallback_activities": [],
+  "guardrails": [],
+  "shared_resources": [],
+  "durable_obligations": [],
+  "persistence": {},
+  "evidence": []
+}

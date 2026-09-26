@@ -1,49 +1,26 @@
 ---
-description: When and how to escalate — spawning an advice-tier (fable) agent once the same
-  class of problem has failed its 2 allowed respawn cycles (per
-  coordinator-kit:execute-loop's retry cap) or a design/architecture question has no clear path
-  from normal iteration, with a self-contained prompt summarizing what was tried and what's
-  blocking, framed as "what would you try next" and never reached for on a first failure;
-  routing UI/UX design decisions, copy/copywriting (marketing text, UX microcopy, landing-page
-  text), research tasks, and generated-document review to a second, differently-trained opinion
-  via `codex exec` (see coordinator-kit:codex-second-opinion for setup and invocation —
-  engineering-only work like wire types or test scaffolding doesn't need this); and the
-  no-delegation constraint every infra/execution agent brief must carry ("do not delegate,
-  execute directly; bulk output to a scratch file, paste only the decisive lines") so an agent
-  with Agent/SendMessage access doesn't spiral into agent-to-agent delegation instead of doing the
-  work. Load this when an agent has
-  failed the same gap twice in a row, when a judgment-heavy task (UI/UX, copy, research,
-  document review) needs a second, differently-trained opinion, or when writing any
-  infra/execution agent's brief. Not for counting retry cycles or defining what "same gap" means
-  in the first place (see coordinator-kit:execute-loop), and not for the codex install/auth/
-  invocation mechanics themselves (see coordinator-kit:codex-second-opinion).
+name: escalation
+description: Escalate repeated coordinator verification failures or unresolved architecture/judgment questions to advice or an optional second model. Use after the bounded retry loop is exhausted or another perspective could resolve a material choice.
 ---
 
 # Escalation
 
-This skill packages `CLAUDE.md`'s Escalation section for delivery via a plugin. If this
-project's coordinator uses the file-copy install, the project-root `CLAUDE.md` already carries
-this exact content under its own "Escalation" heading — this skill is a second, parallel
-delivery path for the same rules, not a replacement.
+After the initial failure and two failed fix/re-verify cycles on the same gap, stop repeating
+that approach. Dispatch a fresh advice-tier agent using the project's recorded model alias.
+Supply original criteria, failure evidence, attempted fixes and constraints; ask what mechanism
+was missed and what to try next. Routine first failures do not need an escalation. A changed
+agent id does not reset the gap's counter.
 
-- If an agent hits `coordinator-kit:execute-loop`'s retry cap on the **same class of problem** —
-  2 failed respawn cycles, escalating on the 3rd failure — or a design/architecture question has
-  no clear path forward from normal iteration, spawn an agent with the advice tier (`fable`, per
-  `CLAUDE.md`'s Model routing section) for advice. Prompt: self-contained summary of what was
-  tried and what's blocking, framed as "what would you try next." This is distinct from a routine
-  respawn — don't reach for it on a first failure.
-- For UI/UX design decisions, copy/copywriting (marketing text, UX microcopy, landing-page
-  text), research tasks, and reviewing generated documents, additionally shell out to
-  `codex exec` (OpenAI Codex CLI, if installed and authenticated) from within a dispatched agent
-  for a second, differently-trained opinion — see `coordinator-kit:codex-second-opinion` for
-  install, auth, and invocation mechanics. Present its output alongside a Claude-native
-  alternative when the choice is user-facing; adopt it outright for mechanical asks.
-  Engineering-only work (wire types, plumbing, test scaffolding) doesn't need this — the trigger
-  is judgment/perspective value, not mechanical execution.
-- An agent given unrestricted `Agent`/`SendMessage` access can spiral into agent-to-agent
-  delegation instead of doing the work. For any infra/execution task, the brief must include:
-  **"do not delegate, execute directly; bulk output (test suites, builds, big greps) goes to a
-  scratch file under `.coordinator-scratch/` — paste only the decisive lines (failure names, exit
-  codes, the mutation transcript)."** A pasted suite log is re-read by that agent on every later
-  step of its own turn (~29% of agent cost in a measured 48M-token session), and the coordinator
-  gates on the decisive lines anyway.
+For UI/UX, copy, research and document review, an available differently-trained opinion can
+expose shared blind spots. Use `coordinator-kit:codex-second-opinion` from within the dispatched
+agent when applicable. Preserve the project's explicit model/effort preference and confirm the
+configured model is supported by the installed runtime. If unavailable, proceed with the available review
+and record the limitation once. Engineering-only plumbing does not automatically need it.
+
+The advice agent returns options and evidence, not production permission. The coordinator
+chooses within existing authority or presents the concrete founder-only decision through
+`coordinator-kit:question-protocol`; keep independent lanes moving.
+
+Infra/execution briefs include: "Do not delegate; execute directly. Bulk output goes to the
+named project scratch log; return decisive lines, counts, exit codes and evidence paths."
+See `coordinator-kit:agent-brief-hygiene` for the complete bounded-work contract.

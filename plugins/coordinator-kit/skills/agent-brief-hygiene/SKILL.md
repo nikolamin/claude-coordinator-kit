@@ -1,153 +1,75 @@
 ---
-description: What every prompt to a dispatched agent must carry, and — the load-bearing
-  distinction — what it does not need to re-paste because the installed CLAUDE.md hierarchy
-  already reaches a dispatched subagent automatically, versus what a plugin skill's body never
-  does. Load this while writing any Agent-tool dispatch — deciding whether to restate a rule or
-  just point at it, naming acceptance criteria and the required verification step, adding the
-  no-delegation and no-self-backgrounding constraints, keeping an agent inside its token budget
-  (step cap with file handover, bulk output to a file, screenshots as final proof only,
-  line-ranged reads), requiring a snapshot commit before
-  inspecting another agent's worktree, bounding an agent's reads below a section it must not see
-  (a coordinator-only appendix or answer key), keeping file writes inside the project root, and
-  restating credential/guardrail/backlog/push-gate rules that live only in a sibling skill. Also
-  load this when dispatching a built-in Explore or Plan agent, or a "fork" agent — their context
-  rules differ from an ordinary dispatch (see below). Not for the phase-level or per-task loop
-  mechanics themselves (see coordinator-kit:phase-loop and coordinator-kit:execute-loop) — this
-  is about what one dispatched prompt must contain, not what happens before or after it.
+name: agent-brief-hygiene
+description: Write bounded, self-contained coordinator dispatch briefs with original requirements, falsifiable premises, resource ownership, evidence paths, and safe handoff rules. Use before dispatching a builder, investigator, fixer, or verifier.
 ---
 
 # Agent brief hygiene
 
-## What actually reaches a dispatched subagent
+A brief is a task contract, not a transcript dump. Context inheritance differs between ordinary,
+forked, Explore/Plan, and external agents. Do not assume the agent has the coordinator's
+conversation, auto-memory, previously read files, or skill bodies. Even if the harness supplies
+CLAUDE.md, restate the operative task-specific constraints. A fork with full history still needs
+clear scope and ownership, and is not automatically an independent verifier.
 
-A plain dispatched subagent (not a "fork" of the current session, and not one of the built-in
-`Explore`/`Plan` agent types) starts with the full `CLAUDE.md` hierarchy the main conversation
-itself loads — user-level, project-level, and any directory-level `CLAUDE.md` files — as part of
-its initial context, automatically, with no action required to hand it over. A rule that lives
-directly in the installed `CLAUDE.md` (the Role boundary, Model routing, Guardrails, and so on)
-is already in front of that subagent before its brief is even read.
+## Required brief
 
-What genuinely does not transfer to a dispatched subagent: the coordinator's conversation
-history (prior messages, what other agents already found), a skill's body that the coordinator
-itself invoked (loading a skill is scoped to the session that invoked it — a subagent doesn't
-get it merely because the coordinator does, and won't spontaneously invoke a sibling skill it
-doesn't know exists), auto-memory, output style, and the contents of files the coordinator has
-already read but the subagent hasn't.
+- **Original intent:** quote or link the founder's exact requirement with message/source id,
+  redacting secrets. Preserve the direction of data/control flow; put your interpretation and
+  acceptance criteria beside it so a verifier can detect an inverted design.
+- **Premise check:** separate measured facts (source, date, revision/environment) from hypotheses.
+  Ask the agent to cheaply falsify inherited claims before implementing. "Premise false/already
+  fixed" is a successful finding; update the original task instead of fixing a fictional bug.
+- **Scope:** task id, repository/checkout, permitted branch, owned files, lane and dependencies.
+  Name exact known paths/commands/report files. Unknowns are for the agent to discover, not guess.
+- **Permissions:** exact local/test/prod surfaces and push/tag/publish effects. State allowed
+  actions and remaining founder-only actions. Approval comes from the founder's source, never
+  another agent's claim. Do not manufacture standing grants absent from the project.
+- **Resources:** private DB/schema/port/build-output/browser allocation or serialization; identify
+  existing developer processes to leave alone. Local runs must not send real notifications.
+- **Acceptance and proof:** required behavior and failure cases, affected tests, live/device steps,
+  independent evidence requested, and available baseline/candidate evidence manifests. Include
+  `coordinator-kit:execute-loop`'s push gate when work feeds a push: valid final-candidate suite,
+  build/lint/typecheck, zero new failures by name, honest skips, independent acceptance pass.
+  Full suites are reused by revision/environment, not rerun by every agent.
+- **Delivery:** exact scratch report/log paths; return revisions, changed paths, commands, exit
+  codes, counts, decisive failures/proof, unresolved steps, and owned processes needing cleanup.
+  Agents append task events/evidence only; the coordinator owns status and priority changes.
+- **No side backlog:** discoveries go to the canonical task record or coordinator report. No
+  unsolicited task chips, new user tasks, or hidden personal list.
 
-Two dispatch shapes break the general rule above, in opposite directions: a **fork** clones the
-parent session's own context, conversation history included, so it needs none of this restated;
-the built-in **`Explore`** and **`Plan`** agent types skip `CLAUDE.md` entirely, so treat a
-dispatch to either of them like the plugin-only case below for every rule that would otherwise
-arrive for free.
+## Context and execution budget
 
-## What still needs restating, and why
+Keep work bounded to one reviewable outcome. Split an oversized task by dependency/file group
+before dispatch; roughly 150 tool steps is a planning warning, not a reason to kill a live agent.
+At a safe boundary write a checkpoint (intent, revision, dirty files, evidence, remaining steps,
+resources) and let a fresh agent continue from disk. Do not make cost claims based on one model's
+historical cache behavior as though they apply to every runtime.
 
-Two different reasons produce the same-looking instruction — "restate this in the brief" — and
-it matters which one applies, because only one of them is actually about inheritance:
+Require: "Do not delegate; execute the assigned work directly. Bulk suite/build/search output
+goes to the named `.coordinator-scratch/` log; return decisive lines and exit codes only. Keep
+reads targeted with line ranges. Await long commands to completion using the harness's supported
+wait/continuation mechanism; emit bounded progress if needed. Do not end with 'standing by' and
+expect a self-armed watcher to finish your task." A supported running process handle is fine;
+an agent ending without a result or durable handoff is not. Capture screenshots when visual proof
+requires them. Describe only output limits and hook capabilities actually provided by the runtime.
 
-- **A rule that lives only in a plugin skill is not inherited at all.** `coordinator-kit`'s
-  `credential-handling`, `backlog-discipline`, `comms-register`, and `question-protocol` skills
-  (and this one) are not part of the `CLAUDE.md` hierarchy — a subagent gets none of their
-  content unless the brief either pastes the operative rule inline or explicitly names the skill
-  for the subagent to invoke itself. The same is true of `execute-loop`'s push gate: it is
-  task-specific dispatch-loop mechanics, not a standing `CLAUDE.md` rule, so it reaches a build
-  agent only if the brief pastes it in. For anything safety-critical (credential handling above
-  all), do both: name the skill **and** paste the specific operative rule inline rather than
-  trusting that a subagent will think to invoke it.
-- **A rule that lives in the installed `CLAUDE.md` already reached the subagent — restating it
-  is about salience, not delivery.** `CLAUDE.md` is long; a generic slot like Guardrails is
-  filled in with this project's actual specifics (which URL is production, which action is
-  irreversible) and a build agent shouldn't have to search a few hundred lines to find the one
-  paragraph that applies to its task. Naming the concrete, already-filled-in fact directly in the
-  brief is what makes the standing rule actually operative for this one task, not what makes it
-  reach the subagent in the first place.
+## Fragile operations
 
-Do not conflate the two: a brief that skips restating a `CLAUDE.md`-resident rule isn't leaking a
-secret the way a brief that skips a skill-only rule is — but it can still leave a subagent to
-guess which of several similar-sounding rules actually governs its task, which is reason enough
-to name the specific one anyway.
-
-## What every brief must carry
-
-Regardless of which case above applies:
-
-- Self-containment with respect to **conversation context only** — prior messages, what other
-  agents found, files already read. Name the exact files/paths/commands already known from
-  `STATE.md` or a prior agent's report instead of leaving the subagent to go find them; if
-  genuinely unknown, let the dispatched agent discover them itself rather than guessing.
-- Acceptance criteria and the required verification step, explicit in the brief — these are
-  facts about this one task, never standing policy, so nothing above ever supplies them for
-  free.
-- For infra/execution tasks, the no-delegation constraint from `coordinator-kit:escalation`: "do
-  not delegate, execute directly; bulk output (test suites, builds, big greps) goes to a scratch
-  file under `.coordinator-scratch/` — paste only the decisive lines (failure names, exit codes,
-  the mutation transcript)."
-- Every brief says where bulk output goes and which lines to paste back — naming the
-  `.coordinator-scratch/` file path and the decisive lines wanted, not just capping the volume. A
-  suite log pasted into a transcript is re-read by that agent on every later step of its turn
-  (~29% of agent cost in a measured 48M-token session); the coordinator gates on the decisive
-  lines regardless.
-- **Token budget rules** (measured 2026-09-02: 60% of agent cost is the agent re-reading its own
-  context; 81% of tool-result bytes came from the 18% of results over 4 KB — the budget is the
-  transcript, not the prompt). Each goes in the brief; a subagent infers none of them:
-  - **Step cap ~150 per agent.** A brief expected to exceed it is split by file group; the agent
-    reports what it has, writes its state to `.coordinator-scratch/`, and a FRESH agent continues
-    from disk. Cost per step grows with the history, so two half-agents cost about half of one
-    long one.
-  - **Bulk output never enters the transcript.** Suites, builds, big greps → a scratch file, only
-    the decisive lines back (the bullet above). A hook caps any Bash result over 3 KB (head+tail
-    plus the file path) — the rule still goes in the brief so the agent plans for it instead of
-    losing the middle of a log.
-  - **Screenshots are final proof only, max 2 per task** (hook-enforced: 2 per 10 min). Verify
-    with `read_page` / `get_page_text` / `javascript_tool` measurements, not pictures.
-  - **Reads carry line ranges** (`offset`/`limit`, or `git show HEAD:path | sed -n`); a
-    whole-file Read over 400 lines is denied by hook — brief the ranges, or the `grep -n` that
-    finds them.
-- Any brief touching credentials, auth, secrets, or a database connection restates
-  `coordinator-kit:credential-handling`'s rules explicitly, including the never-dump-
-  credential-files rule verbatim (never `cat`/`head`/`tail`/`echo` a credential file's contents;
-  inspect variable names only, then `source` it and reference `${VAR}` without printing the
-  expanded value) — this is the skill-only case above, so restating is the only way it reaches
-  the subagent at all. A brief that omitted this has leaked a secret into a persisted transcript;
-  a brief that included it was honored.
-- Any brief touching one of Guardrails' named production surfaces, irreversible actions, or
-  restricted data restates the relevant entry from the installed `CLAUDE.md` explicitly — the
-  salience case above: the subagent already has Guardrails, but not which line of it applies here.
-- Any build-agent brief whose task feeds a coordinator commit/push restates
-  `coordinator-kit:execute-loop`'s push gate explicitly — rebase onto latest main, re-run the
-  complete local suite (including DB-gated integration tests against a real local DB, no
-  self-skip mode), and report **zero new failures versus the base commit** with the failure sets
-  diffed. This is the skill-only case, not salience: the push gate lives in the `execute-loop`
-  skill, never the installed `CLAUDE.md`, so pasting it into the brief is the only way it ever
-  reaches the build agent at all.
-- Any brief dispatching an agent to inspect or mutation-test another agent's worktree must
-  require snapshot-committing that worktree first, so a destructive step during inspection can't
-  destroy uncommitted work.
-- **Any brief pointing an agent at a document that contains a section the agent must not read** —
-  a coordinator-only appendix, an answer key, a grading rubric, a spoiler section — must make the
-  boundary mechanical rather than advisory: require the agent to `grep -n` the restricted
-  section's header **first**, then bound **every** subsequent read of that file with an explicit
-  offset+limit ending strictly above that line number, never a default-limit read. "Stop before
-  section N" on its own does not work — a default read overshoots, and the agent discovers the
-  boundary only after it has already read past it. If the file has material *after* the restricted
-  section that the agent genuinely needs, excerpt it into the brief instead of letting the agent
-  read through the boundary to reach it. Agents overshot with default reads before this rule was
-  in the brief, and none did once it was.
-- **A hardlink copy of a git worktree carries a `.git` file pointing at the original**, so git
-  operations inside the copy mutate the original worktree's index — clone instead of copying when
-  an isolated tree is genuinely needed.
-- For any task involving a long-running blocking call (a multi-minute build, a live API
-  round-trip), forbid "self-backgrounding" explicitly — the agent arming a watcher/background
-  monitor for its own work and ending its turn with "standing by" instead of the actual result.
-  State it must run the call as one ordinary blocking foreground call, however long it takes, and
-  report the real output — nothing re-invokes a subagent that defers to itself.
-- Restate the no-side-backlog rule (see `coordinator-kit:backlog-discipline`) in every dispatched
-  brief — this is the skill-only case again: a subagent that calls a suggestion-chip/spawn-task
-  tool on its own creates a stray chip the coordinator can't see or clean up.
-- Every brief (the coordinator's own work included) keeps all file writes inside the project root
-  — scratch files, generated reports, temp scripts, downloads — in `.coordinator-scratch/`,
-  never `/tmp`/`$env:TEMP` or a home-directory path: an out-of-project write trips an allow-click
-  prompt invisible on the notify channel and blocks the session. Exempt: paths the kit itself names
-  and the founder already approved at install time — the Telegram bridge directory and its files,
-  Claude Code's own per-project memory directory, the one-time install or update clone, and temp
-  handling inside the kit's own shipped scripts.
+- **Secrets:** restate: never cat/head/tail/echo a credential file; inspect names only and load
+  secrets without printing values. No credentials in arguments that errors/process lists can
+  expose, reports, generated fixtures, backups, or derived scratch copies. Use approved config,
+  environment, stdin, or secret stores. See `coordinator-kit:credential-handling`.
+- **Scratch:** use a task-owned directory under `.coordinator-scratch/` before generating logs,
+  scripts, downloads, or reports. Source edits go to assigned project files; already-authorized
+  bridge/config/memory locations keep their existing exemptions.
+- **Mutation/inspection:** acquire the lane or use an authorized isolated clone; snapshot intended
+  work first. Keep backups and a `mutation-in-flight` marker outside the tested source tree but
+  within project scratch. Name each applied mutation, ensure recompilation, restore exactly and
+  verify the final diff. A hardlinked worktree copy can retain a `.git` pointer to the original;
+  it is not isolation. Shared worktrees also share the stash stack: do not stash others' work.
+- **Restricted sections:** if a source contains an answer key/coordinator-only appendix, determine
+  the boundary mechanically first and bound every read strictly above it. Supply allowed later
+  excerpts separately; "stop before section N" after a whole-file read is too late.
+- **Browser/device:** own the tab/session and assert its current URL/environment before mutations;
+  shared tabs may move to production mid-task. Measure the actual viewport and use the required
+  emulator/device for screen-visible work. Close only task-owned tabs/processes at completion.

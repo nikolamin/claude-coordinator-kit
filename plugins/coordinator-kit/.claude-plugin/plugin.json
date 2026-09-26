@@ -1,8 +1,8 @@
 {
   "name": "coordinator-kit",
   "displayName": "Coordinator Kit",
-  "version": "0.2.1",
-  "description": "Coordinator-role skills for turning a Claude Code session into a pure build/verify dispatcher, packaged from the claude-coordinator-kit file-copy install.",
+  "version": "0.4.0",
+  "description": "Database-backed coordinator workflows with automatic legacy-state migration, exclusive work lanes, evidence-based verification, safe recovery, and goal-oriented reporting.",
   "author": {
     "name": "nikolamin"
   },

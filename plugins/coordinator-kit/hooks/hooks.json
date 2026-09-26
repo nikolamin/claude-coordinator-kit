@@ -1,0 +1,16 @@
+{
+  "description": "Migrate legacy coordinator records to the bundled SQLite store on first startup/resume.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

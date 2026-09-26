@@ -1,99 +1,83 @@
-# coordinator-kit (plugin)
+# Coordinator Kit plugin
 
-Packages the coordinator kit's operating rules as a Claude Code plugin instead of a single
-file-copied `CLAUDE.md`: a thin, always-installed spine plus 13 skills loaded on demand. This
-plugin is **purely additive**: it changes nothing about the kit's existing file-copy install path
-(`CLAUDE.md`, `PROCESS.md`, `STATE.md`, `codex-setup.md`, `memory-seed/`, `telegram-bridge/`),
-and it does not yet replace that path — both currently coexist. A founder following the kit's
-README today is unaffected by this plugin's existence.
+Version **0.4.0** packages the coordinator workflow as a project spine plus **14 on-demand skills**.
+Each workspace supplies its own model mapping, repository topology, release authority,
+notification and persistence policies. The separate root file-copy templates,
+memory seed and optional Telegram bridge are unchanged.
 
-The design problem this solves: a plain dispatched subagent automatically inherits the installed
-`CLAUDE.md` hierarchy, but never inherits a plugin skill only the coordinator itself invoked. So
-the rules a subagent must have standing in front of it before its brief is even read (Role,
-Model routing, Guardrails, a Credential-handling summary) stay in the spine; everything a
-dispatched agent never needs for free — because it's the coordinator's own loop mechanics, or
-because it's always restated verbatim in a brief anyway — loads as a skill instead of sitting in
-every session's always-on context.
+## Operating flow
 
-## What this plugin currently provides
+Migrate/ensure the database → reconcile imported records, holds and ownership → intake/check premise → claim an available
+lane → build → independent adversarial verify → bounded fix cycles → gate authorized push →
+check CI/deployed outcome → record → next authorized work.
 
-- `skills/bootstrap/SKILL.md` — fresh-project bootstrap (installs
-  `templates/claude-md-spine.md` as the project's `CLAUDE.md`, creates the `docs/` knowledge-base
-  skeleton) and the "bootstrap yourself" resume half of the session stop/resume protocol.
-- `skills/bootstrap/templates/claude-md-spine.md` — the thin `CLAUDE.md` a plugin-based
-  coordinator installs at a project root: Role, Model routing, Execute-loop stop
-  conditions/suspension, Guardrails, a Credential-handling summary, Writes-stay-inside-the-
-  project, and a pointer to every skill below.
-- `skills/stop-and-save/SKILL.md` — the "stop and save your step" half of the same protocol:
-  suspending dispatch, closing out in-flight agents, writing the stop note.
-- `skills/phase-loop/SKILL.md` — the coordinator's full phase loop (Bootstrap through Iterate)
-  and knowledge-base doc layout, repackaged from the kit's `PROCESS.md`.
-- `skills/execute-loop/SKILL.md` — the per-task build/verify/commit/dispatch loop: the retry
-  cap, the push gate, the CI task-completion gate, and parallel-dispatch defaults.
-- `skills/verification-standard/SKILL.md` — what makes a verifier's pass/fail judgment actually
-  trustworthy: the non-trivial heuristic, live browser click-through, playtest-to-completion, and
-  the rest of the checklist.
-- `skills/escalation/SKILL.md` — when to escalate to an advice-tier agent or route to a second,
-  differently-trained model opinion, and the no-delegation brief clause.
-- `skills/codex-second-opinion/SKILL.md` — install/auth/invocation guide for getting a second,
-  differently-trained model opinion via `codex exec`, repackaged from the kit's `codex-setup.md`.
-- `skills/watchdogs/SKILL.md` — never going silently idle: monitor arming, stall detection,
-  cross-session recovery, and the listener-liveness check.
-- `skills/question-protocol/SKILL.md` — the four-part structure and one-at-a-time rule for every
-  founder-facing question.
-- `skills/comms-register/SKILL.md` — status-update format and notify-channel cadence/etiquette.
-- `skills/backlog-discipline/SKILL.md` — `plan.md`/`STATE.md` as the sole backlog, never a side
-  list only the coordinator remembers.
-- `skills/credential-handling/SKILL.md` — standing authorization, pasted-credential handling,
-  the one-honest-bound rule, and never printing or storing a credential.
-- `skills/agent-brief-hygiene/SKILL.md` — what every dispatched agent's brief must carry: what a
-  subagent inherits automatically versus what only a brief, or a skill it invokes itself, can
-  deliver.
+New products still use Concept/Objectives/Plan approval gates. Existing approved work enters
+continuous operation without repeating those interviews. One writer owns each shared checkout;
+parallelism comes from independent repos or permitted isolated worktrees and resources.
 
-None of these skills replace the source file they were generated from; every source file
-(`PROCESS.md`, `codex-setup.md`, and the file-copy `CLAUDE.md` itself) stays exactly as it is and
-keeps being copied into new projects by the existing install prompt. This plugin is a second,
-parallel way to get the same guidance in front of a Claude Code session — not a migration of the
-install path itself. Seeding the optional Telegram bridge, `memory-seed/`-style memory files, and
-Chrome browser access stay out of this plugin's scope too — a plugin-based bootstrap defers those
-one-time, optional install choices to the kit's own README.
+Full baseline/candidate suite evidence is reused only for matching revisions and environments;
+verifiers independently exercise acceptance criteria. Required live verification remains pending
+when blocked. Liveness and recent evidence guide recovery, not elapsed time alone.
 
-## Version-bump rule
+## Components
 
-`plugin.json` sets an explicit `version` (`0.2.1`) rather than leaving it unset. That is
-deliberate, not an oversight: with an explicit `version`, pushing new commits to this repo does
-nothing for anyone who already installed the plugin — they only receive an update when this
-string is bumped. Left unset, Claude Code would instead use the git commit SHA as the version,
-and every commit would count as a new release, auto-delivered on the next update check.
+| Skill | Responsibility |
+| --- | --- |
+| `bootstrap` | Preserve existing state/instructions, initialize missing setup, resume ownership |
+| `stop-and-save` | Scoped stop, evidence-preserving handoff and persistence |
+| `coordination-state` | Bundled SQLite CLI, migration, tasks/events/decisions/questions, snapshots and recovery |
+| `phase-loop` | Greenfield phases and continuous operation |
+| `execute-loop` | Exclusive lanes, retry cap, evidence reuse, push/CI/release boundaries |
+| `verification-standard` | Independent behavioral, fail-first and live-flow evidence |
+| `agent-brief-hygiene` | Source intent, falsifiable premises, bounded work and resource ownership |
+| `watchdogs` | Liveness, interrupted trees, receiver ownership and durable obligations |
+| `backlog-discipline` | Intake and goal tracking without side backlogs |
+| `question-protocol` | One presented decision, exact options and reply correlation |
+| `comms-register` | Goal-oriented status and the project's notification preference |
+| `escalation` | Repeated gaps and useful second perspectives |
+| `codex-second-opinion` | Optional Codex CLI setup/invocation |
+| `credential-handling` | Authorized account access and secret/DB handling |
 
-That auto-delivery model is exactly what this kit's own philosophy rejects for `CLAUDE.md`: a kit
-update to the coordinator's operating rules gets founder review before it's applied, never a
-silent self-merge (see the repo root's `CLAUDE.md` and `UPDATING.md`). Pinning `version` here
-keeps plugin updates on the same "founder decides when" footing, rather than quietly reintroducing
-auto-apply through the plugin update channel. Bump `version` deliberately, the same way a
-`CLAUDE.md` rule change gets deliberate review before it reaches a live project.
+The package includes a project CLAUDE.md spine, a JSON operating-profile seed, Python 3.9+
+SQLite CLI/schema, and a SessionStart migration hook. On the first updated-plugin startup it
+imports legacy STATE/plan/decision/question/profile/log companions, verifies preserved bytes,
+and replaces Markdown sources with database pointers. The database is mandatory for plugin
+coordination; original artifacts and instruction files remain available.
 
-## Install locally for testing
+Run `scripts/coord.py --help` for the command inventory. `ensure --init` initializes/migrates,
+`summary` is the read-first view, `review` handles uncertain legacy material, entity `put/show/list`
+commands own state transitions, and agents append `event` evidence. `backup` makes consistent
+SQLite snapshots. Full usage: [coordination-state](skills/coordination-state/SKILL.md).
 
-From the repo root, point Claude Code at this plugin directory directly — no marketplace add
-needed for local testing:
+No server/pip dependency. Automatic startup requires Bash plus Python; bootstrap also runs ensure
+explicitly if hooks are disabled. A hook failure is reported, not falsely labelled migrated.
+External communication bridges, agent registries and schedulers are configured by each project.
 
-```bash
+## Install and update
+
+```text
+claude plugin marketplace add nikolamin/claude-coordinator-kit
+claude plugin install coordinator-kit@coordinator-kit
+```
+
+Use `/plugin update coordinator-kit` and reload/restart according to the installed CLI.
+The manifest pins a version; deliberately bump it when preparing a release. A source checkout
+change is not publication or proof that an installed cache has updated.
+
+A fresh session after updating loads the migration hook. Normal "bootstrap yourself" ensures and
+reconciles the database, then resumes. Existing instruction files are preserved; an explicit spine
+upgrade merges a targeted diff while keeping local decisions. Stop old legacy-file writers before
+upgrading; existing DB integrations must be repointed during migration review. See the
+[release and upgrade notes](CHANGELOG.md).
+
+## Validate locally
+
+```text
+python3 -m unittest discover -s plugins/coordinator-kit/tests -v
+claude plugin validate --strict ./plugins/coordinator-kit
 claude --plugin-dir ./plugins/coordinator-kit
 ```
 
-Or test the marketplace path (what a real installer would use):
-
-```bash
-claude
-# inside the session:
-/plugin marketplace add /Users/you/path/to/claude-coordinator-kit
-/plugin install coordinator-kit@coordinator-kit
-```
-
-After either method, run `/reload-plugins` if you edit a file without restarting the session.
-Confirm the skills loaded with `/help` (Custom commands tab) or by asking a question that should
-trigger one, e.g. "what's the coordinator's phase loop" or "how do I get a codex second opinion."
-Every skill from this plugin is namespaced `coordinator-kit:<name>` — e.g.
-`coordinator-kit:phase-loop`, `coordinator-kit:execute-loop` — matching its directory name under
-`skills/` (see the full list above).
+Run the tests and validation from the kit repo. The last command loads the plugin without
+installing it; use a fixture workspace for migration tests because the hook performs real imports. Skill-frontmatter validation and scenario review are separate from observing real
+[routing](routing-test.md). Never report one as proof of the others.

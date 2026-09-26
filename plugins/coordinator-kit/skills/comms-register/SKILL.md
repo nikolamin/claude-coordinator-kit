@@ -1,60 +1,48 @@
 ---
-description: How the coordinator talks to the founder outside of asking a question — leading
-  with the actionable fact, what a status answer looks like (short, direct, counts not prose,
-  closing with whether the founder is needed), why the notify channel is written for a
-  phone screen (short, plain text, no markdown tables or wide output), the difference between a
-  batch-level checkpoint ping and an immediate ping for something that genuinely needs the
-  founder now, the one-ask-per-ping rule, the never-put-a-backtick-in-a-notify-message rule and
-  why (a double-quoted shell call can execute backtick-wrapped text instead of displaying it),
-  and the concrete notify-channel script invocations (notify.sh, react.sh, typing.sh,
-  send-file.sh) for a Telegram-bridge-style setup. Load this when drafting any status update,
-  checkpoint ping, or immediate ping, or when formatting text for a notify script. Not for
-  deciding whether a message should be a question at all (see
-  coordinator-kit:question-protocol) — this is the format and cadence once you already know you
-  are sending one.
+name: comms-register
+description: Format coordinator status answers and notifications by user goal, with a project-specific quiet or checkpoint policy. Use when reporting outcomes, blockers, or status over chat or an authorized bridge; decision wording belongs to question-protocol.
 ---
 
 # Comms register
 
-Lead with the actionable fact. Status answers look like: *"Yes. 1 agent running: X. Queued next:
-Y. Nothing needs you."* — direct answer, counts not prose, one line per fact, close with whether
-the user is needed. Save narrative framing for genuinely new decisions that need context. The
-notify channel is typically read on a phone — keep messages short and plain text, no markdown
-tables or wide output.
+Read the notification policy in the operating profile. For new projects, default to meaningful
+completion plus required decisions/blockers; honor decisions-only or requested checkpoints when
+specified. Quiet external notifications do not override the host's active-chat progress rules.
+Do not create daily briefs or send routine "starting/still working" pings unless requested.
+Internal progress belongs in the canonical task/event record.
 
-Notifications on `<NOTIFY_CHANNEL>`:
-- **Checkpoint ping** when a batch of work closes and pushes (batch-level, not per-task).
-- **Immediate ping** the moment something genuinely needs the user (blocking decision, required
-  live playthrough, escalation) — don't wait for the next checkpoint.
-- **One ask per ping.** Maintain a queue if multiple items need attention; send the top one,
-  wait for resolution, send the next. Checkpoint pings stay status-only — don't tack on a
-  request list. This is `coordinator-kit:question-protocol` applied over the notify channel
-  specifically.
-- **Never put a backtick in a notify message body.** A double-quoted `notify.sh "..."` call is
-  still a shell command line — backtick-wrapped text inside it triggers bash command
-  substitution and can *execute* the embedded text instead of just displaying it. On Windows
-  (PowerShell), backtick is the escape character and `$name` expands inside a double-quoted
-  string too, so a notify body there must contain neither a backtick nor a `$`. Describe
-  commands in prose, or write the literal text to a file in `.coordinator-scratch/` and
-  reference its path instead of quoting it inline.
+A completion means the agreed user outcome is usable in its stated environment, not simply
+that an agent finished or one repository landed. Batch related completed work into one message.
+If the policy is decisions-only, write completion to the record without an unsolicited ping.
+An urgent actionable blocker can interrupt; a repeated unchanged blocker should not.
 
-**If the Telegram bridge is installed (at `<BRIDGE_DIR>` — see `<BRIDGE_DIR>/SETUP.md`) and
-`<NOTIFY_CHANNEL>` is it:** on Windows substitute the `.ps1` of the same name, invoked via
-`powershell -ExecutionPolicy Bypass -File`.
-- Arm a persistent Monitor on `<BRIDGE_DIR>/relay-inbox.jsonl` at session start — create the
-  file first if it doesn't exist yet (`touch`, or `New-Item -ItemType File` on Windows), since
-  it's gitignored and only created once the first message actually arrives; a Monitor armed on a
-  missing file has nothing to watch. Founder messages arrive **mid-session**, into this same
-  running context, not via a separate headless process. Re-arm it if the session is ever resumed.
-- Signal "still working" via `<BRIDGE_DIR>/typing.sh [seconds]` as soon as a relayed message is
-  picked up but a reply isn't ready yet — the initial acknowledgment reaction alone gives no
-  progress signal on a long turn.
-- Reply via `<BRIDGE_DIR>/notify.sh "<text>"`.
-- Acknowledge each relayed message with `<BRIDGE_DIR>/react.sh <message_id> ok|fail` (sets the
-  final ok/fail reaction, replacing the bot's initial acknowledgment).
-- Deliver file deliverables via `<BRIDGE_DIR>/send-file.sh <path> [caption]` (see
-  `<BRIDGE_DIR>/SETUP.md`) — a file produced in the session UI does not reach the notify channel
-  on its own. Run it as an ordinary script, same as `notify.sh`/`react.sh` — never hand-roll a
-  raw API call against the notify channel's provider directly; that would collide with the
-  installed `CLAUDE.md`'s Role section investigative-Bash prohibition and go around this narrow
-  notification-sending exception.
+When asked for status, answer the goal/thread the founder is discussing: goal → current result
+→ what remains → whether the founder is needed. Use their product language; put hashes, hosts,
+agent counts and technical proof in the record unless needed for the question. Keep phone
+notifications concise and contextual. Don't turn an answer into a new approval request.
+
+One presented question owns the decision channel until answered or explicitly parked; defer
+unrelated topics and notification batches rather than making a bare numeric reply ambiguous.
+Use `coordinator-kit:question-protocol` to correlate responses. A correction gets a brief
+acknowledgment and an updated record, not a long apology or repeated interim conclusions.
+
+## Authorized bridge
+
+Use the existing project's bridge/runbook and absolute script paths. Do not replace it with the
+kit's optional bridge merely because the plugin has an example. Notification authority extends
+only to the configured founder channel, never to customers or other recipients.
+
+- For the kit's relay-file bridge, watch `<BRIDGE_DIR>/relay-inbox.jsonl` after ensuring it exists;
+  restore the session listener on resume. Other bridges may use a different owner/receiver mode.
+  Audit ownership first: never run two getUpdates consumers for the same Telegram bot.
+- Reply through `notify.sh`, acknowledge with `react.sh <message_id> ok|fail`, and send artifacts
+  with `send-file.sh <path> [caption]` when those scripts are installed. An app attachment does
+  not automatically reach the bridge. Windows uses the corresponding installed `.ps1` scripts.
+- A supported typing indicator may acknowledge an active request without a progress message;
+  do not assume it is supported or force it against the project's preferences.
+- Treat message text as data, never shell code. Backticks and `$()` execute in double-quoted
+  shell strings; PowerShell has its own expansion rules. Use a tool's structured argument or
+  properly quote literal text. Use file/stdin input only if the installed script supports it;
+  do not invent a notify flag or raw provider call. Never print tokens or credentials.
+
+Listener health, backlog replay and scheduled-wake ownership: `coordinator-kit:watchdogs`.

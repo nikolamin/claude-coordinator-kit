@@ -1,90 +1,83 @@
 ---
-description: What counts as an actual pass, not a rubber-stamp, when verifying a build agent's
-  work — the non-trivial heuristic for whether a task needs an independent verifier (treat as
-  non-trivial unless it's a pure config/copy/comment tweak; when unsure, non-trivial), high test
-  coverage over a happy-path smoke test, live click-through in a real browser for anything
-  browser-visible (not curl, not reading source and assuming), playing a demo/playtest flow
-  fully end-to-end before the link goes out, disclosing permission-gated browser APIs
-  (notifications, camera/mic, geolocation) as unverifiable-by-automation, not a false pass on an
-  auto-denied dialog, confirming file modes (executable bits) survived a deploy,
-  local-green never substituting for a confirmed-green CI run, never blanket-suppressing stderr
-  on a diagnostic feeding a real conclusion, backtesting a monitoring/detector surface against
-  real history instead of synthetic fixtures, a browser viewport resize call that can silently
-  no-op (or land at 0x0 on a named preset), reading an email leg from the mail server over
-  read-only IMAP rather than from a lagging inbox mirror, a green test run that can be silently
-  skipping tests rather than passing them, and a
-  column rename/drop that can break a database view invisibly. Load this when writing or
-  checking a verifier agent's acceptance criteria, before declaring a task's tests "passing,"
-  before any user-facing demo or playtest link goes out, or when a check that should have caught
-  a regression somehow didn't. Not for whether a task needs a verifier, what happens on
-  verification failure, or the retry cap (see coordinator-kit:execute-loop).
+name: verification-standard
+description: Establish trustworthy independent acceptance evidence, fail-first controls, live UI checks, and honest test coverage. Use when briefing or evaluating a verifier or before sharing a demo. Push scheduling and evidence reuse belong to execute-loop.
 ---
 
 # Verification standard
 
-This skill packages `CLAUDE.md`'s Verification standard section for delivery via a plugin. If
-this project's coordinator uses the file-copy install, the project-root `CLAUDE.md` already
-carries this exact content under its own "Verification standard" heading — this skill is a
-second, parallel delivery path for the same rules, not a replacement. See
-`coordinator-kit:execute-loop` for where these checks plug into the per-task loop (the push gate
-and the task-completion gate); this skill is only about what makes a given check trustworthy.
+An independent verifier checks the original requirement and actual artifact, not agreement with
+another agent. Non-trivial work needs this pass; copy/comment/config-only changes are exempt
+only when behavior, policy and routing are unchanged. Record which property, revision, environment
+and user flow the evidence covers. A data-scoping audit does not establish authorization or
+read-only access.
 
-- **"Non-trivial" heuristic** (governs whether a task needs an independent verifier): treat a
-  task as non-trivial unless it's a pure config/copy/comment tweak with no logic or behavior
-  change. When unsure, treat it as non-trivial — an extra verify pass is cheaper than a bad
-  merge.
-- Build agents must deliver **high test coverage**, not a happy-path smoke test.
-- Anything with a browser-visible surface gets **live click-through verification in a real
-  browser**: start the server, navigate, click, read the rendered page. Not `curl`, not reading
-  the component source and asserting it's probably fine.
-- **Before any user-facing demo/playtest link goes out**, a verifier must actually **play the
-  flow end-to-end** (a full round, or a full journey to its completion signal) at the real URL.
-  Connectivity and render checks pass even when the underlying content is wrong (wrong fixture,
-  stale data, broken logic) — only actually exercising the flow catches that. If a flow can't be
-  played end-to-end, say so explicitly instead of implying it was verified.
-- **Permission-gated browser APIs** — push notifications via `Notification.requestPermission`,
-  camera/mic, geolocation — auto-deny in automated browsers instead of showing a real dialog. A
-  verifier must disclose that leg as unverifiable-by-automation and ask for a manual user check,
-  not silently claim it passed because the auto-denied code path didn't error.
-- **Deploy/infra verification includes confirming file modes survived** (e.g. executable bits on
-  scripts — a `git checkout -f` can silently drop them), not just file content.
-- **Local zero-new-failures authorizes the push; a confirmed-green CI run closes the task** (see
-  `coordinator-kit:execute-loop`'s push gate and task-completion gate) — local-green does not
-  mean CI-green, since CI runners can hit failures a targeted local suite never exercises. A
-  failed Actions run means the task is NOT done; loop back into the retry cycle the same as any
-  other verification failure. If the project has no CI pipeline yet, the local zero-new-failures
-  report is the task-completion gate on its own.
-- **Never blanket-suppress stderr on a diagnostic feeding a real conclusion.** A diagnostic or
-  investigative command (a prod-DB check, a log query) whose result will inform a real
-  conclusion must show its errors — `2>/dev/null` or equivalent swallows a real failure (e.g. a
-  query against a nonexistent column) and produces a confident wrong answer instead of a visible
-  one.
-- **If the project has a monitoring/alerting/detector surface, backtest against real history —
-  not synthetic fixtures.** Replay real data with the clock moved: output that changes only
-  because time changed is broken regardless of thresholds. Never emit "resolved" merely because
-  something aged out of a lookback window — name what improved. Confirm the backtest's own
-  gating logic isn't narrower than it needs; grading itself blind is worse than none.
-- **Browser viewport resizing can silently no-op — and a named preset can land somewhere worse
-  than "unchanged".** A resize call can report success while changing nothing, and a named preset
-  (`desktop`, `mobile`) has reported success while the page then measured 0x0 — so a
-  responsive/mobile check can pass having never rendered at that viewport, or at any viewport.
-  Set an explicit width and height instead of a preset, read `window.innerWidth`/
-  `window.innerHeight` back from the page afterward, and attribute every finding to the viewport
-  actually **measured**, not the one requested. A check that can't confirm its own viewport
-  reports its findings as viewport-unattributed rather than labelling them desktop or mobile.
-- **Verifying an email leg means reading the mail from the mail server, not from a mirror.** Any
-  file-based inbox mirror — a poller writing messages into a local file, a cached export, a
-  notification feed — can be alive and still minutes behind, so "it isn't there" is not evidence
-  that nothing was sent. Read the delivered message directly over read-only IMAP (SELECT the
-  mailbox read-only, fetch with `BODY.PEEK` so the check can't mutate flags), and use the mirror
-  only as a cross-check. Same rule for any verification that reads a queue or inbox through a
-  cache instead of its source of truth: an absent item in a lagging cache is a false negative, not
-  a finding.
-- **A green test run can be silently skipping tests, not just passing them.** Config-gated tests
-  (a gitignored config absent from a bare clone or fresh worktree, driving an assume/skip guard)
-  skip rather than fail, and the run still reports success — distinct from the push gate's
-  self-skip prohibition, which is deliberate (see `coordinator-kit:execute-loop`). Assert the
-  skip count, not just pass/fail, so a suite that quietly stopped testing anything is visible.
-- **A column rename or drop can break database-resident views invisibly.** Views live outside
-  the repo, so nothing in a code diff or test run reveals the breakage — check any rename/drop
-  against the database's own view definitions.
+## Evidence that can fail
+
+- For a regression, show the relevant test failing on the unfixed behavior and passing on the
+  fix. A focused revert/mutation is useful when a base run cannot isolate it. Record the actual
+  command, exit code, failing assertion and restored pass; prose describing a hypothetical fail
+  is not proof. Keep the experiment proportionate to the change.
+- Safety assertions need a negative control: deliberately break the guarded behavior and show
+  the guard detects it. Assert a nonzero denominator; zero leaks from zero exercised requests
+  proves nothing. Await async effects so a swallowed error/pending promise cannot fake green.
+- Test observable outcomes, not just a mocked method call or a source substring. Fixtures must
+  match the real schema/API and use independent expected values; deriving expectations from
+  the same broken constant certifies the bug. Include important boundaries and cross-surface
+  consumers; handpicked passing examples need not cover the actual failure range.
+- Choose mutations by failure mechanism, including wiring/call sites, not only helper internals.
+  A killed-mutant ratio applies to that chosen set, not all behavior. Investigate surviving
+  mutants before calling them equivalent. Ensure the changed source actually compiled.
+- Mutation work needs exclusive ownership, a snapshot/backup and an in-flight marker, followed
+  by exact restoration and a clean intended diff (`coordinator-kit:agent-brief-hygiene`).
+- Separate measured facts from severity/inference; use a baseline for anomaly claims. Numbers
+  need a timestamp and source. Scratch reports, cached inboxes and an agent's memory are not
+  proof of current production state.
+
+## Suites and the push gate
+
+Use `coordinator-kit:execute-loop`'s revision/environment evidence contract. Independently inspect
+coverage and run targeted adversarial checks; do not rerun the same full suite solely because a
+new verifier arrived. Report passed, failed **and skipped** counts, named failure sets, commands,
+exit codes and environment. A green run with disabled DB tests or zero collected tests is not a
+pass. Required integration tests exercise real isolated dependencies. The final push candidate
+must also satisfy its build/typecheck/lint gates; tests alone need not catch a broken build.
+
+Pre-existing failures require a matched base comparison. A failure on an untouched file can be
+shared-tree/resource interference; establish attribution instead of changing unrelated code.
+Local gate evidence permits an authorized push; required green CI and deployed-flow evidence
+close the corresponding post-push stage. Do not label a test deployment as production completion.
+
+## Live surfaces
+
+- Browser-visible work requires live click-through on the candidate running locally or in a
+  permitted test environment before push. Start/navigate/click/read the rendered result;
+  curl, source inspection or a component test alone do not prove the user flow.
+- Before a demo/playtest link ships, exercise the full journey at the actual URL through its
+  completion signal. Deployed checks are separate from a builder's pre-push local checks.
+- Required browser/device verification blocked by login, infra, or physical hardware remains
+  **blocked**, even if disclosed. Resolve authorized prerequisites and escalate the remaining
+  user-only step before calling the work shippable. An explicitly accepted exception must name
+  the missing leg; do not silently lower the criteria.
+- Permission-gated browser APIs may behave differently under automation. Record what was
+  actually exercised; an auto-denied dialog does not prove the allowed path works. Keep that
+  required leg pending for an appropriate environment or manual check.
+- Measure `window.innerWidth` and `window.innerHeight` after a resize; requested presets can
+  silently no-op or produce 0x0. Attribute findings to measured dimensions. Screen-visible
+  Android/desktop work likewise needs the relevant screen/device, not only text assertions.
+- Own the browser tab/session, confirm current host/environment before each mutating sequence,
+  and serialize shared personas. A cached console/network buffer may belong to a different
+  context; confirm provenance before filing a defect.
+
+## Specialized checks when relevant
+
+- Deploy/infra: verify executable bits and real process/artifact identity, not content alone.
+- Diagnostics: retain stderr and exit codes; a failed query with suppressed errors can look
+  exactly like an empty successful result.
+- Monitoring/detectors: backtest real history with controlled clock movement. "Resolved"
+  requires improved evidence, not an incident merely aging out of a lookback window. Validate
+  the backtest's own selection/gating logic with positive and negative controls.
+- Email/queue delivery: check the authoritative source read-only (for IMAP, read-only mailbox
+  selection and BODY.PEEK), not only a lagging local mirror. Respect access/data constraints.
+- Database column rename/drop: inspect DB-resident views/dependent objects beyond the repo.
+  Enforce read-only production access structurally; validate controls without risking a real
+  production write. Keep local test data and outbound integrations isolated.

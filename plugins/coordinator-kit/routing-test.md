@@ -1,18 +1,22 @@
 # Skill routing test — coordinator-kit plugin
 
-Tests whether each of the 13 `coordinator-kit` skills fires on the kind of prompt a founder or
+Tests whether each of the 14 `coordinator-kit` skills fires on the kind of prompt a founder or
 a coordinator session actually produces mid-work — not on a paraphrase of its own description.
 Run this after the plugin is installed and loaded (see Prerequisites).
 
-## Sources and blind-authorship disclosure
+## Sources and authorship disclosure
 
-This document's prompts were written from **CLAUDE.md, PROCESS.md, the root README.md, the
+The original S1–S15 prompts were written from **CLAUDE.md, PROCESS.md, the root README.md, the
 plugin README.md (`plugins/coordinator-kit/README.md`), and codex-setup.md only** — the
 original ~545-line rule set the skills were carved out of, plus the surrounding kit docs. No
 `SKILL.md` under `plugins/coordinator-kit/skills/` was opened; only its directory listing was
 read (via `find`), never its content. If a prompt below fails to route, that is a finding about
 the skill's `description` frontmatter, not about how well this document could paraphrase it —
 the author never saw that frontmatter.
+
+The 0.4.0 additions (S16 and A6) were written after reading the revised skills;
+they are not blind-authored. Original empty result cells remain empty: editing
+this checklist and passing manifest validation are not routing evidence.
 
 ## A1 — Session isolation protocol
 
@@ -59,8 +63,9 @@ only happened warm, the finding is "this skill's boundary is sensitive to nearby
 content," worth a note in Section A4, but a different problem from a broken description and
 should not be filed as one.
 
-**Session count.** 6 (Rule 1) + 1 (Rule 2) + 8 (Rule 3) = 15 fresh sessions for 23 prompts, plus
-any Rule 4 re-tests. Every skill gets at least one cold read; every boundary line and one
+**Session count.** 6 (Rule 1) + 1 (Rule 2) + 8 (Rule 3) = 15 fresh sessions for the original 23 prompts, plus
+any Rule 4 re-tests. S16 adds one solo cold session for the new coordination-state skill (16 sessions, 24 prompts
+total before any re-tests). Every skill has a positive case; every boundary line and one
 negative gets a fully clean read; nothing shares a session with its own boundary counterpart.
 
 ## A2 — Prompts
@@ -220,6 +225,14 @@ Ordinary tech-choice chat, nothing coordinator-specific.
 
 Pure language-syntax question.
 
+### New state-store boundary (solo session)
+
+**S16 — solo — target: coordination-state**
+> We moved the task history into our coordination database and STATE.md is now just a short
+> summary. Resume from that, and make sure the old hold doesn't override the decision lifting it.
+
+Exercises canonical-store adoption and decision supersession, not generic database selection.
+
 ## A3 — Observation instructions
 
 For every prompt, watch the transcript **before** reading the assistant's reply:
@@ -269,11 +282,12 @@ AMBIGUOUS-OK (boundary prompt, either target is an acceptable outcome).
 | 21 | S14 warm  | NEG      |  |  |  |
 | 22 | S15 cold  | NEG      |  |  |  |
 | 23 | S15 warm  | NEG      |  |  |  |
+| 24 | S16 solo  | CS       |  |  |  |
 
 Legend: PL=phase-loop, EL=execute-loop, VS=verification-standard, ES=escalation,
 CX=codex-second-opinion, WD=watchdogs, SS=stop-and-save, BT=bootstrap,
 QP=question-protocol, CR=comms-register, BD=backlog-discipline, CH=credential-handling,
-AB=agent-brief-hygiene, NEG=none (negative control).
+AB=agent-brief-hygiene, CS=coordination-state, NEG=none (negative control).
 
 **What the results mean:**
 
@@ -300,14 +314,37 @@ AB=agent-brief-hygiene, NEG=none (negative control).
 ## A5 — Prerequisites
 
 - Confirm the plugin is installed at user scope: `coordinator-kit@coordinator-kit`. Run
-  `/help` (Custom commands tab) and confirm the 13 `coordinator-kit:*` skills are listed, or
+  `/help` (Custom commands tab) and confirm the 14 `coordinator-kit:*` skills are listed, or
   ask any question expected to trigger one and watch for the invocation per Section A3.
 - If the current session was started **before** the plugin was installed or last updated, run
   `/reload-plugins`, or restart the session — a session only picks up plugin state present at
   its own start.
 - Every session in Section A2 must be a genuinely fresh session (new session, not a resumed or
-  continued one) — reusing an old session for an S1-S15 slot silently violates Rule 1/2/3
+  continued one) — reusing an old session for an S1-S16 slot silently violates Rule 1/2/3
   regardless of what this document says to send.
 - If any other plugin is installed alongside `coordinator-kit`, note it before starting — an
   overlapping skill name or topic elsewhere could confound which invocation is actually being
   observed.
+
+## A6 — 0.4.0 behavior scenarios
+
+Use isolated fixture records, no real pushes, production access, messages, or agent cancellation.
+Inspect the coordinator's proposed actions/evidence requirements, not wording or keyword matches.
+Record textual review separately from an actual harness run. Start cold for each boundary test.
+
+| Scenario | Required observable decision |
+| --- | --- |
+| Customized CLAUDE.md; short STATE points to a task DB; user says bootstrap | Preserve instructions and source bytes; ensure/import to bundled DB, resolve review/integrations, then resume without interview reset |
+| Two disjoint-file tasks in one checkout while one runs tests | Queue the second writer or establish permitted isolation; don't certify a changing tree |
+| Base SHA matches cached evidence but toolchain/fixtures differ | Reject the mismatched cache and regenerate affected evidence |
+| Quiet verifier has native output showing ongoing build/CI progress | Retain ownership; revise estimate, no time-only kill or duplicate writer |
+| Interrupted mutation left a dirty tree and marker | Snapshot/classify/restore before the next task; never blindly commit or reset |
+| Old hold remains beside a sourced lift | Reconcile scope and mark original hold superseded, preserving unrelated restrictions |
+| Reply '2' targets an older question | Correlate exact options/reply-to; clarify ambiguity before action |
+| Required live UI check cannot authenticate though units pass | Keep required verification blocked; complete other work and surface the specific unblock |
+| Server is on test with green deploy CI but client work remains | Record partial delivery, not goal completion or production authorization |
+| Decisions-only policy; watchdog finds no actionable change | Update state without an external ping or re-arming a disabled digest |
+
+The bundled DB migration and SessionStart hook have executable fixture tests under tests/.
+These textual cases remain distinct from running that suite or observing real-model routing.
+Schedulers and agent registries remain project-provided capabilities.

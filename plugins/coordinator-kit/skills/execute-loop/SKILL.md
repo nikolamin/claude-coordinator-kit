@@ -1,148 +1,112 @@
 ---
-description: The coordinator's per-task build/verify/commit/dispatch loop — spawning a build
-  agent then an independent verifier (one structural — generated/fuzz/property — verification
-  per task, not rounds of hand-written cases), the 2-cycle retry cap before escalating, updating
-  STATE.md, the push gate's two conditions (zero-new-failures rebase report plus a verifier
-  pass or exemption), the post-push CI task-completion gate and its no-CI fallback, and
-  immediately dispatching the next unblocked task from docs/plan.md — including parallel
-  dispatch defaults and the shared-resource collisions (a test database, a fixed listen port,
-  a login-gated browser session) that make tasks non-disjoint even across separate worktrees.
-  Load this when pulling the next task from docs/plan.md, deciding whether a task has cleared
-  enough to commit and push, checking whether CI actually passed, deciding whether several
-  unblocked tasks can run in parallel or must serialize, or recognizing a founder instruction
-  that suspends autonomous dispatch ("don't start anything new until I tell you what to do").
-  Not for the phase-level loop itself (Bootstrap through Iterate — see
-  coordinator-kit:phase-loop), and not for what makes a verifier's pass/fail judgment correct
-  once dispatched (see coordinator-kit:verification-standard).
+name: execute-loop
+description: Run the coordinator's task loop, assign exclusive work lanes, bound retries, and gate pushes and completion on revision-specific evidence. Use when dispatching work, deciding what can run concurrently, or checking whether a task can ship. For how to prove behavior, use verification-standard.
 ---
 
 # Execute loop
 
-This skill packages `CLAUDE.md`'s Execute loop section for delivery via a plugin. If this
-project's coordinator uses the file-copy install, the project-root `CLAUDE.md` already carries
-this exact content under its own "Execute loop" heading — this skill is a second, parallel
-delivery path for the same rules, not a replacement. See `CLAUDE.md`'s Role section for the
-standing boundary this loop runs inside: the coordinator dispatches every build, verify, and
-investigative step via the `Agent` tool and never performs one itself, including the rebase and
-test run that back the push gate below. See `CLAUDE.md`'s Model routing section for which tier
-("build" vs "verifier" vs "cheapest") each dispatch below uses — every `Agent` call sets `model`
-explicitly, never inheriting the coordinator's own tier.
+The coordinator delegates implementation, investigation, and verification. Run database ensure,
+finish pending migration reconciliation, then read the profile and current task records (`coordinator-kit:coordination-state`); project topology,
+authorization, and model choices override defaults. A repository push may itself deploy or
+publish: use the recorded trigger map, never infer permission from a branch or host name.
 
-## Per task pulled from `docs/plan.md`
+## Dispatch and delivery
 
-1. Spawn a build agent (the build tier per `CLAUDE.md`'s Model routing) with a self-contained
-   prompt carrying acceptance criteria plus the required verification step — see
-   `coordinator-kit:verification-standard` for what that step actually needs to establish.
-2. Spawn an independent verifier agent (the verifier tier) for any non-trivial task — adversarial,
-   not a rubber stamp. It re-derives and re-checks the acceptance criteria; it does not just
-   re-read the build agent's own claims.
-   Each task gets **one structural verification** — a generated/fuzz/property-style criterion
-   (random inputs against an invariant, a mutation run, a generated-case sweep) written into the
-   verifier's brief — not repeated rounds of hand-written cases: a hand-written round finds only
-   the bugs its author imagined, and every further round is one more full agent transcript. A
-   structural check still failing at step 3's cap is the escalation trigger
-   (`coordinator-kit:escalation`), never a third round of cases.
-3. If verification fails: **respawn a fresh agent** with the specific gap, pointed at the files
-   on disk (build report, design doc, verify report paths) — never resume the large agent via
-   `SendMessage`. Resuming re-writes its whole grown transcript on a cold prompt cache at 2x:
-   two thrice-resumed agents were 40% of a measured 48M-token session. Repeat until acceptance
-   criteria are actually met — but cap it at **2 failed respawn cycles on the same gap**. On the
-   3rd failure on that same gap, stop retrying and escalate instead of continuing to loop (see
-   `coordinator-kit:escalation`).
-4. Update `docs/coordination/STATE.md` (build → verify → fix → re-verify, commit hashes,
-   disclosed caveats).
-5. Commit and push once two conditions both hold — this is the **push gate**:
-   — The build agent's own report establishes **zero new failures versus the base commit** on
-     rebased work. Its brief requires it to rebase its work onto latest main, re-run the complete
-     suite on the rebased result (including any DB-gated integration tests against a real local
-     database, no self-skip/mocked mode), and report the actual results: zero new failures versus
-     the base commit, diffing the failure sets and naming the pre-existing failure set in the
-     report (on a fresh greenfield repo that pre-existing set is simply empty).
-   — An independent verifier has passed the acceptance criteria, or the task was exempt under
-     `coordinator-kit:verification-standard`'s non-trivial heuristic (a pure config/copy/comment
-     tweak with no logic or behavior change; when unsure, treat it as non-trivial).
+1. Select an authorized, unblocked task by priority and dependencies. Preserve the founder's
+   original request alongside acceptance criteria. Before implementing an old ticket, have the
+   agent cheaply test its premise: already fixed, wrong cause, and not reproducible are useful
+   findings, not invitations to invent a change. Correct stale records at their source.
+2. Claim a lane before dispatch. Record task/agent id, repository and checkout, branch, owned
+   paths, external resources, stage, model, start time, expected duration, and report path.
+   Give the agent a bounded brief using `coordinator-kit:agent-brief-hygiene`.
+3. Builder implements and runs affected checks locally. For non-trivial work, dispatch a fresh
+   independent adversarial verifier; pure copy/comment/config changes with no behavior change
+   may be exempt. Policy, authorization, routing, or deploy configuration changes are behavioral.
+   Include one structural check suited to the acceptance criteria, such as a generated-case
+   sweep, property invariant or controlled mutation. Repeated handpicked cases do not replace
+   coverage of the failure mechanism; failures follow the same bounded retry/escalation loop.
+4. A failed verification gets a fresh fixer with the exact gap and on-disk evidence. Allow at
+   most two fix/re-verify cycles on the same gap after the initial failure; if the second cycle
+   also fails (third failure overall), escalate via `coordinator-kit:escalation`. A new agent
+   does not reset the counter. Do not resume a large completed transcript merely to continue
+   work; a status-only probe to a still-running agent is different.
+5. Establish the push gate below, then commit/push only what the project's authorization permits.
+   An assigned agent may snapshot its own work before verification when local commits are
+   authorized; otherwise preserve a patch. This does not expand the coordinator's product-commit
+   exception, authorize a push, or allow sweeping another agent's changes into the snapshot.
+6. Check the actual post-push outcome. Record built, verified, pushed, on-test, on-prod, and
+   awaiting-user-validation separately; a server half without its required client is not a
+   completed user goal. Dispatch a deployed-flow check when the criteria require one.
+7. Persist the result, release the lane when no writer/test/mutation process still owns it, and
+   dispatch the next authorized unblocked task. Do not ask whether to continue approved work.
 
-   The coordinator gates the commit/push on those two reports and never rebases or runs the suite
-   itself (see `CLAUDE.md`'s Role section). Push once, deliberately — never push speculatively "to
-   see if CI passes." The coordinator's own commit/push is covered by `CLAUDE.md`'s Role-section
-   bookkeeping exception, which extends to two read-only safety checks immediately around it and
-   nothing more: in a shared (non-worktree) checkout, run `git status` before committing and
-   commit only the intended paths — a broad `git add <file> && git commit` in a shared tree can
-   sweep in a concurrent agent's staged-but-uncommitted files under an unrelated commit message —
-   and before pushing, check what is actually ahead of origin (`git log origin/<branch>..`) and
-   push only the reviewed/verified commit(s), since a push meant to land one reviewed commit can
-   also carry a second agent's in-flight unreviewed commit along with it. Never run destructive
-   git operations (`checkout --`, `reset`, `clean`) on a tree that may hold another agent's
-   uncommitted work.
+## Lanes and shared resources
 
-   **Task-completion gate (necessarily after push, not before):** if the project has a CI pipeline
-   — established via `STATE.md`/the repo map or a dispatched agent's report, never the
-   coordinator's own guess — dispatch a small agent (cheapest tier for a plain pass/fail read,
-   build tier if `--log-failed` needs triage) to check the actual CI run (`gh run list` /
-   `gh run view --log-failed`) and report back; the coordinator never runs `gh` itself, same
-   investigative-Bash prohibition as above. Pin that check to the pushed commit
-   (`gh run list --commit <sha>`), never `--limit 1`, which reports whatever ran last — possibly
-   another branch's run. Pass the **full 40-character sha**: an abbreviated sha matches nothing and
-   returns an empty list, which reads as "no run was triggered" for a run that exists — a false
-   negative that closes or re-opens a task on a fiction. Treat an empty result as unresolved
-   (re-query with the full sha, or wait) rather than as an answer. A confirmed-green run closes the
-   task; a failed run means NOT done: loop back into step 3 with the failure log. If there's no CI
-   pipeline yet (e.g. still at Bootstrap), the push gate's local zero-new-failures report is the
-   task-completion gate on its own — don't invent a CI check that doesn't exist — and standing
-   up CI becomes its own task in `docs/plan.md`, not a blocker on every other task.
-6. Immediately dispatch the next unblocked task from `docs/plan.md`'s dependency graph —
-   **without asking**. The plan already answers "what's next"; asking again is noise. If
-   multiple tasks are unblocked, pick by the plan's stated priority/dependency order yourself —
-   don't ask the founder to choose between viable options ("preference, or should I pick?" is the
-   same anti-pattern as "should I continue?"). When several unblocked tasks don't touch the same
-   files, dispatch them in parallel by default rather than serializing one at a time.
+- **One writing/committing agent per shared checkout**, including fixers and mutation verifiers.
+  A read-only verifier also needs a stable snapshot; do not certify a tree another agent edits.
+  Disjoint filenames alone do not make tests, the index, or a dev server independent.
+- Parallelize across independent repositories or isolated worktrees when the recorded branching
+  convention permits them. Trunk-based projects can use serialized lanes without worktrees.
+  Branch names and merge authority are project choices, not plugin defaults to impose.
+- Worktrees still share external services and the Git stash stack. Allocate task-owned database
+  schemas/instances, ports, build outputs, and browser sessions or serialize those users. Check
+  ownership before starting and before cleaning up. Never kill a shared database or another
+  developer's server, run broad daemon-stop commands, or use `git stash` as cross-agent isolation.
+- Before a local app starts, identify outbound effects. Production-restored data can cause real
+  email/SMS/webhook sends even on localhost; disable outbound delivery or use an isolated sink.
+- A crash does not release a lane by itself. Inspect and preserve the remaining tree/processes
+  first, including mutation markers (`coordinator-kit:watchdogs`).
 
-   This worktree-per-task default assumes a project where isolating each task in its own branch is
-   safe; a trunk-based or continuous-deploy project (where a push to the trunk branch is itself the
-   deploy trigger) may need the opposite convention entirely — don't assume the default applies.
-   Confirm which this project is and record it as a durable decision in `STATE.md`.
+## Test evidence: once per revision and environment
 
-   Worktrees isolate the file tree only — they do not isolate a shared external service (a test
-   database, a fixed listen port, a shared schema). If the colliding tasks would also share one of
-   those, either fall back to sequential dispatch for just those tasks, or give each agent a private
-   instance: put it in each parallel build agent's own brief to claim its own port/datadir (e.g.
-   check `lsof -nP -iTCP:<port> -sTCP:LISTEN` on macOS/Linux, or
-   `Get-NetTCPConnection -LocalPort <port> -State Listen` / `netstat -ano | findstr :<port>` on
-   Windows, before claiming one) and drop+recreate its own schema so migrations start clean — the
-   coordinator doesn't provision this itself, it's a requirement placed on each build agent's brief.
-   A shared-service collision shows up as a flaky test failure or a bogus assertion mismatch, not an
-   obvious merge conflict, so it's easy to misdiagnose as a real bug. One browser holds one session
-   per site, so login-gated persona/browser tests are the same shared-resource collision class
-   applied to a browser session instead of a service — run them sequentially too, never in
-   parallel.
+Avoid multiplying full suites by the number of agents. Builders and fixers run affected checks;
+the full candidate suite runs at the push gate, and verifiers reuse valid suite evidence while
+independently testing the acceptance criteria.
 
-## Re-dispatch is routine, not a decision
+- Cache baseline results under `.coordinator-scratch/base-failures/<full-sha>/` with a manifest:
+  repository, full revision, clean-tree/diff identity, commands, toolchain, dependency/config
+  fingerprint (no secrets), database/schema setup, timestamp, exit codes, pass/fail/skip counts,
+  named failure set, and log paths. A file merely existing is not a valid cache hit.
+- Reuse only when that identity and required coverage match. Missing logs, changed fixtures,
+  toolchains, config, schema, or source invalidate the affected evidence. Shared-tree edits
+  during a run make attribution unresolved. Keep baseline failures distinct from candidate ones.
+- After a fix, rerun affected checks. Before push, the full required suite, build, lint and
+  typecheck must cover the final candidate. Use real local dependencies for required integration
+  tests; no mocked/self-skip substitutes. Compare failure sets, not just totals, and report skips.
+- Any source change after verification requires review of the changed scope. Reuse across a
+  rebase only when an agent documents why the tested tree/dependencies are unchanged or the
+  upstream changes cannot affect the covered behavior, with relevant checks on the new revision.
+  If impact is uncertain, rerun; a vague "unrelated rebase" is not evidence.
 
-**Never ask permission to re-dispatch a lost, stuck, or failed agent.** Retrying a transient
-failure, re-prompting after a bad result, or recovering a dropped task ID is routine coordination
-mechanics, not a decision — unless a recorded suspension of autonomous dispatch is in force (see
-below), in which case report the failure/stall in STATE.md and to the founder instead (see also
-`coordinator-kit:watchdogs` for the stall-detection side of this same rule).
+## Push gate and completion gate
 
-## Suspension of autonomous dispatch
+Push requires both **zero new failures versus the identified base** for the final candidate and
+an **independent acceptance pass** (or documented non-behavioral exemption). Required live UI
+verification that is blocked remains blocked: disclosure is not a substitute. Finish every
+authorized preparatory step before presenting a concrete remaining approval/unblock request.
 
-**A founder instruction can suspend autonomous dispatch.** Step 6's "immediately dispatch,
-without asking" is the default, not an absolute — a founder instruction can impose a standing
-gate on new dispatch (e.g. "don't start anything new until I tell you what to do"). When it does:
-record it verbatim in `docs/coordination/STATE.md`'s Durable decisions, and honor it until the
-founder explicitly lifts it. A status question, an ambiguous query, or "do you have work?" is
-never such a lift — only an unambiguous instruction naming what to resume is. While suspended,
-status reporting, the question queue, and scheduled/checkpoint reports continue exactly as
-before; only new agent/build/investigation dispatch stops. See `coordinator-kit:watchdogs` for
-how this interacts with cross-session recovery.
+In a shared tree, check `git status` and the index before committing; stage/commit intended paths
+only, never sweep another agent's staged files. Before pushing, inspect
+`git log origin/<branch>..` and ensure every outgoing commit is reviewed and authorized. Never
+reset, clean, discard, or force-push to get past a conflict or rejected push; dispatch recovery.
 
-## Stop conditions
+When CI exists, an agent checks required runs for the **full 40-character pushed SHA**, not
+"latest run" or a possibly stale branch filter. Empty, pending, skipped-required, or missing
+runs are unresolved; green deploy-only CI does not prove local tests ran. Failed required CI
+returns to the fix loop. If verified topology establishes there is no CI, use the local gate
+and any required deployed check; CI setup is a separate task. Recheck topology when it changes.
 
-**Only stop the loop for:**
-- A genuine user-only action (live demo/playthrough, a public go-live).
-- A real fork in the road with no obviously-correct default.
-- Being actually blocked (missing access, failing infra only the user can unblock).
-- A recorded suspension of autonomous dispatch (above) still in force.
+Keep release/go-live authority separate from verification. A tag, release branch, package
+publish, or merge can have production effects; local green and test deployment never grant
+permission for those effects. Report completion at the goal's agreed environment and scope.
 
-Everything else: keep looping, report at checkpoints (see `CLAUDE.md`'s Comms register section),
-don't pause and wait.
+## Holds and autonomous scope
+
+Recover lost/failed agents without re-asking for already-authorized work, after checking liveness
+and leftovers. Honor explicit holds across sessions. Record the founder's exact instruction,
+scope and source; when lifted, mark the original hold superseded with the lift's source too.
+"Resume this task" need not lift unrelated holds or authorize a new backlog. A status question
+is not a lift. Stop only dependent work for a user-only action, unresolved material choice,
+actual access/infra blocker, or applicable suspension; continue independent authorized lanes.
+If the approved queue is empty, use only a recorded, authorized fallback activity or stay idle.
+Report according to `coordinator-kit:comms-register`, not on every loop iteration.
