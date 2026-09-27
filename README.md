@@ -66,6 +66,11 @@ independent behavioral verification, revision/environment-specific test evidence
 project's authorized push/CI/release flow. Notifications follow the project's preference;
 new projects default to meaningful completion and decisions rather than per-agent narration.
 
+New requests follow read-only definition, priority and a recorded queue position. The bundled
+`status` command gives a compact progress view; `sweep` flags missed release questions, an idle
+decision slot and quiet work for review. Actions the user wants to initiate are tracked separately.
+Both commands read the database without sending messages, changing state or granting approval.
+
 Version 0.4.0 adds database-backed coordination and recoverable first-run migration. See the
 [release and upgrade notes](plugins/coordinator-kit/CHANGELOG.md). The plugin includes a
 Python/SQLite CLI and a SessionStart hook that automatically migrates legacy state on the first
@@ -122,7 +127,7 @@ codex plugin marketplace upgrade coordinator-kit
 codex plugin add coordinator-kit@coordinator-kit
 ```
 
-Both host manifests pin an explicit `version` (`0.6.1`) instead of tracking this repo's HEAD commit,
+Both host manifests pin an explicit `version` (`0.7.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.

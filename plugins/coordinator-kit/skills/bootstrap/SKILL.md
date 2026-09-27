@@ -29,7 +29,7 @@ first-run migration supplied by the plugin, not a task to defer or an optional M
    Reconcile imported needs_review records too. Existing SQLite sources also require repointing
    legacy coordinator/bridge integrations; their original DB files are preserved untouched.
 4. Continue only after `summary.ready_for_dispatch` is true, then apply the actual task/hold
-   authorization. Migration readiness is not production permission. Record plugin version 0.6.1
+   authorization. Migration readiness is not production permission. Record plugin version 0.7.0
    and the adopted spine version separately in the workspace profile.
 
 Existing work remains existing even if all old state filenames now contain short pointers.
@@ -64,7 +64,7 @@ For nonstandard source locations, use `.coordinator/migration.json` per the stat
 
 ## Resume / "bootstrap yourself"
 
-1. Run ensure and read summary, active profile/handoff records, open tasks, holds/lifts and the
+1. Run ensure and read summary, status, sweep, active profile/handoff records, open tasks, holds/lifts and the
    presented question. Resolve any new migration review before dispatch. A sourced explicit
    resume lifts the matching session stop, not unrelated scope/production holds; use the atomic
    decision supersession command so the original hold cannot remain falsely active.

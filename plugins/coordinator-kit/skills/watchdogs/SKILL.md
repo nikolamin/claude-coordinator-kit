@@ -10,6 +10,21 @@ work (typically 20–30 minutes). Record its actual id and scope in the canonica
 scheduler is a disclosed limitation, never a reason to claim a wake-up is armed. Do not create
 duplicate monitors or revive a schedule the founder disabled.
 
+## Sweep the recorded queue
+
+On wake/resume, run the bundled `coord.py --root WORKSPACE sweep` alongside the normal state
+read. It reports releases/user blockers without a linked question, an idle question slot with
+queued work, outdated questions, and quiet in-progress/verifying tasks. It never sends, changes
+status, dispatches or cancels. Use `--available-slots N` only after a fresh native fleet/capacity
+check; its dispatch candidates still require scoped authorization and lane/resource checks.
+Unknown capacity is not zero agents, and missing recent DB notes is not proof an agent died.
+
+Reconcile each item with current evidence. Promptly queue/present a legitimate release decision
+while keeping one presented question; exclude user-initiated actions. Resolve migration reviews
+and applicable holds before dispatch. Update task records for stale premises rather than hiding
+the symptom in a report. `--stale-hours` changes only the liveness-review threshold; it is not a
+kill timeout. Keep unchanged sweep results internal under the notification policy.
+
 ## Check evidence before replacing an agent
 
 1. Read the native agent status and most recent meaningful output/checkpoint. Compare with its

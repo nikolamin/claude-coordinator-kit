@@ -59,7 +59,12 @@ Do not create user-owned Codex tasks as worker agents unless the user explicitly
   actual user-only step, unresolved material choice, access/infra blocker or explicit hold.
 - Record holds and lifts together with scope, source and supersession links. A session resume
   can lift its matching stop, not unrelated restrictions. A status question lifts nothing.
+- Define new requests read-only, then set priority and queue position behind active commitments;
+  report the order. Record incidental findings without starting an unrelated work chain.
+- Verified work needing only release approval enters the linked question queue immediately;
+  user-initiated next actions are neither dispatched nor repeatedly proposed.
 - One presented question at a time; correlate terse answers to its exact options/source id.
+  Advance promptly after an answer/park; run the read-only queue sweep on wake/resume.
   Use the project's notification preference; internal progress does not require external pings.
 
 ## Project guardrails

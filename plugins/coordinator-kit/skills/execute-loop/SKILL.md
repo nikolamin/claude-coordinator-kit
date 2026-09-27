@@ -15,7 +15,9 @@ publish: use the recorded trigger map, never infer permission from a branch or h
 
 ## Dispatch and delivery
 
-1. Select an authorized, unblocked task by priority and dependencies. Preserve the founder's
+1. Select an authorized, unblocked task by recorded queue order, priority and dependencies.
+   Define and queue new requests through `coordinator-kit:backlog-discipline`; do not preempt
+   active work without an explicit reprioritization or applicable incident policy. Preserve the founder's
    original request alongside acceptance criteria. Before implementing an old ticket, have the
    agent cheaply test its premise: already fixed, wrong cause, and not reproducible are useful
    findings, not invitations to invent a change. Correct stale records at their source.
@@ -40,6 +42,9 @@ publish: use the recorded trigger map, never infer permission from a branch or h
 6. Check the actual post-push outcome. Record built, verified, pushed, on-test, on-prod, and
    awaiting-user-validation separately; a server half without its required client is not a
    completed user goal. Dispatch a deployed-flow check when the criteria require one.
+   When release approval is the only remaining step, set `awaiting_release` with target/evidence
+   and queue its linked decision immediately. For user-initiated next actions, keep the current
+   state plus that flag and await the user's initiation without proposing a release question.
 7. Persist the result, release the lane when no writer/test/mutation process still owns it, and
    dispatch the next authorized unblocked task. Do not ask whether to continue approved work.
 

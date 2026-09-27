@@ -21,6 +21,16 @@ When asked for status, answer the goal/thread the founder is discussing: goal â†
 agent counts and technical proof in the record unless needed for the question. Keep phone
 notifications concise and contextual. Don't turn an answer into a new approval request.
 
+Use the bundled `status` view for a compact operational snapshot: running work, work awaiting
+release, the presented question, queued-question count and the next pending tasks. Running tasks
+never appear as "next"; user-initiated actions do not inflate "waiting on you". Use full record
+views only when detail is requested. For new intake, report the defined priority and queue
+position. An explicit request for pending decisions follows the one-question protocol.
+
+Format for the actual channel: short heading, one fact per bullet, spacing between groups, and
+any decision last. Use rich text/HTML only when the installed bridge supports it; escape dynamic
+text with that channel's rules. Do not assume a transport flag or a project's language/format.
+
 One presented question owns the decision channel until answered or explicitly parked; defer
 unrelated topics and notification batches rather than making a bare numeric reply ambiguous.
 Use `coordinator-kit:question-protocol` to correlate responses. A correction gets a brief

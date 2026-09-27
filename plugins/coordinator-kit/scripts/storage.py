@@ -9,11 +9,11 @@ import sqlite3
 import tempfile
 import time
 
-VERSION = '0.6.1'
+VERSION = '0.7.0'
 SCHEMA = 1
 KINDS = ('task', 'decision', 'question', 'lane', 'profile', 'handoff', 'guideline')
 STATUSES = {
-    'task': {'pending', 'in_progress', 'verifying', 'on_test', 'on_prod', 'blocked', 'done', 'dropped', 'needs_review'},
+    'task': {'pending', 'in_progress', 'verifying', 'on_test', 'awaiting_release', 'on_prod', 'blocked', 'done', 'dropped', 'needs_review'},
     'decision': {'active', 'superseded', 'needs_review'},
     'question': {'queued', 'presented', 'answered', 'parked', 'needs_review'},
     'lane': {'active', 'released', 'needs_review'},
@@ -197,9 +197,27 @@ class Store:
             raise ValueError('Record needs a nonempty title and valid status')
         if not imported and kind in ('task', 'decision', 'question') and not merged.get('source'):
             raise ValueError('Record requires original source/provenance')
-        if not imported and kind == 'task' and status in ('in_progress', 'verifying', 'on_test', 'on_prod', 'done'):
+        if not imported and kind == 'task' and status in ('in_progress', 'verifying', 'on_test', 'awaiting_release', 'on_prod', 'done'):
             if not merged.get('acceptance'):
                 raise ValueError('Active/completed task requires acceptance criteria')
+        if not imported and kind == 'task':
+            position = merged.get('queue_pos')
+            if position is not None and (type(position) is not int or position < 1):
+                raise ValueError('queue_pos must be a positive integer or null')
+            for flag in ('user_initiated', 'needs_user'):
+                if flag in merged and type(merged[flag]) is not bool:
+                    raise ValueError(flag + ' must be a JSON boolean')
+            if status == 'awaiting_release':
+                target = merged.get('release_target')
+                if not isinstance(target, str) or not target.strip() or not merged.get('evidence'):
+                    raise ValueError('awaiting_release requires release_target and verification evidence')
+        if not imported and kind == 'question' and 'tasks' in merged:
+            refs = merged['tasks']
+            if not isinstance(refs, list) or any(not isinstance(ref, str) for ref in refs):
+                raise ValueError('Question tasks must be a list of task ids')
+            for ref in refs:
+                if self.get(ref)['kind'] != 'task':
+                    raise ValueError('Question tasks must reference task records')
         if kind == 'question' and status == 'presented' and not merged.get('options'):
             raise ValueError('Presented question requires the exact options/question contract')
         if not imported and kind == 'question' and status == 'answered' and not (merged.get('answer') and merged.get('answer_source')):

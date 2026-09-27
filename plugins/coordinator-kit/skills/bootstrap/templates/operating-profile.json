@@ -3,7 +3,7 @@
   "status": "active",
   "project": "",
   "phase": "bootstrap",
-  "plugin_version": "0.6.1",
+  "plugin_version": "0.7.0",
   "spine_version": "",
   "workspace_root": "",
   "coordination_repository": "",
@@ -17,6 +17,11 @@
     "second_opinion": {}
   },
   "models": {},
+  "queue": {
+    "intake": "define-prioritize-queue",
+    "preempt_active": false,
+    "user_initiated_actions": []
+  },
   "notification": {
     "channel": "",
     "policy": "completion-and-decisions",

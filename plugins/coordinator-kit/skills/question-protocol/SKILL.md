@@ -20,6 +20,17 @@ channel topic too: do not mix in an unrelated numbered list that could make "2" 
 Continue work that does not depend on the answer. Explicit "park this" closes the presented
 slot without approving its proposed action.
 
+Link the question to its canonical `tasks` ids. Queued means prepared but not sent; presented
+means actually shown/sent, with its outbound id saved. After an answer or explicit park, promptly
+present the next still-valid queued question on the authorized channel, then record delivery.
+Do not wait for another status request or mark it presented just because it is next in the DB.
+One at a time limits concurrent decisions; it does not justify letting the queue sit idle.
+
+"What is waiting on me?" gets the queue count and the current/top question alone, not a list of
+separate decisions disguised as status. Work whose sole remaining step is release approval
+enters this queue as soon as verification closes. Exclude actions marked `user_initiated`:
+the user's instruction to initiate it themselves also means not proposing it as the next ask.
+
 Before acting on a terse reply, inspect reply-to/thread context and the recorded options.
 Check that the referenced question is still actionable: a superseded proposal, already-applied
 answer or invalidated option is not reactivated by a late reply. Record the late answer and

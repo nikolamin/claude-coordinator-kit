@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0
+
+- Define new requests read-only, then prioritize and record their queue position without
+  displacing active work. Keep incidental findings out of unrelated investigation/fix chains.
+- Add task queue positions, explicit user-initiated actions, user blockers and `awaiting_release`
+  with release target/evidence. Preserve existing schema-1 data without reclassifying old tasks.
+- Link questions to task ids and advance the single presented decision promptly after resolution;
+  verified release work enters the question queue unless the user reserved initiation.
+- Add read-only `status` and `sweep` commands for compact progress, missed release decisions,
+  idle question slots, stale-work checks and capacity-aware dispatch candidates. Retain holds,
+  migration review, dependencies and liveness checks; no automatic messaging or cancellation.
+- Adapt concise channel formatting and update both Claude Code and Codex packages. Project
+  release routes, recipients, language, accounts and live state remain workspace configuration.
+
+Validation: 52 offline tests pass, including 10 new operational-view regressions and a 64-case
+dispatch-eligibility check. Both manifests, all 15 skills and relative links validate. The new
+views preserve database contents and archived sources; this does not claim a live-project rollout.
+
 ## 0.6.1
 
 - Put the UX audit's scope-first gate in its discovery description as well as its body so Codex

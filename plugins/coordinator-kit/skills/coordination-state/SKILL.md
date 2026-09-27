@@ -57,6 +57,10 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
 - `task put ID --data FILE` creates/merges a record; `task show ID`, `task list --open` read it.
   Fields include `title`, `status`, `source`, `source_text`, `goal`, `acceptance`, `dependencies`,
   `priority`, `repo`, `branch`, `commits`, `environment`, `blocked_on`, `next_step`, `evidence`.
+  `queue_pos` is a positive integer (null clears it); `user_initiated` and `needs_user` are JSON
+  booleans. `awaiting_release` means verified/on-test and waiting only for release permission;
+  it requires `release_target`, acceptance criteria and verification `evidence`. A user-initiated
+  next action stays out of release questions and automatic dispatch until the user starts it.
   Active/completed tasks require acceptance criteria. Use `--if-version N` after a read when a
   concurrent coordinator might update the same record. Put merges fields, never silently drops them.
 - `decision put ID --data FILE` stores the exact sourced instruction, scope, and `type: hold`
@@ -66,6 +70,9 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
 - `question put ID --data FILE` uses queued/presented/answered/parked states. Store exact options,
   default, outbound id, answer and answer_source. The DB permits only one presented question;
   reply correlation and stale-option checks still follow `coordinator-kit:question-protocol`.
+  Set `tasks: ["TASK_ID"]` to link decisions explicitly; text mentioning a task is not a link.
+  After answering/parking, select the next valid queued question; presenting/sending is a separate
+  action, never an automatic side effect of a database write.
 - `lane put ID --data FILE` claims a checkout with `status: active`, `checkout`, `task`, `agent`,
   model, resources and checkpoint path. One active lane per normalized checkout is enforced.
   Set released only after settling writers, child processes and mutations. External-resource
@@ -78,6 +85,11 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
   appends evidence without changing status. Agent CLI mode disallows coordination transitions;
   this is a workflow boundary, not a sandbox against a process with direct filesystem access.
 - `event list`, `search WORDS`, `review list`, and `source list` locate live and historical evidence.
+  `status --limit 3` gives a compact operational JSON view, including the one presented question
+  and next pending tasks. `sweep` gives read-only follow-up items; `--stale-hours 6` controls when
+  to inspect liveness, while optional `--available-slots N` uses freshly checked capacity for
+  dispatch candidates. Neither command sends messages or supplies approval. A timezone-aware
+  `--now` on sweep supports offline replay; normal operation uses the actual clock.
   `render` returns a human view; optional output belongs under `.coordinator/reports/` and is never
   authoritative. `check` validates DB and preserved sources; `backup NEW_PATH` creates a consistent
   SQLite snapshot. Commit that snapshot in the designated coordination repo when required;
@@ -87,3 +99,8 @@ Read `summary`, active profile/handoff records and the relevant tasks on resume.
 intent, holds and answers with source references; use actual clock timestamps and measured
 revisions. The database retains the event history, so there is no need to rewrite or compact
 large state files. This narrow bookkeeping access does not grant access to product databases.
+
+These optional queue/release fields use the existing record payload; schema 1 databases open
+without a table rebuild. Existing on-test tasks and old free-text blockers are not automatically
+reclassified or granted approval. Reconcile them from their sources. Legacy database import
+continues to preserve every original column under `legacy` and require review before dispatch.

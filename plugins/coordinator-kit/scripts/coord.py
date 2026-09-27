@@ -8,6 +8,7 @@ import sys
 
 from storage import KINDS, Store, atomic_write, digest, dumps, inside, now
 from migrate import ensure
+from operations import status_view, sweep
 
 
 def parser():
@@ -36,6 +37,12 @@ def parser():
     add.add_argument('--record'); add.add_argument('--ref'); add.add_argument('--source'); add.add_argument('--key')
     listing = event.add_parser('list'); listing.add_argument('--record'); listing.add_argument('--limit', type=int, default=30)
     sub.add_parser('summary'); sub.add_parser('check')
+    status = sub.add_parser('status', help='Compact operational view; does not send a notification')
+    status.add_argument('--limit', type=int, default=3, help='Maximum tasks per displayed group (1-20)')
+    scan = sub.add_parser('sweep', help='Read-only reminders for missed questions, releases and stale work')
+    scan.add_argument('--stale-hours', type=float, default=6)
+    scan.add_argument('--available-slots', type=int, help='Freshly checked worker capacity; omit if unknown')
+    scan.add_argument('--now', help='Timezone-aware ISO timestamp for offline replay; defaults to the real clock')
     search = sub.add_parser('search'); search.add_argument('query'); search.add_argument('--limit', type=int, default=30)
     review = sub.add_parser('review').add_subparsers(dest='operation', required=True)
     review.add_parser('list')
@@ -73,7 +80,7 @@ def render(st):
 
 def execute(st, a):
     cmd, op = a.command, getattr(a, 'operation', None)
-    if a.actor == 'agent' and not (cmd in ('summary', 'check', 'search') or
+    if a.actor == 'agent' and not (cmd in ('summary', 'status', 'sweep', 'check', 'search') or
             (cmd in KINDS and op in ('show', 'list')) or (cmd in ('review', 'source') and op in ('show', 'list')) or cmd == 'event'):
         raise ValueError('Agent mode permits reads and append-only events, not coordination transitions')
     if cmd in KINDS:
@@ -114,6 +121,12 @@ def execute(st, a):
         return [dict(r) for r in st.con.execute(sql + ' ORDER BY id DESC LIMIT ?', params)]
     if cmd == 'summary':
         return st.summary()
+    if cmd in ('status', 'sweep'):
+        st.con.execute('BEGIN')
+        try:
+            return status_view(st, a.limit) if cmd == 'status' else sweep(st, a.now, a.stale_hours, a.available_slots)
+        finally:
+            st.con.rollback()
     if cmd == 'search':
         term = '%' + a.query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
         limit = max(1, min(a.limit, 1000))

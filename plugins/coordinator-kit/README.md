@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.6.1** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.7.0** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -50,6 +50,13 @@ Run `scripts/coord.py --help` for the command inventory. `ensure --init` initial
 `summary` is the read-first view, `review` handles uncertain legacy material, entity `put/show/list`
 commands own state transitions, and agents append `event` evidence. `backup` makes consistent
 SQLite snapshots. Full usage: [coordination-state](skills/coordination-state/SKILL.md).
+
+New requests are defined read-only, prioritized and given a visible queue position behind active
+work. Incidental findings stay recorded until they belong to authorized work. Verified test work
+needing only release approval uses `awaiting_release` and an explicitly linked question; actions
+the user wants to initiate stay out of reminders. `status` provides a compact view and `sweep`
+finds missed decisions and liveness checks without sending messages or changing records.
+These additions reuse the existing database schema; existing records keep their status and history.
 
 No server/pip dependency. Automatic startup requires Bash plus Python; bootstrap also runs ensure
 explicitly if hooks are disabled or untrusted. Codex requires hook trust separately from plugin

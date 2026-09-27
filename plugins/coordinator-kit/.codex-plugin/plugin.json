@@ -1,6 +1,6 @@
 {
   "name": "coordinator-kit",
-  "version": "0.6.1+codex.20260926012854",
+  "version": "0.7.0+codex.20260927001115",
   "description": "Database-backed coordinator workflows with automatic legacy-state migration, exclusive work lanes, evidence-based verification, safe recovery, and goal-oriented reporting.",
   "author": {
     "name": "nikolamin"
