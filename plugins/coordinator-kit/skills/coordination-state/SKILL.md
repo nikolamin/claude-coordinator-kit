@@ -90,6 +90,12 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
   to inspect liveness, while optional `--available-slots N` uses freshly checked capacity for
   dispatch candidates. Neither command sends messages or supplies approval. A timezone-aware
   `--now` on sweep supports offline replay; normal operation uses the actual clock.
+  Missing capacity produces `check_capacity`; unranked/undefined work produces `prepare_task`;
+  held candidates produce `review_dispatch_scope` so a scoped hold cannot silently hide the queue.
+  Before waiting, run `sweep --available-slots N --check-idle`: JSON `idle_ready` plus exit 0
+  means no recorded follow-up remains, exit 2 means action or concrete blocker accounting is
+  required, and exit 1 is an error. Follow the [required cycle](../../references/proactive-cycle.md);
+  a read-only suggestion is not a substitute for actually asking or dispatching.
   `render` returns a human view; optional output belongs under `.coordinator/reports/` and is never
   authoritative. `check` validates DB and preserved sources; `backup NEW_PATH` creates a consistent
   SQLite snapshot. Commit that snapshot in the designated coordination repo when required;

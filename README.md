@@ -70,6 +70,10 @@ New requests follow read-only definition, priority and a recorded queue position
 `status` command gives a compact progress view; `sweep` flags missed release questions, an idle
 decision slot and quiet work for review. Actions the user wants to initiate are tracked separately.
 Both commands read the database without sending messages, changing state or granting approval.
+The coordinator must act on those results: ask the next pending question and take eligible work
+when capacity opens. Before waiting, `sweep --available-slots N --check-idle` flags unfinished
+follow-through; the [required cycle](plugins/coordinator-kit/references/proactive-cycle.md) defines
+the action and blocker rules.
 
 Version 0.4.0 adds database-backed coordination and recoverable first-run migration. See the
 [release and upgrade notes](plugins/coordinator-kit/CHANGELOG.md). The plugin includes a
@@ -127,7 +131,7 @@ codex plugin marketplace upgrade coordinator-kit
 codex plugin add coordinator-kit@coordinator-kit
 ```
 
-Both host manifests pin an explicit `version` (`0.7.0`) instead of tracking this repo's HEAD commit,
+Both host manifests pin an explicit `version` (`0.7.1`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.

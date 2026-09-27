@@ -25,6 +25,12 @@ established incident policy applies. Do not interrupt running lanes just because
 arrived. Use the recorded queue order when dependencies permit; update a changed position and
 its reason rather than silently reshuffling. A queue position is not a delivery-time promise.
 
+Queueing is not a reason to defer when suitable capacity is already free. Run the
+[required coordinator cycle](../../references/proactive-cycle.md) after intake and each completion:
+ask pending questions and claim the next eligible task now, while preserving active lanes.
+If the authorized queue is exhausted, follow that cycle's once-only next-goal question instead
+of waiting for the user to notice the coordinator has stopped taking work.
+
 An incidental finding outside the requested goal becomes a sourced task/evidence record, not
 another investigation or fix chain. Continue only when it is necessary for the authorized goal
 or falls within an established incident-response grant. Severity alone supplies no new scope.

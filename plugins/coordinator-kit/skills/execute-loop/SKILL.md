@@ -5,6 +5,10 @@ description: Run the coordinator's task loop, assign exclusive work lanes, bound
 
 # Execute loop
 
+Follow the [required coordinator cycle](../../references/proactive-cycle.md) after every request,
+answer, agent result and wakeup, and before waiting. Pending questions must actually be asked;
+available capacity must take authorized work. A status report is not completion of this cycle.
+
 Apply the [runtime adapter](../../references/runtime.md) for native delegation, model settings,
 instruction files and missing capabilities. Never assume a Claude-specific tool exists in Codex.
 
@@ -46,7 +50,8 @@ publish: use the recorded trigger map, never infer permission from a branch or h
    and queue its linked decision immediately. For user-initiated next actions, keep the current
    state plus that flag and await the user's initiation without proposing a release question.
 7. Persist the result, release the lane when no writer/test/mutation process still owns it, and
-   dispatch the next authorized unblocked task. Do not ask whether to continue approved work.
+   immediately run the required cycle: present the next question and dispatch the next authorized
+   unblocked task independently. Do not ask whether to continue approved work or wait for all lanes.
 
 ## Lanes and shared resources
 

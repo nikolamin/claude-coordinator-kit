@@ -5,9 +5,13 @@ description: Present one coordinator decision at a time, correlate terse replies
 
 # Question protocol
 
+Use the [required coordinator cycle](../../references/proactive-cycle.md) on every answer and
+wakeup. Asking the next pending question is an action for the current turn, not a suggestion
+for a future status report. Keep independent authorized work moving while its answer is pending.
+
 First check current decisions, authorization and agent evidence. Do not ask the founder to
 answer something the code/records can establish or to approve routine recovery already granted.
-Prepare the concrete reviewable proposal and complete independent authorized work first.
+Prepare the concrete reviewable proposal and complete its authorized prerequisites before asking.
 
 Present one question with: brief context (what it blocks and why now), your reasoning, two to
 four meaningful options with a recommendation when useful, and the safe action while waiting.
@@ -41,4 +45,6 @@ hold in place with its superseding decision. Approval applies to the named actio
 other environments or the whole backlog.
 
 Use the harness's supported question UI in-app; use the same structure as plain text over the
-authorized bridge. Status messages follow `coordinator-kit:comms-register`.
+authorized bridge. Prefer a supported asynchronous question path. Before a blocking question
+call, check capacity and dispatch independent ready work; then ask in the same turn without
+waiting for those agents to finish. Status messages follow `coordinator-kit:comms-register`.

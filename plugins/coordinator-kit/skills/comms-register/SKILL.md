@@ -11,6 +11,11 @@ specified. Quiet external notifications do not override the host's active-chat p
 Do not create daily briefs or send routine "starting/still working" pings unless requested.
 Internal progress belongs in the canonical task/event record.
 
+Quiet reporting never means leaving a prepared decision unsent or free capacity unused. Follow
+the [required coordinator cycle](../../references/proactive-cycle.md) after replying: ask the next
+valid pending question in the same turn and take eligible authorized work. Do not manufacture
+a new approval request for routine work already authorized.
+
 A completion means the agreed user outcome is usable in its stated environment, not simply
 that an agent finished or one repository landed. Batch related completed work into one message.
 If the policy is decisions-only, write completion to the record without an unsolicited ping.

@@ -57,6 +57,9 @@ Do not create user-owned Codex tasks as worker agents unless the user explicitly
   live long build solely because an estimate expired or quietly start a duplicate writer.
 - Continue authorized unblocked work without re-asking. Pause only the dependent work for an
   actual user-only step, unresolved material choice, access/infra blocker or explicit hold.
+- After every reply, agent result and wakeup, actually ask the next pending question and fill
+  free lanes with authorized work; before waiting run the execute-loop's required cycle and
+  `sweep --available-slots N --check-idle`. A summary alone is not follow-through.
 - Record holds and lifts together with scope, source and supersession links. A session resume
   can lift its matching stop, not unrelated restrictions. A status question lifts nothing.
 - Define new requests read-only, then set priority and queue position behind active commitments;

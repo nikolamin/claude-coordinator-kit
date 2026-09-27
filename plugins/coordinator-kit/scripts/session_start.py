@@ -21,6 +21,7 @@ def main():
             return 0
         cli = str(Path(__file__).with_name('coord.py').resolve())
         skill = str(Path(__file__).resolve().parents[1] / 'skills/coordination-state/SKILL.md')
+        cycle = str(Path(__file__).resolve().parents[1] / 'references/proactive-cycle.md')
         context = ('Coordinator Kit ' + VERSION + ': canonical state is ' + result['database'] + '. '
                    'Use Python 3.9+ with script ' + cli + ' and --root ' + result['root'] + '. '
                    'Read the coordination-state skill at ' + skill + ' before coordinating. Run summary first, '
@@ -30,7 +31,10 @@ def main():
                    + str(result['unresolved_records']) + '. Retired Markdown files are compatibility pointers; '
                    'do not resume writing STATE.md/plan.md/decision companions. No approvals or holds were inferred. '
                    'This storage migration supersedes old instructions to edit those retired files; '
-                   'other instruction/risk constraints remain in force. Use database handoff/profile records on resume.')
+                   'other instruction/risk constraints remain in force. Use database handoff/profile records on resume. '
+                   'After reconciliation, read the required coordinator cycle at ' + cycle + ': '
+                   'actually ask the next pending question and dispatch eligible authorized work when capacity opens; '
+                   'do not end at a status summary. Honor explicit stops and recorded holds.')
         print(json.dumps({'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))
     except Exception as exc:
         # SessionStart is context-only: report failure; never pretend this mechanically blocks tools.

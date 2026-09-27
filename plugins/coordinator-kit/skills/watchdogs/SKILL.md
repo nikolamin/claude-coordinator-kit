@@ -5,6 +5,10 @@ description: Monitor in-flight coordinator work, distinguish slow agents from lo
 
 # Watchdogs and recovery
 
+Every wakeup runs the [required coordinator cycle](../../references/proactive-cycle.md) to
+actually ask pending questions and fill free lanes. Reading or reporting a sweep alone is not
+an adequate wakeup result. Recheck immediately after each completion; do not wait for a timer.
+
 Use the available harness's completion events plus an authorized fallback wake-up for in-flight
 work (typically 20–30 minutes). Record its actual id and scope in the canonical state. A missing
 scheduler is a disclosed limitation, never a reason to claim a wake-up is armed. Do not create
@@ -17,6 +21,10 @@ read. It reports releases/user blockers without a linked question, an idle quest
 queued work, outdated questions, and quiet in-progress/verifying tasks. It never sends, changes
 status, dispatches or cancels. Use `--available-slots N` only after a fresh native fleet/capacity
 check; its dispatch candidates still require scoped authorization and lane/resource checks.
+`check_capacity` requires that live check, `prepare_task` requires intake, and
+`review_dispatch_scope` requires checking a hold against the named task rather than freezing
+unaffected work. Finish the cycle with `--check-idle`; exit 2 means outstanding action/blocker
+accounting, not permission to go silently idle.
 Unknown capacity is not zero agents, and missing recent DB notes is not proof an agent died.
 
 Reconcile each item with current evidence. Promptly queue/present a legitimate release decision

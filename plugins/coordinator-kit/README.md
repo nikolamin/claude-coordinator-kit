@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.7.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.7.1** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -57,6 +57,12 @@ needing only release approval uses `awaiting_release` and an explicitly linked q
 the user wants to initiate stay out of reminders. `status` provides a compact view and `sweep`
 finds missed decisions and liveness checks without sending messages or changing records.
 These additions reuse the existing database schema; existing records keep their status and history.
+
+The [required coordinator cycle](references/proactive-cycle.md) runs after replies, agent results
+and wakeups: ask the next question and fill free capacity with eligible work before waiting.
+`sweep --available-slots N --check-idle` exits 2 when follow-up actions still need handling.
+Unknown capacity, missing task definitions and scoped holds require follow-through, not a status
+summary. Explicit stops and real blockers remain valid reasons to wait.
 
 No server/pip dependency. Automatic startup requires Bash plus Python; bootstrap also runs ensure
 explicitly if hooks are disabled or untrusted. Codex requires hook trust separately from plugin

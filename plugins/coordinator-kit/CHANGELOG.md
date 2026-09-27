@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.1
+
+- Require an action cycle after requests, replies, agent results and wakeups: actually present
+  the next pending question and fill free capacity with authorized work before waiting.
+- Surface unknown capacity and unranked/undefined requests in sweep output; require scoped-hold
+  review so unrelated restrictions cannot silently hide eligible work.
+- Add `sweep --check-idle` with JSON readiness and exit 2 for unresolved actions. Keep the command
+  read-only; actual sending/dispatch, authority checks and concrete blocker accounting remain
+  coordinator responsibilities. Explicit stops still take precedence.
+- Carry the cycle through bootstrap, startup context and the instruction template; once the
+  authorized queue is exhausted, ask once for the next goal without repeatedly nudging the user.
+- Validate with 58 passing tests, including six new proactive-cycle regressions, and independent
+  instruction review covering blocking question prompts and continued independent work.
+
 ## 0.7.0
 
 - Define new requests read-only, then prioritize and record their queue position without

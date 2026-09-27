@@ -5,6 +5,9 @@ description: Honor a coordinator stop request, preserve in-flight work and pendi
 
 # Stop and save
 
+An explicit stop overrides the proactive cycle. Do not ask a next-goal question or dispatch
+new work to clear `sweep --check-idle`; preserve those pending actions in the handoff instead.
+
 1. Stop new dispatch and record the founder's exact instruction, scope, time and source as an
    active hold in the canonical state. Say whether this is a session handoff or a broader hold;
    don't silently broaden it. A later explicit resume lifts only the matching scope.

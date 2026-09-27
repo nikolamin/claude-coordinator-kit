@@ -39,9 +39,8 @@ def question_links(row):
     return refs
 
 
-def next_tasks(tasks, questions, state):
-    # Holds may be scoped; leave interpretation to the coordinator rather than guessing scope.
-    if not state['ready_for_dispatch'] or state['active_holds']:
+def pending_tasks(tasks, questions, state):
+    if not state['ready_for_dispatch']:
         return []
     open_questions = [q for q in questions if q['status'] in ('queued', 'presented')]
     if any(question_links(q) is None for q in open_questions):
@@ -53,13 +52,25 @@ def next_tasks(tasks, questions, state):
         data = row['data']
         if row['status'] != 'pending' or data.get('user_initiated') or data.get('needs_user') or data.get('blocked_on'):
             continue
-        if row['id'] in asked or row['id'] in owned or type(data.get('queue_pos')) is not int or data['queue_pos'] < 1:
+        if row['id'] in asked or row['id'] in owned:
             continue
         dependencies = data.get('dependencies', [])
         if not isinstance(dependencies, list) or any(not isinstance(ref, str) or ref not in tasks or tasks[ref]['status'] != 'done' for ref in dependencies):
             continue
         result.append(row)
     return result
+
+
+def prepared(row):
+    data = row['data']
+    return type(data.get('queue_pos')) is int and data['queue_pos'] > 0 and bool(data.get('acceptance'))
+
+
+def next_tasks(tasks, questions, state):
+    # A hold's scope needs coordinator review; it is not automatically a global suspension.
+    if state['active_holds']:
+        return []
+    return [row for row in pending_tasks(tasks, questions, state) if prepared(row)]
 
 
 def status_view(st, limit=3):
@@ -150,8 +161,23 @@ def sweep(st, at=None, stale_hours=6, available_slots=None):
         if first:
             items.append({'kind': 'present_question', 'question': first['id'],
                           'text': 'Present this queued question through the authorized channel, then save its outbound id.'})
+    pending = pending_tasks(tasks, questions, state)
+    if pending and available_slots is None:
+        items.append({'kind': 'check_capacity', 'tasks': [row['id'] for row in pending],
+                      'text': 'Check native workers/resources now, then rerun with observed available-slots; unknown is not full.'})
     if available_slots:
-        for row in next_tasks(tasks, questions, state)[:available_slots]:
-            items.append({'kind': 'dispatch_candidate', 'task': row['id'],
-                          'text': 'Check authorization and live resource ownership before claiming a lane.'})
-    return {'at': current.isoformat(), 'items': items, 'read_only': True}
+        for row in pending[:available_slots]:
+            if state['active_holds']:
+                items.append({'kind': 'review_dispatch_scope', 'task': row['id'],
+                              'text': 'Check each hold against this task; dispatch unaffected authorized work or record the actual blocker.'})
+            elif not prepared(row):
+                items.append({'kind': 'prepare_task', 'task': row['id'],
+                              'text': 'Define this request read-only, record acceptance/priority/queue position, then rerun the cycle.'})
+            else:
+                items.append({'kind': 'dispatch_candidate', 'task': row['id'],
+                              'text': 'Confirm authorization and live resource ownership, claim a lane and dispatch now.'})
+    # Holds alone are informational. Missing actions must be completed or their real blocker
+    # recorded before waiting; this is not permission to override the blocker or a stop request.
+    required = [item for item in items if item['kind'] != 'review_holds']
+    return {'at': current.isoformat(), 'items': items, 'read_only': True,
+            'idle_ready': not required, 'required_action_count': len(required)}

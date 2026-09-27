@@ -29,7 +29,7 @@ first-run migration supplied by the plugin, not a task to defer or an optional M
    Reconcile imported needs_review records too. Existing SQLite sources also require repointing
    legacy coordinator/bridge integrations; their original DB files are preserved untouched.
 4. Continue only after `summary.ready_for_dispatch` is true, then apply the actual task/hold
-   authorization. Migration readiness is not production permission. Record plugin version 0.7.0
+   authorization. Migration readiness is not production permission. Record plugin version 0.7.1
    and the adopted spine version separately in the workspace profile.
 
 Existing work remains existing even if all old state filenames now contain short pointers.
@@ -78,3 +78,6 @@ For nonstandard source locations, use `.coordinator/migration.json` per the stat
 5. Mark the handoff resolved only when its actions are complete; unresolved work keeps canonical
    task/lane records and next steps. Persist the database snapshot as required, and continue
    authorized work under the chosen notification policy.
+6. Run the [required coordinator cycle](../../references/proactive-cycle.md) before returning:
+   ask the next pending question and use free capacity for eligible work. A resume summary alone
+   is not a completed bootstrap when either queue needs action.

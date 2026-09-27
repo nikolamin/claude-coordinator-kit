@@ -43,6 +43,7 @@ def parser():
     scan.add_argument('--stale-hours', type=float, default=6)
     scan.add_argument('--available-slots', type=int, help='Freshly checked worker capacity; omit if unknown')
     scan.add_argument('--now', help='Timezone-aware ISO timestamp for offline replay; defaults to the real clock')
+    scan.add_argument('--check-idle', action='store_true', help='Exit 2 when recorded follow-up actions remain; still emit JSON')
     search = sub.add_parser('search'); search.add_argument('query'); search.add_argument('--limit', type=int, default=30)
     review = sub.add_parser('review').add_subparsers(dest='operation', required=True)
     review.add_parser('list')
@@ -199,6 +200,8 @@ def main(argv=None):
             st = Store(a.root)
             result = execute(st, a)
         print(result if isinstance(result, str) else dumps(result))
+        if a.command == 'sweep' and a.check_idle and not result['idle_ready']:
+            return 2
         return 0
     except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
         print('coord: ' + str(exc), file=sys.stderr)
