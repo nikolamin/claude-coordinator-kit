@@ -31,6 +31,20 @@ release, the presented question, queued-question count and the next pending task
 never appear as "next"; user-initiated actions do not inflate "waiting on you". Use full record
 views only when detail is requested. For new intake, report the defined priority and queue
 position. An explicit request for pending decisions follows the one-question protocol.
+`active_tasks` groups recorded active lanes by task, so several workers on one task still
+produce one task summary. `running_without_lane` is an ownership discrepancy to reconcile,
+not proof that a process is dead. A lane record is not a live heartbeat. Label the channel of
+a question waiting in another chat instead of presenting it as awaiting an answer here.
+
+An idle status feed is opt-in through the project's notification policy, never enabled just
+by installing this plugin. If authorized and supported, use one quiet editable post with the
+configured cadence/freshness limit; show a current user-facing sentence per active task, not
+agent names. Keep `public_summary` and `summary_updated_at` on the canonical task, refreshing
+them at dispatch and meaningful stage changes. Exclude inactive/stale summaries; do not add
+a companion state file. Retire the post on a real exchange. Successful questions and valid
+answers count as exchanges; typing indicators, the idle post itself and failed sends do not.
+An empty, stale or failed read is not evidence that all work completed. The post never replaces
+pending questions, task execution or receiver health checks.
 
 Format for the actual channel: short heading, one fact per bullet, spacing between groups, and
 any decision last. Use rich text/HTML only when the installed bridge supports it; escape dynamic
@@ -59,5 +73,8 @@ only to the configured founder channel, never to customers or other recipients.
   shell strings; PowerShell has its own expansion rules. Use a tool's structured argument or
   properly quote literal text. Use file/stdin input only if the installed script supports it;
   do not invent a notify flag or raw provider call. Never print tokens or credentials.
+- Inspect the bridge's own result and actual outbound id before recording a message as sent.
+  Do not hide errors or print an unconditional "sent" afterward. An uncertain send requires
+  delivery reconciliation before retry; a repeated message can also repeat a user action.
 
 Listener health, backlog replay and scheduled-wake ownership: `coordinator-kit:watchdogs`.

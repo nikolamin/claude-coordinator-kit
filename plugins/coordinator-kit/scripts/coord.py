@@ -197,7 +197,11 @@ def main(argv=None):
             if a.actor != 'coordinator': raise ValueError('Only coordinator mode may migrate')
             result = ensure(a.root, a.init)
         else:
-            st = Store(a.root)
+            op = getattr(a, 'operation', None)
+            writes_db = ((a.command in KINDS and op in ('put', 'supersede')) or
+                         (a.command == 'event' and op == 'add') or
+                         (a.command == 'review' and op == 'resolve'))
+            st = Store(a.root, read_only=not writes_db)
             result = execute(st, a)
         print(result if isinstance(result, str) else dumps(result))
         if a.command == 'sweep' and a.check_idle and not result['idle_ready']:

@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.7.1** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.8.0** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -9,7 +9,7 @@ memory seed and optional Telegram bridge are unchanged.
 ## Operating flow
 
 Migrate/ensure the database → reconcile imported records, holds and ownership → intake/check premise → claim an available
-lane → build → independent adversarial verify → bounded fix cycles → gate authorized push →
+lane → build → verify by risk → bounded fix cycles → gate authorized push →
 check CI/deployed outcome → record → next authorized work.
 
 New products still use Concept/Objectives/Plan approval gates. Existing approved work enters
@@ -19,6 +19,11 @@ parallelism comes from independent repos or permitted isolated worktrees and res
 Full baseline/candidate suite evidence is reused only for matching revisions and environments;
 verifiers independently exercise acceptance criteria. Required live verification remains pending
 when blocked. Liveness and recent evidence guide recovery, not elapsed time alone.
+
+The [verification policy](references/verification-policy.md) gives routine work a builder-led
+gate, reserves independent adversarial checks for high-risk work, and defines a narrow route
+for urgent known-good TEST reverts. Existing project policies and approval scope take precedence.
+Release questions enumerate the complete range from the destination's actual deployed baseline.
 
 ## Components
 
@@ -57,6 +62,12 @@ needing only release approval uses `awaiting_release` and an explicitly linked q
 the user wants to initiate stay out of reminders. `status` provides a compact view and `sweep`
 finds missed decisions and liveness checks without sending messages or changing records.
 These additions reuse the existing database schema; existing records keep their status and history.
+
+Version 0.8.0 opens database views through an enforced read-only connection. `status.active_tasks`
+groups active lanes by task and preserves question channel/owner information; `sweep` reports
+duplicate queue positions, closed queued tasks and missing/stale lane ownership. Optional
+task-facing summaries remain in the database. Supported bridge buttons and an explicitly
+requested idle status feed follow the project's transport; the plugin adds no receiver or schedule.
 
 The [required coordinator cycle](references/proactive-cycle.md) runs after replies, agent results
 and wakeups: ask the next question and fill free capacity with eligible work before waiting.

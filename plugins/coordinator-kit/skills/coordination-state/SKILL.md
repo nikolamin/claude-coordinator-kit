@@ -96,6 +96,13 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
   means no recorded follow-up remains, exit 2 means action or concrete blocker accounting is
   required, and exit 1 is an error. Follow the [required cycle](../../references/proactive-cycle.md);
   a read-only suggestion is not a substitute for actually asking or dispatching.
+  Read commands open the canonical database with SQLite `mode=ro` and `query_only`; they do
+  not initialize, migrate, repair, chmod or fall back to a preserved legacy source. Run `ensure`
+  explicitly at bootstrap. Bridge adapters must retain this boundary instead of importing a
+  legacy constructor that writes during a supposedly read-only status call.
+  `status.active_tasks` deduplicates tasks by active lanes and includes optional canonical
+  `public_summary`/`summary_updated_at`. Question views retain channel/thread/lane provenance.
+  `sweep` also reports queue collisions, closed tasks still queued and lane/task mismatches.
   `render` returns a human view; optional output belongs under `.coordinator/reports/` and is never
   authoritative. `check` validates DB and preserved sources; `backup NEW_PATH` creates a consistent
   SQLite snapshot. Commit that snapshot in the designated coordination repo when required;

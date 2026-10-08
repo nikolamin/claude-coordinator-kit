@@ -117,7 +117,7 @@ class ProactiveCycleTests(unittest.TestCase):
     def test_unranked_or_undefined_requests_require_intake_before_dispatch(self):
         for ranked, defined in itertools.product((False, True), repeat=2):
             key = 'task-' + str(ranked) + '-' + str(defined)
-            self.put('task', key, queue_pos=1 if ranked else None,
+            self.put('task', key, queue_pos=(2 if defined else 1) if ranked else None,
                      acceptance=['Works'] if defined else [])
         before = self.dump()
 
@@ -127,7 +127,7 @@ class ProactiveCycleTests(unittest.TestCase):
             'task-False-False', 'task-False-True', 'task-True-False'})
         self.assertEqual([item['task'] for item in self.items(result, 'dispatch_candidate')], ['task-True-True'])
         self.assertEqual(self.dump(), before)
-        self.update('task', 'task-False-False', queue_pos=2, acceptance=['Defined from the original request.'])
+        self.update('task', 'task-False-False', queue_pos=3, acceptance=['Defined from the original request.'])
         prepared = self.cli('sweep', '--available-slots', '4', '--check-idle', expected=2)
         self.assertIn('task-False-False', {item['task'] for item in self.items(prepared, 'dispatch_candidate')})
 

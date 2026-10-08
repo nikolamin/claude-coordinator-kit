@@ -19,6 +19,9 @@ Use a direct short question instead of artificial options when there is no real 
 Silence never supplies approval; normally the dependent action remains pending.
 
 Record the exact question/options under a stable id with the outbound message id and scope.
+Record `delivery_channel` and, when relevant, `owner_thread`/`owner_lane` too. A question
+presented in another chat still owns the single decision slot: label where it is waiting,
+do not silently resend it on the current bridge or interpret an unrelated bare number there.
 Keep one presented question at a time; others remain queued. A pending decision holds its
 channel topic too: do not mix in an unrelated numbered list that could make "2" ambiguous.
 Continue work that does not depend on the answer. Explicit "park this" closes the presented
@@ -48,3 +51,11 @@ Use the harness's supported question UI in-app; use the same structure as plain 
 authorized bridge. Prefer a supported asynchronous question path. Before a blocking question
 call, check capacity and dispatch independent ready work; then ask in the same turn without
 waiting for those agents to finish. Status messages follow `coordinator-kit:comms-register`.
+
+For an existing bridge with supported option buttons, use its documented question command
+when both sender and active receiver support callbacks. Keep typed replies available. Save
+the actual send result, stable question id, message id and exact token-to-label mapping;
+exit 0 alone may mean "not configured" and is not delivery evidence. Validate the sender,
+question/message identity and selected option before applying a button response as a typed
+answer. Persist handling before acknowledgment; reject replayed, stale or superseded callbacks
+without repeating side effects. A button delivery receipt is not approval beyond that question.

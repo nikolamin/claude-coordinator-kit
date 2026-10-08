@@ -1,14 +1,15 @@
 ---
 name: verification-standard
-description: Establish trustworthy independent acceptance evidence, fail-first controls, live UI checks, and honest test coverage. Use when briefing or evaluating a verifier or before sharing a demo. Push scheduling and evidence reuse belong to execute-loop.
+description: Establish risk-appropriate acceptance evidence, fail-first controls, live UI checks, and honest test coverage. Use when choosing or evaluating verification or before sharing a demo. Push scheduling and evidence reuse belong to execute-loop.
 ---
 
 # Verification standard
 
-An independent verifier checks the original requirement and actual artifact, not agreement with
-another agent. Non-trivial work needs this pass; copy/comment/config-only changes are exempt
-only when behavior, policy and routing are unchanged. Record which property, revision, environment
-and user flow the evidence covers. A data-scoping audit does not establish authorization or
+Select the [verification policy](../../references/verification-policy.md) first: routine work
+uses builder evidence; high-risk work requires an independent pass. An independent verifier
+checks the original requirement and actual artifact, not agreement with another agent.
+Record which property, revision, environment and user flow the evidence covers.
+A data-scoping audit does not establish authorization or
 read-only access.
 
 ## Evidence that can fail
@@ -52,6 +53,8 @@ close the corresponding post-push stage. Do not label a test deployment as produ
 - Browser-visible work requires live click-through on the candidate running locally or in a
   permitted test environment before push. Start/navigate/click/read the rendered result;
   curl, source inspection or a component test alone do not prove the user flow.
+  The scoped urgent TEST-restore gate or a sourced tester-on-TEST policy can move this leg
+  after the push; record it as pending until exercised.
 - Before a demo/playtest link ships, exercise the full journey at the actual URL through its
   completion signal. Deployed checks are separate from a builder's pre-push local checks.
 - Required browser/device verification blocked by login, infra, or physical hardware remains
@@ -81,3 +84,10 @@ close the corresponding post-push stage. Do not label a test deployment as produ
 - Database column rename/drop: inspect DB-resident views/dependent objects beyond the repo.
   Enforce read-only production access structurally; validate controls without risking a real
   production write. Keep local test data and outbound integrations isolated.
+- AI-assisted writes: exercise target selection through the actual lookup tools, with realistic
+  duplicate names, stale/orphan records and ambiguous matches. A truthful confirmation card
+  and a matching write do not prove the intended record was selected. Verify the no-match and
+  zero-effect paths, and require clarification or an explicit warning when intent is unresolved.
+- Decision evidence: trace claims about neighboring permissions or release contents before
+  putting them into a user question. A report proves only what its evidence actually checked;
+  label an untraced side claim as uncertain instead of treating it as established fact.

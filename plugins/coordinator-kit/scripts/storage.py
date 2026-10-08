@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 import time
 
-VERSION = '0.7.1'
+VERSION = '0.8.0'
 SCHEMA = 1
 KINDS = ('task', 'decision', 'question', 'lane', 'profile', 'handoff', 'guideline')
 STATUSES = {
@@ -121,17 +121,28 @@ def workspace_lock(root, timeout=15):
 
 
 class Store:
-    def __init__(self, root, create=False):
+    def __init__(self, root, create=False, read_only=False):
         self.root = Path(root).resolve()
         self.path = inside(self.root, '.coordinator/coord.db')
+        if read_only and create:
+            raise ValueError('Read-only storage cannot initialize a database')
         if not create and not self.path.is_file():
             raise ValueError('Coordinator database missing; run coord.py --root PATH ensure first')
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.con = sqlite3.connect(str(self.path), timeout=15)
+        if read_only:
+            self.con = sqlite3.connect(self.path.as_uri() + '?mode=ro', uri=True, timeout=15)
+            self.con.execute('PRAGMA query_only=ON')
+        else:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.con = sqlite3.connect(str(self.path), timeout=15)
         self.con.row_factory = sqlite3.Row
         self.con.execute('PRAGMA foreign_keys=ON')
         self.con.execute('PRAGMA busy_timeout=15000')
         version = self.con.execute('PRAGMA user_version').fetchone()[0]
+        if read_only:
+            if version != SCHEMA:
+                self.con.close()
+                raise ValueError('Read requires a supported initialized canonical database; run ensure explicitly')
+            return
         if version not in (0, SCHEMA):
             self.con.close()
             raise ValueError('Unsupported coordinator schema version; use a compatible plugin')

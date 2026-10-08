@@ -16,6 +16,13 @@ authorize every proposed remedy; apply the project's approved scope and hold rul
 
 ## Define, prioritize, queue
 
+Distinguish an implementation request from an estimate or feasibility discussion. "How hard
+would this be?" and a clarification of that scenario authorize a bounded assessment, not a
+builder. Preserve the question's scope; do not turn it into an implementation queue entry
+without a go-ahead. Direct requests to add/fix/update remain actionable without reconfirmation.
+For a one-time change, prefer the requested manual step over new scheduler/configuration
+machinery unless recurrence or the actual requirements justify it.
+
 For a substantive new request, dispatch a bounded read-only definition first: exact outcome,
 affected repositories, dependencies, acceptance criteria and unresolved choices. Definition is
 not permission to implement. Then assign priority and `queue_pos` in the database and tell the

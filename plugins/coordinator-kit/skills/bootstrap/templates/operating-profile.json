@@ -3,7 +3,7 @@
   "status": "active",
   "project": "",
   "phase": "bootstrap",
-  "plugin_version": "0.7.1",
+  "plugin_version": "0.8.0",
   "spine_version": "",
   "workspace_root": "",
   "coordination_repository": "",
@@ -25,7 +25,13 @@
   "notification": {
     "channel": "",
     "policy": "completion-and-decisions",
-    "recipient": ""
+    "recipient": "",
+    "idle_status": {
+      "enabled": false,
+      "interval_minutes": null,
+      "summary_max_age_minutes": null,
+      "message_id": ""
+    }
   },
   "inbox": {
     "owner": "",
@@ -38,5 +44,23 @@
   "shared_resources": [],
   "durable_obligations": [],
   "persistence": {},
-  "evidence": []
+  "evidence": [],
+  "verification": {
+    "policy": "risk-based",
+    "source": "",
+    "high_risk_categories": [
+      "money",
+      "fiscal",
+      "production_data_writes",
+      "production_release",
+      "security_authorization",
+      "irreversible_effects"
+    ],
+    "required_checks": [],
+    "test_acceptance_owner": "",
+    "urgent_test_revert": {
+      "requires_authorized_known_good_restore": true,
+      "deferred_full_suite_owner": ""
+    }
+  }
 }

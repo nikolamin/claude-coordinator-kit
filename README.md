@@ -62,7 +62,7 @@ An **already-bootstrapped project** resumes its actual task store, holds, lanes 
 a short database-backed STATE file is not mistaken for an empty project.
 
 Greenfield Concept and Plan retain approval gates. Execution then uses exclusive work lanes,
-independent behavioral verification, revision/environment-specific test evidence, and the
+verification matched to risk, revision/environment-specific test evidence, and the
 project's authorized push/CI/release flow. Notifications follow the project's preference;
 new projects default to meaningful completion and decisions rather than per-agent narration.
 
@@ -74,6 +74,11 @@ The coordinator must act on those results: ask the next pending question and tak
 when capacity opens. Before waiting, `sweep --available-slots N --check-idle` flags unfinished
 follow-through; the [required cycle](plugins/coordinator-kit/references/proactive-cycle.md) defines
 the action and blocker rules.
+
+The [risk-based verification policy](plugins/coordinator-kit/references/verification-policy.md)
+uses builder evidence for routine work, independent checks for high-risk work and a bounded
+known-good TEST-revert path. Status groups work by task, retains question ownership and reads
+SQLite without write access; sweep also catches stale queue positions and lane mismatches.
 
 Version 0.4.0 adds database-backed coordination and recoverable first-run migration. See the
 [release and upgrade notes](plugins/coordinator-kit/CHANGELOG.md). The plugin includes a
@@ -131,7 +136,7 @@ codex plugin marketplace upgrade coordinator-kit
 codex plugin add coordinator-kit@coordinator-kit
 ```
 
-Both host manifests pin an explicit `version` (`0.7.1`) instead of tracking this repo's HEAD commit,
+Both host manifests pin an explicit `version` (`0.8.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.

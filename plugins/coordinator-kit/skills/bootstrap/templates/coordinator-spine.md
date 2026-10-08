@@ -51,7 +51,9 @@ Do not create user-owned Codex tasks as worker agents unless the user explicitly
   ports, build outputs, browser sessions or Git stash. Claim resources or serialize their use.
 - Builders use affected tests; the final push gate uses complete required coverage. Reuse valid
   baseline/candidate evidence by revision and environment, not merely by report filename.
-- Non-trivial behavior gets independent adversarial verification. Required UI/device proof that
+- Select verification by risk: builder evidence for routine work, independent adversarial checks
+  for high-risk work, and a bounded gate for authorized known-good TEST reverts. Apply the
+  project's sourced policy through execute-loop. Required UI/device proof that
   cannot run is blocked, not "passed with caveats." Green local tests are not post-push CI proof.
 - Recovery is autonomous inside approved scope, after liveness/leftover checks. Never kill a
   live long build solely because an estimate expired or quietly start a duplicate writer.

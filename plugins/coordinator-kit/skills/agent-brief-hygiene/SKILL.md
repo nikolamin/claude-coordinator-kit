@@ -27,10 +27,14 @@ clear scope and ownership, and is not automatically an independent verifier.
 - **Resources:** private DB/schema/port/build-output/browser allocation or serialization; identify
   existing developer processes to leave alone. Local runs must not send real notifications.
 - **Acceptance and proof:** required behavior and failure cases, affected tests, live/device steps,
-  independent evidence requested, and available baseline/candidate evidence manifests. Include
+  selected verification mode and risk reason, independent evidence when required, and available
+  baseline/candidate evidence manifests. Include
   `coordinator-kit:execute-loop`'s push gate when work feeds a push: valid final-candidate suite,
-  build/lint/typecheck, zero new failures by name, honest skips, independent acceptance pass.
-  Full suites are reused by revision/environment, not rerun by every agent.
+  build/lint/typecheck, zero new failures by name, honest skips, and the selected acceptance gate.
+  For a build/fix iteration say: "Run affected checks only; the designated push gate runs the
+  required full suite once." Name the gate owner. Verifiers reuse that evidence and focus on
+  unproved behavior, not another copy of the suite. Record the policy's urgent-revert exception
+  and deferred-check owner explicitly when it applies.
 - **Delivery:** exact scratch report/log paths; return revisions, changed paths, commands, exit
   codes, counts, decisive failures/proof, unresolved steps, and owned processes needing cleanup.
   Agents append task events/evidence only; the coordinator owns status and priority changes.

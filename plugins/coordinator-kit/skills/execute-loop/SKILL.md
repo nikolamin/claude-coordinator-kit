@@ -28,13 +28,12 @@ publish: use the recorded trigger map, never infer permission from a branch or h
 2. Claim a lane before dispatch. Record task/agent id, repository and checkout, branch, owned
    paths, external resources, stage, model, start time, expected duration, and report path.
    Give the agent a bounded brief using `coordinator-kit:agent-brief-hygiene`.
-3. Builder implements and runs affected checks locally. For non-trivial work, dispatch a fresh
-   independent adversarial verifier; pure copy/comment/config changes with no behavior change
-   may be exempt. Policy, authorization, routing, or deploy configuration changes are behavioral.
-   Include one structural check suited to the acceptance criteria, such as a generated-case
-   sweep, property invariant or controlled mutation. Repeated handpicked cases do not replace
-   coverage of the failure mechanism; failures follow the same bounded retry/escalation loop.
-4. A failed verification gets a fresh fixer with the exact gap and on-disk evidence. Allow at
+3. Select and record the [verification policy](../../references/verification-policy.md) before
+   dispatch. Routine work uses builder acceptance and affected checks, with the required suite
+   once at the final push gate; high-risk work adds independent adversarial verification and
+   failure-mechanism checks. An authorized urgent TEST revert can use that policy's narrow gate.
+   Existing project requirements and release authority still apply.
+4. A failed independent verification gets a fresh fixer with the exact gap and on-disk evidence. Allow at
    most two fix/re-verify cycles on the same gap after the initial failure; if the second cycle
    also fails (third failure overall), escalate via `coordinator-kit:escalation`. A new agent
    does not reset the counter. Do not resume a large completed transcript merely to continue
@@ -83,7 +82,7 @@ independently testing the acceptance criteria.
 - Reuse only when that identity and required coverage match. Missing logs, changed fixtures,
   toolchains, config, schema, or source invalidate the affected evidence. Shared-tree edits
   during a run make attribution unresolved. Keep baseline failures distinct from candidate ones.
-- After a fix, rerun affected checks. Before push, the full required suite, build, lint and
+- After a fix, rerun affected checks. For normal pushes, the full required suite, build, lint and
   typecheck must cover the final candidate. Use real local dependencies for required integration
   tests; no mocked/self-skip substitutes. Compare failure sets, not just totals, and report skips.
 - Any source change after verification requires review of the changed scope. Reuse across a
@@ -93,8 +92,10 @@ independently testing the acceptance criteria.
 
 ## Push gate and completion gate
 
-Push requires both **zero new failures versus the identified base** for the final candidate and
-an **independent acceptance pass** (or documented non-behavioral exemption). Required live UI
+The normal push gate requires **zero new failures versus the identified base** for the final
+candidate and acceptance evidence under the selected risk policy (builder for routine work,
+independent for high-risk work). The bounded urgent TEST revert exception is defined in that
+policy; record its deferred checks explicitly. Required live UI
 verification that is blocked remains blocked: disclosure is not a substitute. Finish every
 authorized preparatory step before presenting a concrete remaining approval/unblock request.
 
@@ -112,6 +113,8 @@ and any required deployed check; CI setup is a separate task. Recheck topology w
 Keep release/go-live authority separate from verification. A tag, release branch, package
 publish, or merge can have production effects; local green and test deployment never grant
 permission for those effects. Report completion at the goal's agreed environment and scope.
+Before a release question, measure the complete range from the destination's actual deployed
+baseline under the verification policy; never substitute the TEST push range or session memory.
 
 ## Holds and autonomous scope
 

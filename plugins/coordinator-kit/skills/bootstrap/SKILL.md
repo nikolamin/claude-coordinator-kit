@@ -29,7 +29,7 @@ first-run migration supplied by the plugin, not a task to defer or an optional M
    Reconcile imported needs_review records too. Existing SQLite sources also require repointing
    legacy coordinator/bridge integrations; their original DB files are preserved untouched.
 4. Continue only after `summary.ready_for_dispatch` is true, then apply the actual task/hold
-   authorization. Migration readiness is not production permission. Record plugin version 0.7.1
+   authorization. Migration readiness is not production permission. Record plugin version 0.8.0
    and the adopted spine version separately in the workspace profile.
 
 Existing work remains existing even if all old state filenames now contain short pointers.
@@ -51,6 +51,8 @@ For nonstandard source locations, use `.coordinator/migration.json` per the stat
    facts or leaving them explicitly unresolved. Store current phase/goals in profile/task records;
    do not recreate STATE.md, plan.md, objectives.md or decision queues as writable companions.
    Concept/design and validation evidence can remain under docs/concept/ and docs/validation/.
+   Resolve the sourced verification policy and required checks using execute-loop; preserve
+   project overrides. Idle status remains disabled unless the user has requested that feed.
 4. Create task-owned `.coordinator-scratch/` output as needed and gitignore it in its actual owning
    repo. Persist the database and migration archives; use `backup NEW_PATH` for a consistent
    snapshot in the designated coordination repo before committing bookkeeping. Do not copy a

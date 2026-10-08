@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0
+
+- Adopt configurable verification by risk: builder-led routine work, independent high-risk
+  checks, one final-candidate suite, and a bounded urgent known-good TEST-revert gate.
+- Measure release contents from the actual destination baseline before presenting approval.
+  Verify AI target selection and trace permission claims used in decisions.
+- Keep feasibility questions separate from implementation authority and avoid unnecessary
+  recurring machinery for a one-time requested change.
+- Enforce read-only SQLite connections for views/exports/backups, without implicit initialization
+  or legacy fallback. Keep schema 1 and existing first-run migration.
+- Group active status by task, preserve question channel/owner, and surface duplicate queue
+  positions, closed queued tasks and lane/task ownership gaps in the proactive sweep.
+- Add transport-aware question-button, delivery-receipt and inbox-replay guidance. Optional idle
+  status uses canonical task summaries and remains disabled unless requested; no bridge or
+  scheduler is installed. Preserve project-specific instructions, recipients and existing grants.
+
+Validation: 66 offline tests pass, including eight new workflow/storage regressions, a reproduced
+queue-conflict failure and its restored pass. Independent scenario review and both host package
+checks pass. Real bridge delivery and live-project rollout are outside these fixture checks.
+
 ## 0.7.1
 
 - Require an action cycle after requests, replies, agent results and wakeups: actually present

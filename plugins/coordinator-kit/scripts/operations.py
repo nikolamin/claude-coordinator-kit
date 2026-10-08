@@ -23,7 +23,15 @@ def snapshot(st):
 def task_view(row):
     data = row['data']
     result = {key: row[key] for key in ('id', 'title', 'status')}
-    result.update({key: data[key] for key in ('goal', 'priority', 'queue_pos', 'release_target', 'next_step') if data.get(key) is not None})
+    result.update({key: data[key] for key in ('goal', 'priority', 'queue_pos', 'release_target', 'next_step',
+                                            'public_summary', 'summary_updated_at') if data.get(key) is not None})
+    return result
+
+
+def question_view(row):
+    result = {key: row[key] for key in ('id', 'title')}
+    result.update({key: row['data'].get(key) for key in
+                   ('options', 'outbound_id', 'delivery_channel', 'owner_thread', 'owner_lane')})
     return result
 
 
@@ -39,6 +47,15 @@ def question_links(row):
     return refs
 
 
+def queue_conflicts(tasks):
+    positions = {}
+    for row in tasks.values():
+        pos = row['data'].get('queue_pos')
+        if row['status'] not in ('done', 'dropped') and type(pos) is int and pos > 0:
+            positions.setdefault(pos, []).append(row['id'])
+    return {pos: refs for pos, refs in positions.items() if len(refs) > 1}
+
+
 def pending_tasks(tasks, questions, state):
     if not state['ready_for_dispatch']:
         return []
@@ -47,12 +64,13 @@ def pending_tasks(tasks, questions, state):
         return []
     asked = {ref for q in open_questions for ref in question_links(q)}
     owned = {lane['data'].get('task') for lane in state['active_lanes']}
+    conflicted = {ref for refs in queue_conflicts(tasks).values() for ref in refs}
     result = []
     for row in sorted(tasks.values(), key=queue_order):
         data = row['data']
         if row['status'] != 'pending' or data.get('user_initiated') or data.get('needs_user') or data.get('blocked_on'):
             continue
-        if row['id'] in asked or row['id'] in owned:
+        if row['id'] in asked or row['id'] in owned or row['id'] in conflicted:
             continue
         dependencies = data.get('dependencies', [])
         if not isinstance(dependencies, list) or any(not isinstance(ref, str) or ref not in tasks or tasks[ref]['status'] != 'done' for ref in dependencies):
@@ -79,25 +97,31 @@ def status_view(st, limit=3):
     tasks, questions, state = snapshot(st)
     open_rows = [r for r in tasks.values() if r['status'] not in ('done', 'dropped')]
     running = [r for r in open_rows if r['status'] in ('in_progress', 'verifying')]
+    lanes = state['active_lanes']
+    owned = {lane['data'].get('task') for lane in lanes}
+    active = [r for r in open_rows if r['id'] in owned]
     releases = [r for r in open_rows if r['status'] == 'awaiting_release' and not r['data'].get('user_initiated')]
     waiting = [r for r in open_rows if not r['data'].get('user_initiated') and
                (r['data'].get('needs_user') or r['status'] == 'awaiting_release')]
     presented = next((q for q in questions if q['status'] == 'presented'), None)
     return {'open_tasks': len(open_rows), 'running_count': len(running),
             'running': [task_view(r) for r in sorted(running, key=queue_order)[:limit]],
+            'active_task_count': len(active),
+            'active_tasks': [dict(task_view(r), lanes=[lane['id'] for lane in lanes if lane['data'].get('task') == r['id']])
+                             for r in sorted(active, key=queue_order)[:limit]],
+            'recorded_active_lane_count': len(lanes),
+            'running_without_lane': [r['id'] for r in running if r['id'] not in owned],
             'awaiting_release_count': len(releases),
             'awaiting_release': [task_view(r) for r in sorted(releases, key=queue_order)[:limit]],
             'waiting_on_user_count': len(waiting),
             'user_initiated_count': sum(bool(r['data'].get('user_initiated')) for r in open_rows),
             'queued_question_count': sum(q['status'] == 'queued' for q in questions),
             'question_link_review': [q['id'] for q in questions if q['status'] in ('queued', 'presented') and question_links(q) is None],
-            'presented_question': None if presented is None else {
-                'id': presented['id'], 'title': presented['title'],
-                'options': presented['data'].get('options'), 'outbound_id': presented['data'].get('outbound_id')},
+            'presented_question': None if presented is None else question_view(presented),
             'next_tasks': [task_view(r) for r in next_tasks(tasks, questions, state)[:limit]],
             'migration_ready': state['ready_for_dispatch'],
             'active_hold_count': len(state['active_holds']),
-            'note': 'Next tasks are candidates; confirm authorization, scoped holds, live ownership and capacity.'}
+            'note': 'Active tasks come from recorded lanes, not live process checks. Next tasks need authorization, scoped holds, live ownership and capacity.'}
 
 
 def sweep(st, at=None, stale_hours=6, available_slots=None):
@@ -123,6 +147,24 @@ def sweep(st, at=None, stale_hours=6, available_slots=None):
             for ref in question_links(question) or []:
                 settled.setdefault(ref, []).append(question['id'])
     queued = [q for q in questions if q['status'] == 'queued']
+    owned = {lane['data'].get('task') for lane in state['active_lanes']}
+    for row in tasks.values():
+        pos = row['data'].get('queue_pos')
+        if type(pos) is int and pos > 0:
+            if row['status'] in ('done', 'dropped'):
+                items.append({'kind': 'clear_closed_queue', 'task': row['id'], 'queue_pos': pos,
+                              'text': 'Reconcile the completed task and clear its obsolete queue position.'})
+        if row['status'] in ('in_progress', 'verifying') and row['id'] not in owned:
+            items.append({'kind': 'review_lane', 'task': row['id'],
+                          'text': 'No active lane is recorded; inspect native ownership before repairing the record or redispatching.'})
+    for pos, refs_at_pos in sorted(queue_conflicts(tasks).items()):
+        items.append({'kind': 'queue_conflict', 'queue_pos': pos, 'tasks': sorted(refs_at_pos),
+                      'text': 'Reconcile duplicate queue positions from recorded priority before dispatching these tasks; independent work can continue.'})
+    for lane in state['active_lanes']:
+        task_id = lane['data'].get('task')
+        if task_id not in tasks or tasks[task_id]['status'] in ('done', 'dropped'):
+            items.append({'kind': 'review_lane', 'lane': lane['id'], 'task': task_id,
+                          'text': 'Active lane has no open task; check remaining processes before releasing ownership.'})
     for row in sorted(tasks.values(), key=queue_order):
         data = row['data']
         if row['status'] in ('done', 'dropped', 'needs_review'):
@@ -160,6 +202,7 @@ def sweep(st, at=None, stale_hours=6, available_slots=None):
         first = next((q for q in queued if q['id'] not in invalid), None)
         if first:
             items.append({'kind': 'present_question', 'question': first['id'],
+                          'delivery': question_view(first),
                           'text': 'Present this queued question through the authorized channel, then save its outbound id.'})
     pending = pending_tasks(tasks, questions, state)
     if pending and available_slots is None:
