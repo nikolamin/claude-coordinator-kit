@@ -37,7 +37,10 @@ not proof that a process is dead. A lane record is not a live heartbeat. Label t
 a question waiting in another chat instead of presenting it as awaiting an answer here.
 
 An idle status feed is opt-in through the project's notification policy, never enabled just
-by installing this plugin. If authorized and supported, use one quiet editable post with the
+by installing this plugin. The executable [Telegram status updater](../../references/telegram-status.md)
+provides configuration, preview, exchange recording, tick/loop and restart recovery. Integrate
+it with the existing receiver's accepted-message and successful-send paths; do not run two
+publishers for one bot/chat. If authorized and supported, use one quiet editable post with the
 configured cadence/freshness limit; show a current user-facing sentence per active task, not
 agent names. Keep `public_summary` and `summary_updated_at` on the canonical task, refreshing
 them at dispatch and meaningful stage changes. Exclude inactive/stale summaries; do not add

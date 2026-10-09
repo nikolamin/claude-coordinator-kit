@@ -103,6 +103,9 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
   `status.active_tasks` deduplicates tasks by active lanes and includes optional canonical
   `public_summary`/`summary_updated_at`. Question views retain channel/thread/lane provenance.
   `sweep` also reports queue collisions, closed tasks still queued and lane/task mismatches.
+  The optional [Telegram status updater](../../references/telegram-status.md) writes its own
+  `telegram_idle_status.v1` meta entry and exchange events. Task summaries and feed configuration
+  stay in canonical task/profile records; no state companion or schema rebuild is required.
   `render` returns a human view; optional output belongs under `.coordinator/reports/` and is never
   authoritative. `check` validates DB and preserved sources; `backup NEW_PATH` creates a consistent
   SQLite snapshot. Commit that snapshot in the designated coordination repo when required;

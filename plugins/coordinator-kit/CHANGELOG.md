@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0
+
+- Bundle the executable Telegram idle-status sender: silent post after 30 quiet minutes,
+  edit the same post every 30 minutes, and remove it after a recorded conversation exchange.
+- Store configuration, task summaries, exchange receipts, timers and message/action identity in
+  SQLite. Preserve schema 1 and first-run migration; add no companion state files.
+- Provide configure/preview/tick/run/exchange/disable/reconcile commands and an importable bridge
+  adapter. Reuse the existing receiver and supervisor; no additional inbox consumer or daemon
+  is installed, and each workspace explicitly enables its authorized private recipient.
+- Preserve post identity across restarts, serialize senders, deduplicate exchanges, back off
+  known failures and journal network actions. Unknown send outcomes stop for observed recovery
+  instead of automatically duplicating the post. Credentials stay in environment injection.
+
+Validation: 106 offline tests pass, including 40 sender/transport checks covering timers,
+exchange replay, concurrent ticks, restart/crash recovery, malformed receipts and secret-safe
+errors. Independent behavioral review and both host package checks pass. No live Telegram
+messages were sent; project bridge integration and activation remain per-workspace setup.
+
 ## 0.8.0
 
 - Adopt configurable verification by risk: builder-led routine work, independent high-risk

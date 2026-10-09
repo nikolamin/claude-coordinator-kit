@@ -98,3 +98,9 @@ if no durable mechanism is available, surface the unresolved obligation before t
 When work drains, use only the profile's authorized fallback activities. If only founder input
 remains, retain the single question and a supported listener/wake-up; do not repeatedly ping
 unchanged status. Apply `coordinator-kit:comms-register`'s notification policy.
+
+For an enabled [Telegram idle-status updater](../../references/telegram-status.md), check the
+sender's reported action and canonical preview separately from inbox health. Unknown send
+outcomes or undeletable posts require observed reconciliation, not a second publisher. A running
+sender loop proves neither receiver delivery nor native agent liveness. Keep exchange hooks
+active for accepted inbound messages and confirmed outbound sends; stop/restart only its owner.

@@ -3,7 +3,7 @@
   "status": "active",
   "project": "",
   "phase": "bootstrap",
-  "plugin_version": "0.8.0",
+  "plugin_version": "0.9.0",
   "spine_version": "",
   "workspace_root": "",
   "coordination_repository": "",
@@ -28,9 +28,13 @@
     "recipient": "",
     "idle_status": {
       "enabled": false,
-      "interval_minutes": null,
-      "summary_max_age_minutes": null,
-      "message_id": ""
+      "chat_id": "",
+      "token_env": "TELEGRAM_BOT_TOKEN",
+      "timezone": "UTC",
+      "interval_minutes": 30,
+      "refresh_minutes": 30,
+      "summary_max_age_minutes": 360,
+      "lane_max_age_minutes": 1440
     }
   },
   "inbox": {

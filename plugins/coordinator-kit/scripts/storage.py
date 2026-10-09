@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 import time
 
-VERSION = '0.8.0'
+VERSION = '0.9.0'
 SCHEMA = 1
 KINDS = ('task', 'decision', 'question', 'lane', 'profile', 'handoff', 'guideline')
 STATUSES = {
@@ -87,8 +87,10 @@ def atomic_write(path, content):
 
 
 @contextlib.contextmanager
-def workspace_lock(root, timeout=15):
-    path = inside(root, '.coordinator/migrate.lock')
+def workspace_lock(root, timeout=15, name='migrate.lock'):
+    if Path(name).name != name:
+        raise ValueError('Lock name must be a filename')
+    path = inside(root, '.coordinator/' + name)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, 'a+b') as stream:
         stream.seek(0)

@@ -80,6 +80,11 @@ uses builder evidence for routine work, independent checks for high-risk work an
 known-good TEST-revert path. Status groups work by task, retains question ownership and reads
 SQLite without write access; sweep also catches stale queue positions and lane mismatches.
 
+The optional [Telegram idle-status updater](plugins/coordinator-kit/references/telegram-status.md)
+is executable: one silent post after 30 quiet minutes, periodic edits, and deletion when a
+conversation resumes. Its task summaries, timer and message state live in the coordinator
+database. It integrates with an existing bridge without creating another inbox consumer.
+
 Version 0.4.0 adds database-backed coordination and recoverable first-run migration. See the
 [release and upgrade notes](plugins/coordinator-kit/CHANGELOG.md). The plugin includes a
 Python/SQLite CLI and a SessionStart hook that automatically migrates legacy state on the first
@@ -136,7 +141,7 @@ codex plugin marketplace upgrade coordinator-kit
 codex plugin add coordinator-kit@coordinator-kit
 ```
 
-Both host manifests pin an explicit `version` (`0.8.0`) instead of tracking this repo's HEAD commit,
+Both host manifests pin an explicit `version` (`0.9.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.

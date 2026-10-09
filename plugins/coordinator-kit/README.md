@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.8.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.9.0** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -66,8 +66,13 @@ These additions reuse the existing database schema; existing records keep their 
 Version 0.8.0 opens database views through an enforced read-only connection. `status.active_tasks`
 groups active lanes by task and preserves question channel/owner information; `sweep` reports
 duplicate queue positions, closed queued tasks and missing/stale lane ownership. Optional
-task-facing summaries remain in the database. Supported bridge buttons and an explicitly
-requested idle status feed follow the project's transport; the plugin adds no receiver or schedule.
+task-facing summaries remain in the database. Supported bridge buttons follow the project's
+transport.
+
+Version 0.9.0 adds the [executable Telegram idle updater](references/telegram-status.md): it posts silently
+after 30 quiet minutes, edits the same post, and deletes it after an exchange. It stores timer,
+message and recovery state in SQLite. Connect its exchange/tick hooks to the existing bridge,
+or run its sender loop under the existing supervisor. No receiver or service is auto-installed.
 
 The [required coordinator cycle](references/proactive-cycle.md) runs after replies, agent results
 and wakeups: ask the next question and fill free capacity with eligible work before waiting.
