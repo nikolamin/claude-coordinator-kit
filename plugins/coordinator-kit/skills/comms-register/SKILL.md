@@ -81,3 +81,13 @@ only to the configured founder channel, never to customers or other recipients.
   delivery reconciliation before retry; a repeated message can also repeat a user action.
 
 Listener health, backlog replay and scheduled-wake ownership: `coordinator-kit:watchdogs`.
+
+## Commitments you state
+
+Anything you tell the user you will do or hold to ("I will ask before pushing under 30 GB free",
+"I will report by 18:00", "I will not touch X") binds like the user's own instruction until you
+withdraw it **in the same channel, before acting**. Re-reading an older note that permits the
+action does not release it; the user is relying on the latest thing you said. Record it when you
+say it: `coord.py commitment add ID --text … --channel … --source …`. `summary` and `status`
+show active commitments on every wake-up and resume. To change course, send the withdrawal first,
+then `commitment withdraw` with that message as source; close a kept one with `commitment fulfil`.

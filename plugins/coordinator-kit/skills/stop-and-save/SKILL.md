@@ -5,6 +5,14 @@ description: Honor a coordinator stop request, preserve in-flight work and pendi
 
 # Stop and save
 
+**Context cap.** Coordinator cost is mostly re-reading its own context on every turn. When the
+context guard reports the coordinator over its cap (default 200k tokens), or at a batch close
+after roughly 20 dispatches or 4 hours, run this skill on your own initiative as a session
+handoff: save, tell the user "saved, ready for a fresh session", and continue there through
+bootstrap. Pick a moment with few agents in flight, since running agents report to the session
+that launched them. The coordinator cannot start the fresh session itself; that step is the user's.
+A self-initiated handoff records no hold: authorized work resumes in the new session.
+
 An explicit stop overrides the proactive cycle. Do not ask a next-goal question or dispatch
 new work to clear `sweep --check-idle`; preserve those pending actions in the handoff instead.
 

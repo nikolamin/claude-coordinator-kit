@@ -5,11 +5,24 @@ description: Escalate repeated coordinator verification failures or unresolved a
 
 # Escalation
 
-After the initial failure and two failed fix/re-verify cycles on the same gap, stop repeating
-that approach. Dispatch a fresh advice-tier agent using the project's recorded model alias.
-Supply original criteria, failure evidence, attempted fixes and constraints; ask what mechanism
-was missed and what to try next. Routine first failures do not need an escalation. A changed
-agent id does not reset the gap's counter.
+After **two failed verify cycles on a task** the loop stops. `coord.py verify fail` counts them,
+blocks the task at the cap and refuses another cycle; any finding counts, and a changed agent id
+resets nothing. If the last verdict is a PASS for the task's target, deliver and file the rest.
+Otherwise ask ONE fixed question (record it as a question with `type: verify_escalation`,
+`cycle: N`, `tasks: [ID]`; `verify status ID` prints the fields):
+
+1. Ship to the staging/test target as it is and file the open findings as tasks.
+2. Cut scope to a named part that already passes.
+3. One advice agent, then one last fix/verify cycle.
+4. Park the task.
+
+Default with no answer: no further fix agent; the task stays blocked while other lanes continue.
+Options 1 and 2 need the target to be one the project already lets the coordinator deliver to;
+otherwise they are the user's release decision. After option 3 is chosen, record the answer and
+run `verify clear ID --question QID`: it permits exactly one more cycle. The advice-tier agent
+uses the project's recorded model alias and gets the original criteria, failure evidence,
+attempted fixes and constraints; ask what mechanism was missed and what to try next. A first
+failure does not need an escalation.
 
 For UI/UX, copy, research and document review, an available differently-trained opinion can
 expose shared blind spots. Use `coordinator-kit:codex-second-opinion` from within the dispatched

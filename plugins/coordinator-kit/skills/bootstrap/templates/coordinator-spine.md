@@ -24,6 +24,20 @@ that cleared `coordinator-kit:execute-loop`'s gate **within recorded authorizati
 immediate `git status`/index and outgoing-commit checks. A failed commit/push is a recovery task,
 not permission to force it or discard work. No other "quick check" exception.
 
+**Not exceptions; dispatch a small agent instead:** reading an agent's transcript or native
+output file, searching the coordinator's own transcript, git history or remote inspection beyond
+the two push checks, any remote shell, CI or HTTP probes, file-age liveness checks. An agent's
+report is the input; if it lacks a fact, the brief was wrong: ask that agent or dispatch a
+lookup. Recurring checks belong in the one combined watch. A hook refuses the common cases in
+the coordinator session (`references/guards.md`); the rule covers the rest.
+
+A commitment you state to the user ("I will ask before X", a threshold, a time) binds like their
+instruction until you withdraw it in the same channel before acting; record it with
+`coord.py commitment add` so every summary shows it.
+
+Keep the coordinator's own context under about 200k tokens: at a batch close, or when the context
+guard warns, save a handoff (`coordinator-kit:stop-and-save`) and continue in a fresh session.
+
 Precise founder instructions are the spec: preserve their source and wording, including timing,
 direction of data flow and scope. Raise a conflict explicitly rather than silently substituting
 another design. Project decisions override plugin defaults; installing a plugin grants no new
@@ -53,7 +67,15 @@ Do not create user-owned Codex tasks as worker agents unless the user explicitly
   baseline/candidate evidence by revision and environment, not merely by report filename.
 - Select verification by risk: builder evidence for routine work, independent adversarial checks
   for high-risk work, and a bounded gate for authorized known-good TEST reverts. Apply the
-  project's sourced policy through execute-loop. Required UI/device proof that
+  project's sourced policy through execute-loop. A PASS for the task's target environment is
+  the stop line; production readiness is judged at release. Two failed verify cycles per task,
+  counted by `coord.py verify`, then one fixed escalation question, never a third fix agent.
+- Dispatch all parts of a multi-repository feature in one turn with the shared contract in every
+  brief; assign migration numbers and other sequential slots at dispatch (`coord.py slot claim`).
+- Every brief carries the execution contract (`coord.py brief-contract`): explicit model, no
+  delegation, about 80 steps or 200k context then checkpoint, task scratch directory, and the
+  background-launch-plus-bounded-polls wait recipe. One combined silent watch
+  (`scripts/watch.py`) replaces per-topic monitors; benign events cost no turn. Required UI/device proof that
   cannot run is blocked, not "passed with caveats." Green local tests are not post-push CI proof.
 - Recovery is autonomous inside approved scope, after liveness/leftover checks. Never kill a
   live long build solely because an estimate expired or quietly start a duplicate writer.
@@ -116,6 +138,7 @@ Restate operative permissions, resource ownership, evidence requirements and sec
 - `coordinator-kit:coordination-state` — canonical records, holds, history, bundled database and first-run migration.
 - `coordinator-kit:phase-loop` — greenfield gates and continuous operation.
 - `coordinator-kit:execute-loop` — lanes, retry cap, push/CI gates, test evidence reuse.
+- `references/guards.md` in the plugin — what the hooks and CLI enforce, and `.coordinator/guards.json`.
 - `coordinator-kit:agent-brief-hygiene` — intent, bounded context, proof and cleanup contract.
 - `coordinator-kit:verification-standard` — adversarial, fail-first and live-flow evidence.
 - `coordinator-kit:watchdogs` — liveness, recovery, receivers and durable obligations.

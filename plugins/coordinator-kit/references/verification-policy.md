@@ -5,12 +5,23 @@ environment. Record `verification_mode`, `risk_reason`, required checks and evid
 include them in the brief. A project's sourced verification policy overrides these defaults.
 Do not overwrite existing grants, stricter acceptance criteria or a pending exception on upgrade.
 
+## Target and stop line
+
+Every task names the environment its delivery is bound for (`verification_target`: a staging/test
+environment, or a release). A verifier answers one question: is this safe and correct **for that
+target**? "PASS for staging" on staging-bound work means deliver to staging now. Production
+readiness is judged once, at release, over the whole release range (see Release scope); findings
+about it raised earlier become plan tasks, not another fix-and-verify round on work that already
+met its target. Record verdicts with `coord.py verify pass|fail`; two failed cycles on a task end
+the loop with one fixed question (`coordinator-kit:escalation`).
+
 ## Routine work
 
 For ordinary UI, copy, local tooling and non-sensitive application behavior, use
 `verification_mode: routine`. The builder checks the requested outcome, runs affected tests
 while iterating, then runs the required final-candidate suite/build/lint/typecheck once before
-an authorized push to the agreed test environment. The same agent can check that revision's CI.
+an authorized push to the agreed test environment. The same agent reads that revision's CI; a
+separate CI-check agent is for a failed run, an environment that did not come up, or a production deploy.
 Do not add a separate verifier, mutation campaign or repeated full-suite cycle simply because
 the change is behavioral. A small fix needs the affected checks again, not a new review ceremony;
 reuse other evidence only under execute-loop's revision/environment rules.

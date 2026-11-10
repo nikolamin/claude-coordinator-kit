@@ -9,10 +9,20 @@ Every wakeup runs the [required coordinator cycle](../../references/proactive-cy
 actually ask pending questions and fill free lanes. Reading or reporting a sweep alone is not
 an adequate wakeup result. Recheck immediately after each completion; do not wait for a timer.
 
-Use the available harness's completion events plus an authorized fallback wake-up for in-flight
-work (typically 20–30 minutes). Record its actual id and scope in the canonical state. A missing
-scheduler is a disclosed limitation, never a reason to claim a wake-up is armed. Do not create
-duplicate monitors or revive a schedule the founder disabled.
+Use the available harness's completion events plus **one combined watch** as the fallback, not
+one monitor per topic re-armed on a timer. A benign event must not cost a coordinator turn: every
+wake-up re-reads the whole coordinator context, and in a measured session over a thousand
+wake-ups found nothing to do and made up 43% of coordinator cost. The bundled `scripts/watch.py --root WORKSPACE`, started once in
+the background, stays silent while everything is in range and prints one line and exits on the
+first actionable event: an active lane past its recorded `deadline`, or a project check from
+`.coordinator/watch.json` (inbox pending, a resource under its threshold). Each check prints
+only when action is needed; a check that keeps failing is reported as broken instead of looking
+quiet. Record each in-flight agent's `deadline` on its lane so the watch covers it. After an
+event, act, then restart the watch with a single tool call and no commentary. Verify once on your
+host that a background command is not cut off by a time limit; if it is, pass `--max-seconds`
+below that limit or run `--once` from the host's scheduler. Record the watch's actual id and scope
+in the canonical state. A missing scheduler is a disclosed limitation, never a reason to claim a
+wake-up is armed. Do not create duplicate monitors or revive a schedule the founder disabled.
 
 ## Sweep the recorded queue
 

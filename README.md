@@ -141,7 +141,7 @@ codex plugin marketplace upgrade coordinator-kit
 codex plugin add coordinator-kit@coordinator-kit
 ```
 
-Both host manifests pin an explicit `version` (`0.9.0`) instead of tracking this repo's HEAD commit,
+Both host manifests pin an explicit `version` (`0.10.0`) instead of tracking this repo's HEAD commit,
 deliberately: with a pinned version, pushing commits here does nothing for anyone who already
 installed the plugin until that string is bumped — which makes the bump itself a review gate,
 not silent auto-apply on every update check.
@@ -197,7 +197,7 @@ codex plugin marketplace remove coordinator-kit
 
 ## Status
 
-The shared plugin exposes 15 skills and a SessionStart migration hook, with separate Claude Code
+The shared plugin exposes 15 skills, a SessionStart migration hook and coordinator guard hooks, with separate Claude Code
 and Codex manifests and marketplace catalogs. Fixture-based migration/runtime tests cover preservation, repeats, interruption, concurrent
 writers and hook behavior. See the [release notes](plugins/coordinator-kit/CHANGELOG.md#validation)
 for current results and limitations. Real-model skill auto-routing is a separate

@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.10.0
+
+Process fixes from one measured multi-day coordinator session, moved from prose into enforcement
+where that is reliable. Details, configuration and limits: [guards](references/guards.md).
+
+- **Dispatch guard (PreToolUse on `Agent`).** In the main session of an established coordinator
+  workspace, an Agent call is denied unless it sets `model` and the brief carries the execution
+  contract: no delegation, a step cap, the task scratch directory and the wait recipe. The deny
+  message names what is missing. `coord.py brief-contract --scratch DIR` prints the contract.
+- **Self-execution guard (PreToolUse on `Bash`).** The coordinator session is denied remote
+  shells, HTTP and CI probes, git history/remote inspection beyond `git log origin/<branch>..`,
+  and reads of agent transcripts or native output files. Subagents and projects without a
+  coordinator database are untouched. The spine names the same list.
+- **Context guard (warning only).** Warns when the coordinator's context passes 200k tokens
+  (estimated from the session transcript, or `context_tokens` on resume) and when a returned
+  agent ended over 200k; stop-and-save gains a self-initiated handoff for that case.
+- **Verify-cycle cap in the CLI.** `coord.py verify pass|fail|start|status|clear` counts failed
+  verify cycles per task. At two (any finding counts; profile `verify_cycle_cap` overrides) the
+  task is blocked, another cycle is refused, and only an answered `verify_escalation` question
+  permits one more. Sweep and status report it. The cap was previously "per gap" in prose.
+- **Target and stop line.** Tasks name a `verification_target`; a PASS for that target means
+  deliver now, production readiness is judged at release. A base test run is needed only to
+  classify a failing candidate test. The pushing agent reads CI; a separate CI-check agent is
+  for a failed run, an environment that did not come up, or a production deploy.
+- **Wait recipe.** Briefs no longer demand "one foreground call, however long", which cannot be
+  obeyed where the host backgrounds long calls: background launch with an exit marker, then
+  bounded polls under 170 s, never ending the turn while a run is live.
+- **Smaller agents.** Sizing rule is about 80 tool steps or 200k tokens of agent context (was a
+  150-step planning warning), then checkpoint and a fresh agent.
+- **Whole-feature dispatch and slots.** All parts of a multi-repository feature are dispatched
+  in one turn with the shared contract in each brief; `coord.py slot claim` assigns migration
+  numbers and other sequential resources at dispatch.
+- **Commitments.** `coord.py commitment add|withdraw|fulfil|list` records what the coordinator
+  told the user it would do; active ones show in `summary` and `status` and can be withdrawn only
+  with the channel they were stated in.
+- **One combined watch.** `scripts/watch.py` replaces per-topic monitors re-armed on a timer:
+  silent while benign, one line and exit on an overdue lane `deadline` or a project check from
+  `.coordinator/watch.json`.
+
+Upgrade notes:
+
+- Schema stays 1; no data migration. New task fields and commands are additive.
+- The guards become active in every established coordinator workspace at the first fresh session
+  after the update. Existing briefs that lack the contract are denied with instructions. To phase
+  in, create `.coordinator/guards.json` with `"mode": "warn"` for `agent_brief` and
+  `coordinator_bash` first. Codex users must trust the new command hooks in the host's hook
+  interface; the CLI commands work without them.
+- Hooks need Bash and Python 3.9+; without them the guards allow everything.
+- An existing project spine is not rewritten. Merge the spine template's new lines (named
+  non-exceptions, commitments, context cap, contract and watch bullets) as an explicit reviewed
+  change, and replace any local "one blocking foreground call" wording with the wait recipe.
+- If the project has its own per-topic monitors, move them into `.coordinator/watch.json` checks
+  that print only when action is needed, and record lane deadlines.
+- Model routing is unchanged and remains a project decision.
+
+Validation: 132 offline tests pass (106 existing, 15 guard hook tests, 11 CLI/watch tests).
+Hook input and output fields were checked against the Claude Code hooks reference; the transcript
+layout used for the context estimate is undocumented and treated as best effort. No live host
+session exercised the hooks, and the root file-copy templates were not changed.
+
 ## 0.9.0
 
 - Bundle the executable Telegram idle-status sender: silent post after 30 quiet minutes,

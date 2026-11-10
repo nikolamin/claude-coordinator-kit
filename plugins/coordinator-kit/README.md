@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.9.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.10.0** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -69,7 +69,13 @@ duplicate queue positions, closed queued tasks and missing/stale lane ownership.
 task-facing summaries remain in the database. Supported bridge buttons follow the project's
 transport.
 
-Version 0.9.0 adds the [executable Telegram idle updater](references/telegram-status.md): it posts silently
+Version 0.10.0 adds [guards](references/guards.md): hooks that refuse a dispatch without an explicit
+model and the execution contract, keep the coordinator session from running investigative commands
+and warn on context size, plus CLI commands for the two-cycle verify cap, stated commitments,
+sequential slots and one combined silent watch. They act only in the main session of a workspace
+that has `.coordinator/coord.db`; set modes or switch them off in `.coordinator/guards.json`.
+
+Version 0.9.0 added the [executable Telegram idle updater](references/telegram-status.md): it posts silently
 after 30 quiet minutes, edits the same post, and deletes it after an exchange. It stores timer,
 message and recovery state in SQLite. Connect its exchange/tick hooks to the existing bridge,
 or run its sender loop under the existing supervisor. No receiver or service is auto-installed.
@@ -138,7 +144,8 @@ instead of the GitHub source. The `.agents/plugins/marketplace.json` catalog poi
 The manifests pin a version; deliberately bump it when preparing a release. A source checkout
 change is not publication or proof that an installed cache has updated.
 
-A fresh session after updating loads the migration hook when enabled and trusted. Normal "bootstrap yourself" ensures and
+A fresh session after updating loads the migration and guard hooks when enabled and trusted. The
+guards deny from that session on; use `"mode": "warn"` in `.coordinator/guards.json` to phase them in. Normal "bootstrap yourself" ensures and
 reconciles the database, then resumes. Existing instruction files are preserved; an explicit spine
 upgrade merges a targeted diff while keeping local decisions. Stop old legacy-file writers before
 upgrading; existing DB integrations must be repointed during migration review. See the

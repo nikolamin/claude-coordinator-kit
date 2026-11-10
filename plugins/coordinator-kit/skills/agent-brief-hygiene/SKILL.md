@@ -43,19 +43,31 @@ clear scope and ownership, and is not automatically an independent verifier.
 
 ## Context and execution budget
 
-Keep work bounded to one reviewable outcome. Split an oversized task by dependency/file group
-before dispatch; roughly 150 tool steps is a planning warning, not a reason to kill a live agent.
-At a safe boundary write a checkpoint (intent, revision, dirty files, evidence, remaining steps,
-resources) and let a fresh agent continue from disk. Do not make cost claims based on one model's
-historical cache behavior as though they apply to every runtime.
+Keep work bounded to one reviewable outcome: one repository, one concern. A build and its own
+test run are one agent; a fix round is a fresh agent that continues from files on disk. Size the
+brief for **about 80 tool steps or 200k tokens of agent context**, whichever comes first; every
+step re-reads the whole history, so two half-size agents cost far less than one long one. The cap
+is a sizing rule and a checkpoint trigger, not a reason to kill a live agent. At the cap or a safe
+boundary the agent writes a checkpoint (intent, revision, dirty files, evidence, remaining steps,
+resources), reports what it has, and a fresh agent continues from disk.
 
-Require: "Do not delegate; execute the assigned work directly. Bulk suite/build/search output
-goes to the named `.coordinator-scratch/` log; return decisive lines and exit codes only. Keep
-reads targeted with line ranges. Await long commands to completion using the harness's supported
-wait/continuation mechanism; emit bounded progress if needed. Do not end with 'standing by' and
-expect a self-armed watcher to finish your task." A supported running process handle is fine;
-an agent ending without a result or durable handoff is not. Capture screenshots when visual proof
-requires them. Describe only output limits and hook capabilities actually provided by the runtime.
+Paste the execution contract into every brief. Print it with
+`coord.py --root WORKSPACE brief-contract --scratch .coordinator-scratch/<task>` (`--steps N` for
+a smaller task). It states: no delegation, no side backlog, the step/context cap with the
+checkpoint rule, the task-owned scratch directory, bulk output to files, and the wait recipe.
+
+**Wait recipe.** "Run it as one foreground call, however long" cannot be obeyed where the host
+moves a long call to the background on its own (observed at about 180 s); agents then end their
+turn "waiting" and nothing wakes them. The recipe that works: start the long command with the
+host's background launch, have it write its own exit marker to a log
+(`…; echo "rc=$?" >> run.log`), then poll with ordinary bounded calls, each under 170 s, until
+the marker appears. Never end the turn while a run is live. A supported running-process handle is
+fine; an agent ending without a result or durable handoff is not.
+
+In an established coordinator workspace a [dispatch guard](../../references/guards.md) refuses an
+Agent call without an explicit model or without these contract markers; it names what is
+missing. Capture screenshots when visual proof requires them. Describe only output limits and
+hook capabilities actually provided by the runtime.
 
 ## Fragile operations
 

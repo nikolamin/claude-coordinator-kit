@@ -67,6 +67,24 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
   when applicable. `decision supersede OLD NEW --data FILE` records a sourced lift/replacement
   and marks the original superseded in one transaction. Scope must still be checked by the
   coordinator; a new id is not approval.
+- `verify pass|fail TASK --note TEXT [--ref REPORT]` (`pass` also needs `--target ENV`) records a
+  verdict; `verify start TASK` is the check before dispatching another fix/verify cycle and
+  `verify status TASK` prints the count. At two failed cycles (profile `verify_cycle_cap`
+  overrides) the task becomes `blocked`, further `in_progress`/`verifying` updates are refused,
+  and `verify clear TASK --question ID` accepts only an answered question with
+  `type: verify_escalation`, the same `cycle` and the task in `tasks`; it permits one more cycle.
+  The counter fields cannot be changed through `task put`.
+- `commitment add ID --text TEXT --channel CH --source MSG` records something the coordinator
+  told the user it would do or not do ("I will ask before X", a threshold, a time). Active ones
+  appear in `summary` and `status` as `active_commitments`. Close with `commitment withdraw ID
+  --channel CH --source MSG --reason TEXT` (refused unless the channel matches where it was
+  stated) or `commitment fulfil ID --evidence REF`.
+- `slot claim SERIES --task ID [--first N] [--another]` assigns the next number of a shared
+  sequence (migration numbers, ports) at dispatch, once per task unless `--another`;
+  `slot list SERIES` shows the claims. Lane records may carry `deadline` (timezone-aware ISO
+  time) for the combined watch.
+- `brief-contract --scratch .coordinator-scratch/TASK [--steps N]` prints the execution contract
+  for agent briefs; it needs no database.
 - `question put ID --data FILE` uses queued/presented/answered/parked states. Store exact options,
   default, outbound id, answer and answer_source. The DB permits only one presented question;
   reply correlation and stale-option checks still follow `coordinator-kit:question-protocol`.

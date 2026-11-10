@@ -26,18 +26,32 @@ publish: use the recorded trigger map, never infer permission from a branch or h
    agent cheaply test its premise: already fixed, wrong cause, and not reproducible are useful
    findings, not invitations to invent a change. Correct stale records at their source.
 2. Claim a lane before dispatch. Record task/agent id, repository and checkout, branch, owned
-   paths, external resources, stage, model, start time, expected duration, and report path.
-   Give the agent a bounded brief using `coordinator-kit:agent-brief-hygiene`.
+   paths, external resources, stage, model, start time, expected duration, `deadline` and report
+   path. Give the agent a bounded brief using `coordinator-kit:agent-brief-hygiene`.
+   **Dispatch every part of one feature in the same turn.** When a request spans repositories or
+   components (server, clients, docs), fix the shared contract first (field names, types,
+   defaults, endpoints) and put it verbatim in every brief, then dispatch all parts together. A
+   part started after the first one lands waits for nothing useful and then rebases and retests.
+   **Assign shared sequential resources at dispatch**, never "next free at landing": migration or
+   version numbers, fixed ports, ordered release slots. Use `coord.py slot claim SERIES --task ID`
+   (first claim: `--first N`, measured by an agent) and put the number in the brief. A rebase that
+   is conflict-free and touches no file of the changed area does not rerun that area's tests.
 3. Select and record the [verification policy](../../references/verification-policy.md) before
    dispatch. Routine work uses builder acceptance and affected checks, with the required suite
    once at the final push gate; high-risk work adds independent adversarial verification and
    failure-mechanism checks. An authorized urgent TEST revert can use that policy's narrow gate.
-   Existing project requirements and release authority still apply.
-4. A failed independent verification gets a fresh fixer with the exact gap and on-disk evidence. Allow at
-   most two fix/re-verify cycles on the same gap after the initial failure; if the second cycle
-   also fails (third failure overall), escalate via `coordinator-kit:escalation`. A new agent
-   does not reset the counter. Do not resume a large completed transcript merely to continue
-   work; a status-only probe to a still-running agent is different.
+   Existing project requirements and release authority still apply. Record the task's
+   `verification_target` (the environment this delivery is bound for, such as `staging` or
+   `release`) and brief the verifier with that one question. **A PASS for the task's target is
+   the stop line:** deliver now; findings about a later target become tasks judged at release.
+4. Record every verdict: `coord.py verify pass TASK --target T --note …` or
+   `verify fail TASK --note … --ref REPORT`. A failed verification gets a fresh fixer with the
+   exact gap and on-disk evidence, after `verify start TASK`. **Hard cap: two failed verify
+   cycles per task.** Any finding counts, not only "the same gap", and a new agent does not reset
+   it: a per-gap count let every new finding restart the loop. At the cap the CLI blocks the
+   task and refuses another cycle; ask the one fixed question from `verify status`
+   (`coordinator-kit:escalation`) and act on the answer. Do not resume a large completed
+   transcript merely to continue work; a status-only probe to a still-running agent is different.
 5. Establish the push gate below, then commit/push only what the project's authorization permits.
    An assigned agent may snapshot its own work before verification when local commits are
    authorized; otherwise preserve a patch. This does not expand the coordinator's product-commit
@@ -79,6 +93,9 @@ independently testing the acceptance criteria.
   repository, full revision, clean-tree/diff identity, commands, toolchain, dependency/config
   fingerprint (no secrets), database/schema setup, timestamp, exit codes, pass/fail/skip counts,
   named failure set, and log paths. A file merely existing is not a valid cache hit.
+- A baseline run exists to classify a candidate failure as new or pre-existing. When the
+  candidate's required checks pass by name with honest skip counts, no base run is needed; run
+  the base only for the tests that fail on the candidate.
 - Reuse only when that identity and required coverage match. Missing logs, changed fixtures,
   toolchains, config, schema, or source invalidate the affected evidence. Shared-tree edits
   during a run make attribution unresolved. Keep baseline failures distinct from candidate ones.
@@ -104,8 +121,11 @@ only, never sweep another agent's staged files. Before pushing, inspect
 `git log origin/<branch>..` and ensure every outgoing commit is reviewed and authorized. Never
 reset, clean, discard, or force-push to get past a conflict or rejected push; dispatch recovery.
 
-When CI exists, an agent checks required runs for the **full 40-character pushed SHA**, not
-"latest run" or a possibly stale branch filter. Empty, pending, skipped-required, or missing
+When CI exists, the agent that pushed (or the next agent working in that repository) reads the
+required runs once for the **full 40-character pushed SHA**, not "latest run" or a possibly stale
+branch filter. Dispatch a separate CI-check agent only when a run failed and needs triage, the
+target environment did not come up, or the push is a production deploy: routine green reads do
+not earn their own agent. Empty, pending, skipped-required, or missing
 runs are unresolved; green deploy-only CI does not prove local tests ran. Failed required CI
 returns to the fix loop. If verified topology establishes there is no CI, use the local gate
 and any required deployed check; CI setup is a separate task. Recheck topology when it changes.
