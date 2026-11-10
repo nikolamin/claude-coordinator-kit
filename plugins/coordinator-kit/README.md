@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.10.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.11.0** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -69,7 +69,13 @@ duplicate queue positions, closed queued tasks and missing/stale lane ownership.
 task-facing summaries remain in the database. Supported bridge buttons follow the project's
 transport.
 
-Version 0.10.0 adds [guards](references/guards.md): hooks that refuse a dispatch without an explicit
+Version 0.11.0 adds [automatic lane filling](references/lane-filling.md): a bundled hook records every
+background agent dispatch as an active lane with its agent id (shared checkouts do not collide) and
+releases it on SubagentStop; `coord.py idle` and `sweep --available-slots auto` give one ranked pick per
+idle work lane and FREE-SLOTS from the profile's `capacity.max_agents` and host memory; the combined
+watch wakes on it, and an idle wake obliges a dispatch or a recorded lane blocker.
+
+Version 0.10.0 added [guards](references/guards.md): hooks that refuse a dispatch without an explicit
 model and the execution contract, keep the coordinator session from running investigative commands
 and warn on context size, plus CLI commands for the two-cycle verify cap, stated commitments,
 sequential slots and one combined silent watch. They act only in the main session of a workspace

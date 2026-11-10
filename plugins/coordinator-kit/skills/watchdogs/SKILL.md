@@ -14,8 +14,11 @@ one monitor per topic re-armed on a timer. A benign event must not cost a coordi
 wake-up re-reads the whole coordinator context, and in a measured session over a thousand
 wake-ups found nothing to do and made up 43% of coordinator cost. The bundled `scripts/watch.py --root WORKSPACE`, started once in
 the background, stays silent while everything is in range and prints one line and exits on the
-first actionable event: an active lane past its recorded `deadline`, or a project check from
-`.coordinator/watch.json` (inbox pending, a resource under its threshold). Each check prints
+first actionable event: an active lane past its recorded `deadline`, idle work lanes with
+free slots (`IDLE_LANES`, see [lane filling](../../references/lane-filling.md)), a failing
+autolane hook, or a project check from `.coordinator/watch.json` (inbox pending, a resource
+under its threshold). **An idle wake means dispatch each pick up to FREE-SLOTS or record that
+lane's blocker (`coord.py idle block LANE --reason`); never re-arm the watch with neither.** Each check prints
 only when action is needed; a check that keeps failing is reported as broken instead of looking
 quiet. Record each in-flight agent's `deadline` on its lane so the watch covers it. After an
 event, act, then restart the watch with a single tool call and no commentary. Verify once on your
@@ -29,8 +32,12 @@ wake-up is armed. Do not create duplicate monitors or revive a schedule the foun
 On wake/resume, run the bundled `coord.py --root WORKSPACE sweep` alongside the normal state
 read. It reports releases/user blockers without a linked question, an idle question slot with
 queued work, outdated questions, and quiet in-progress/verifying tasks. It never sends, changes
-status, dispatches or cancels. Use `--available-slots N` only after a fresh native fleet/capacity
-check; its dispatch candidates still require scoped authorization and lane/resource checks.
+status, dispatches or cancels. `--available-slots auto` derives FREE-SLOTS from recorded agent
+lanes (the bundled autolane hook records every background dispatch with its agent id and
+releases it on SubagentStop), the profile's `capacity.max_agents` and host memory, and offers
+one ranked pick per idle work lane; use `--available-slots N` after a native fleet check when
+the records cannot see the fleet. Candidates still require scoped authorization and
+lane/resource checks.
 `check_capacity` requires that live check, `prepare_task` requires intake, and
 `review_dispatch_scope` requires checking a hold against the named task rather than freezing
 unaffected work. Finish the cycle with `--check-idle`; exit 2 means outstanding action/blocker

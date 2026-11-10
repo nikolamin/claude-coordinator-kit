@@ -3,7 +3,7 @@
   "status": "active",
   "project": "",
   "phase": "bootstrap",
-  "plugin_version": "0.10.0",
+  "plugin_version": "0.11.0",
   "spine_version": "",
   "workspace_root": "",
   "coordination_repository": "",
@@ -17,6 +17,16 @@
     "second_opinion": {}
   },
   "models": {},
+  "capacity": {
+    "max_agents": 4,
+    "min_free_memory_pct": 15,
+    "quiet_minutes": 30,
+    "claim_minutes": 30,
+    "blocker_hours": 4,
+    "last_resort_prefixes": [
+      "weekly-"
+    ]
+  },
   "queue": {
     "intake": "define-prioritize-queue",
     "preempt_active": false,

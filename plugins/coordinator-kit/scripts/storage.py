@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 import time
 
-VERSION = '0.10.0'
+VERSION = '0.11.0'
 SCHEMA = 1
 KINDS = ('task', 'decision', 'question', 'lane', 'profile', 'handoff', 'guideline')
 STATUSES = {
@@ -265,7 +265,17 @@ class Store:
             checkout = actual_path(self.root / merged['checkout'])
             if not checkout.is_dir():
                 raise ValueError('Active lane checkout must be an existing directory')
-            resource = os.path.normcase(str(checkout))
+            agent_id = merged.get('agent_id')
+            if agent_id is not None and (not isinstance(agent_id, str) or not agent_id.strip()):
+                raise ValueError('Lane agent_id must be a nonempty string')
+            if merged.get('shared_checkout') is True:
+                # An observed agent in a checkout others also use (trunk-based fleets): the unique
+                # resource is the agent itself, so two agents in one checkout never collide.
+                if not agent_id:
+                    raise ValueError('A shared-checkout lane requires agent_id')
+                resource = 'agent:' + agent_id
+            else:
+                resource = os.path.normcase(str(checkout))
         self.con.execute('''INSERT INTO records(id,kind,title,status,data,resource,created_at,updated_at)
           VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,
           status=excluded.status,data=excluded.data,resource=excluded.resource,

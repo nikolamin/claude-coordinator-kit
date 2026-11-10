@@ -93,6 +93,11 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
   action, never an automatic side effect of a database write.
 - `lane put ID --data FILE` claims a checkout with `status: active`, `checkout`, `task`, `agent`,
   model, resources and checkpoint path. One active lane per normalized checkout is enforced.
+  A lane with `shared_checkout: true` and an `agent_id` (recorded by the autolane hook for an
+  agent in a checkout others also use) is unique per agent instead. Lane `lane` names the work
+  lane; task `lane` assigns a task to one. `idle` gives one ranked pick per idle work lane and
+  FREE-SLOTS; `idle block|unblock LANE --reason` records why a lane cannot start
+  ([lane filling](../../references/lane-filling.md)).
   Set released only after settling writers, child processes and mutations. External-resource
   collisions across different checkouts still require coordination.
 - `profile put workspace --data FILE` stores topology, models, communication policy, receiver
@@ -110,7 +115,8 @@ Commands emit JSON except `render`. For writes, prefer `--data <workspace-local 
   `--now` on sweep supports offline replay; normal operation uses the actual clock.
   Missing capacity produces `check_capacity`; unranked/undefined work produces `prepare_task`;
   held candidates produce `review_dispatch_scope` so a scoped hold cannot silently hide the queue.
-  Before waiting, run `sweep --available-slots N --check-idle`: JSON `idle_ready` plus exit 0
+  `--available-slots auto` takes FREE-SLOTS and one pick per idle work lane from `idle`.
+  Before waiting, run `sweep --available-slots auto --check-idle` (or `N`): JSON `idle_ready` plus exit 0
   means no recorded follow-up remains, exit 2 means action or concrete blocker accounting is
   required, and exit 1 is an error. Follow the [required cycle](../../references/proactive-cycle.md);
   a read-only suggestion is not a substitute for actually asking or dispatching.

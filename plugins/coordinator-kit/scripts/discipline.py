@@ -32,13 +32,18 @@ CONTRACT = '''Execution contract (coordinator-kit; applies to this whole task):
 '''
 
 
-def brief_contract(scratch, steps, context):
+def brief_contract(scratch, steps, context, task=None, lane=None, checkout=None):
     if not 10 <= steps <= 400 or not 50 <= context <= 1000:
         raise ValueError('steps must be 10-400 and context 50-1000 (thousand tokens)')
     scratch = scratch.rstrip('/')
     if '.coordinator-scratch' not in scratch.replace('\\', '/').split('/'):
         raise ValueError('scratch must be a task-owned directory under .coordinator-scratch/')
-    return CONTRACT.format(scratch=scratch, steps=steps, context=context)
+    # Marker lines the autolane hook reads to link the dispatched agent to its task and work lane.
+    markers = ''.join(name + ': ' + value + '\n' for name, value in (('Task', task), ('Lane', lane), ('Checkout', checkout))
+                      if value)
+    if any(c.isspace() for value in (task, lane) if value for c in value):
+        raise ValueError('task and lane are single tokens')
+    return markers + CONTRACT.format(scratch=scratch, steps=steps, context=context)
 
 
 def task(st, key):

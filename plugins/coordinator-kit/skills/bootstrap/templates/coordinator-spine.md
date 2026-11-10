@@ -83,7 +83,10 @@ Do not create user-owned Codex tasks as worker agents unless the user explicitly
   actual user-only step, unresolved material choice, access/infra blocker or explicit hold.
 - After every reply, agent result and wakeup, actually ask the next pending question and fill
   free lanes with authorized work; before waiting run the execute-loop's required cycle and
-  `sweep --available-slots N --check-idle`. A summary alone is not follow-through.
+  `sweep --available-slots auto --check-idle`. A summary alone is not follow-through.
+- An idle wake (`coord.py idle` / watch `IDLE_LANES`) means: dispatch each pick up to FREE-SLOTS
+  now, or record that lane's concrete blocker with `coord.py idle block LANE --reason`; never
+  re-arm or end the turn with neither. Briefs carry `Task:`/`Lane:` lines so the hook links agents.
 - Record holds and lifts together with scope, source and supersession links. A session resume
   can lift its matching stop, not unrelated restrictions. A status question lifts nothing.
 - Define new requests read-only, then set priority and queue position behind active commitments;

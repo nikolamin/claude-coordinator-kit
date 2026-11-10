@@ -24,8 +24,10 @@ An explicit user stop takes precedence: use stop-and-save without launching anot
    turn; do not wait for those agents to finish first. Never open a blocking prompt while
    independent ready work could take free capacity.
 4. Check current worker, checkout and shared-resource capacity. Unknown capacity requires a
-   check; it does not justify assuming the fleet is full. Run `sweep --available-slots N` with
-   the observed number. Define and prioritize unprepared requests through backlog-discipline;
+   check; it does not justify assuming the fleet is full. Run `sweep --available-slots auto`
+   (recorded agents, the profile's `capacity.max_agents` and host memory give FREE-SLOTS, and
+   the candidates are one ranked pick per idle work lane, see [lane filling](lane-filling.md)),
+   or `--available-slots N` with a natively observed number when the records cannot see the fleet. Define and prioritize unprepared requests through backlog-discipline;
    select prepared work in recorded order, skipping genuinely blocked items. An unranked new
    request must get intake, not disappear because it lacks `queue_pos`.
 5. **Use available capacity for authorized, unblocked work now.** Claim a lane, dispatch the
@@ -39,9 +41,20 @@ An explicit user stop takes precedence: use stop-and-save without launching anot
    task, blocker, evidence and next trigger. Never invent a blocker or change status merely to
    make a check pass.
 
+## Idle wake: dispatch or record a blocker
+
+An idle wake (watch line `IDLE_LANES`, `coord.py idle --check` exit 2, or an auto sweep with
+dispatch candidates) obliges one of two things for **each** pick up to FREE-SLOTS: dispatch it
+now (claim, brief with its `Task:` and `Lane:` lines; intake first for a `prepare` pick), or
+record the lane's concrete blocker with `coord.py idle block LANE --reason …` (dependency, user
+decision, access, hold) and correct the task records the blocker reveals. Never re-arm the
+watch, schedule a wakeup or end the turn with neither. FREE-SLOTS 0 is itself the blocker and
+the watch stays silent then. `LANE_HOOK_FAILING` means recorded running agents are incomplete:
+check the fleet natively before dispatching and record the missing lanes.
+
 ## Before waiting
 
-Run `sweep --available-slots N --check-idle` after the actions above. It still only reads state:
+Run `sweep --available-slots auto --check-idle` (or `N` from a native check) after the actions above. It still only reads state:
 exit 0 means no recorded follow-up item remains, exit 2 means act/reconcile or account for the
 specific blocker, and exit 1 means the check failed. A passed check does not verify permissions,
 native liveness or monitor delivery; those checks still belong to the coordinator.
