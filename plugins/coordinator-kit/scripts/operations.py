@@ -2,7 +2,7 @@
 import datetime
 import math
 
-from storage import now
+from storage import now, verify_blocked, verify_cap
 
 
 def timestamp(value):
@@ -121,6 +121,8 @@ def status_view(st, limit=3):
             'next_tasks': [task_view(r) for r in next_tasks(tasks, questions, state)[:limit]],
             'migration_ready': state['ready_for_dispatch'],
             'active_hold_count': len(state['active_holds']),
+            'active_commitments': state['active_commitments'],
+            'verify_escalations': [r['id'] for r in open_rows if verify_blocked(r['data'], verify_cap(st))],
             'note': 'Active tasks come from recorded lanes, not live process checks. Next tasks need authorization, scoped holds, live ownership and capacity.'}
 
 
@@ -180,6 +182,12 @@ def sweep(st, at=None, stale_hours=6, available_slots=None):
             elif data.get('needs_user') and row['id'] not in refs:
                 items.append({'kind': 'queue_user_question', 'task': row['id'],
                               'text': 'Record the concrete remaining user decision or action.'})
+        if (row['status'] == 'blocked' and data.get('blocked_on') == 'verify_escalation'
+                and verify_blocked(data, verify_cap(st)) and row['id'] not in refs):
+            items.append({'kind': 'verify_escalation', 'task': row['id'],
+                          'failed_verify_cycles': data.get('failed_verify_cycles'),
+                          'text': 'Verify cap reached: record and present the one fixed escalation question from '
+                                  '`verify status`, or apply its answer; no further fix/verify agent before that.'})
         if row['status'] in ('in_progress', 'verifying'):
             activity = [timestamp(row['updated_at'])]
             activity.extend(timestamp(r[0]) for r in st.con.execute('SELECT at FROM events WHERE record_id=?', (row['id'],)))

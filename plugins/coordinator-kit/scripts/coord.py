@@ -9,6 +9,7 @@ import sys
 from storage import KINDS, Store, atomic_write, digest, dumps, inside, now
 from migrate import ensure
 from operations import status_view, sweep
+import discipline
 
 
 def parser():
@@ -52,6 +53,33 @@ def parser():
     mode = resolve.add_mutually_exclusive_group(required=True)
     mode.add_argument('--refs', nargs='+', help='Canonical record ids that preserve actionable content')
     mode.add_argument('--historical', action='store_true', help='Explicitly reviewed as history/no remaining action')
+    verify = sub.add_parser('verify', help='Count verify cycles per task; refuse a cycle past the cap without an answered escalation'
+                            ).add_subparsers(dest='operation', required=True)
+    for name in ('status', 'start', 'fail', 'pass', 'clear'):
+        item = verify.add_parser(name); item.add_argument('task')
+        if name in ('fail', 'pass'):
+            item.add_argument('--note', required=True); item.add_argument('--ref', help='Report/evidence path')
+        if name == 'pass':
+            item.add_argument('--target', required=True, help='Environment the verdict covers, e.g. staging or release')
+        if name == 'clear':
+            item.add_argument('--question', required=True, help='Answered verify_escalation question id')
+    promise = sub.add_parser('commitment', help='Commitments the coordinator stated to the user; shown until closed'
+                             ).add_subparsers(dest='operation', required=True)
+    promise.add_parser('list')
+    item = promise.add_parser('add'); item.add_argument('id'); item.add_argument('--text', required=True)
+    item.add_argument('--channel', required=True); item.add_argument('--source', required=True, help='Id/time of the message that stated it')
+    item = promise.add_parser('withdraw'); item.add_argument('id'); item.add_argument('--channel', required=True)
+    item.add_argument('--source', required=True, help='Id/time of the withdrawing message'); item.add_argument('--reason', required=True)
+    item = promise.add_parser('fulfil'); item.add_argument('id'); item.add_argument('--evidence', required=True)
+    slots = sub.add_parser('slot', help='Assign shared sequential numbers (migration slots, ports) at dispatch'
+                           ).add_subparsers(dest='operation', required=True)
+    item = slots.add_parser('claim'); item.add_argument('series'); item.add_argument('--task', required=True)
+    item.add_argument('--first', type=int, help='First free value (required for the first claim; raises the floor later)')
+    item.add_argument('--another', action='store_true', help='Claim an additional slot for a task that already holds one')
+    item = slots.add_parser('list'); item.add_argument('series')
+    contract = sub.add_parser('brief-contract', help='Print the execution contract to paste into every agent brief')
+    contract.add_argument('--scratch', required=True, help='Task-owned directory under .coordinator-scratch/')
+    contract.add_argument('--steps', type=int, default=80); contract.add_argument('--context', type=int, default=200, help='Thousand tokens')
     source = sub.add_parser('source').add_subparsers(dest='operation', required=True)
     source.add_parser('list')
     show = source.add_parser('show'); show.add_argument('id'); show.add_argument('--output')
@@ -82,7 +110,8 @@ def render(st):
 def execute(st, a):
     cmd, op = a.command, getattr(a, 'operation', None)
     if a.actor == 'agent' and not (cmd in ('summary', 'status', 'sweep', 'check', 'search') or
-            (cmd in KINDS and op in ('show', 'list')) or (cmd in ('review', 'source') and op in ('show', 'list')) or cmd == 'event'):
+            (cmd in KINDS and op in ('show', 'list')) or (cmd in ('review', 'source') and op in ('show', 'list')) or cmd == 'event' or
+            (cmd == 'verify' and op == 'status') or (cmd in ('commitment', 'slot') and op == 'list')):
         raise ValueError('Agent mode permits reads and append-only events, not coordination transitions')
     if cmd in KINDS:
         if op == 'put':
@@ -120,6 +149,12 @@ def execute(st, a):
         if a.record: sql += ' WHERE record_id=?'; params.append(a.record)
         params.append(max(1, min(a.limit, 1000)))
         return [dict(r) for r in st.con.execute(sql + ' ORDER BY id DESC LIMIT ?', params)]
+    if cmd in ('verify', 'commitment', 'slot'):
+        handler = getattr(discipline, cmd)
+        if op in ('status', 'start', 'list'):
+            return handler(st, a)
+        with st.transaction():
+            return handler(st, a)
     if cmd == 'summary':
         return st.summary()
     if cmd in ('status', 'sweep'):
@@ -196,11 +231,16 @@ def main(argv=None):
         if a.command == 'ensure':
             if a.actor != 'coordinator': raise ValueError('Only coordinator mode may migrate')
             result = ensure(a.root, a.init)
+        elif a.command == 'brief-contract':
+            result = discipline.brief_contract(a.scratch, a.steps, a.context)
         else:
             op = getattr(a, 'operation', None)
             writes_db = ((a.command in KINDS and op in ('put', 'supersede')) or
                          (a.command == 'event' and op == 'add') or
-                         (a.command == 'review' and op == 'resolve'))
+                         (a.command == 'review' and op == 'resolve') or
+                         (a.command == 'verify' and op in ('fail', 'pass', 'clear')) or
+                         (a.command == 'commitment' and op in ('add', 'withdraw', 'fulfil')) or
+                         (a.command == 'slot' and op == 'claim'))
             st = Store(a.root, read_only=not writes_db)
             result = execute(st, a)
         print(result if isinstance(result, str) else dumps(result))

@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 import time
 
-VERSION = '0.9.0'
+VERSION = '0.10.0'
 SCHEMA = 1
 KINDS = ('task', 'decision', 'question', 'lane', 'profile', 'handoff', 'guideline')
 STATUSES = {
@@ -20,6 +20,21 @@ STATUSES = {
     'profile': {'active'}, 'handoff': {'active', 'resolved'}, 'guideline': {'active', 'superseded'},
 }
 DEFAULT_STATUS = {k: ('pending' if k == 'task' else 'queued' if k == 'question' else 'active') for k in KINDS}
+VERIFY_CAP = 2
+# Written only by the verify commands, so a counter cannot be reset by an ordinary record update.
+VERIFY_MANAGED = ('failed_verify_cycles', 'verify_cleared_at', 'verify_escalation_question')
+
+
+def verify_blocked(data, cap=VERIFY_CAP):
+    """True once failed verify cycles reach the cap and no answered escalation cleared this count."""
+    failed = data.get('failed_verify_cycles', 0)
+    return type(failed) is int and failed >= cap and data.get('verify_cleared_at') != failed
+
+
+def verify_cap(st):
+    row = st.con.execute("SELECT data FROM records WHERE kind='profile' AND id='workspace'").fetchone()
+    value = json.loads(row['data']).get('verify_cycle_cap') if row else None
+    return value if type(value) is int and 1 <= value <= 10 else VERIFY_CAP
 
 
 def now():
@@ -194,7 +209,7 @@ class Store:
         item['data'] = json.loads(item['data'])
         return item
 
-    def put(self, kind, key, data, expected_version=None, imported=False):
+    def put(self, kind, key, data, expected_version=None, imported=False, managed=False):
         if kind not in KINDS or not isinstance(data, dict):
             raise ValueError('Invalid record kind or JSON object')
         old = self.con.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone()
@@ -214,6 +229,12 @@ class Store:
             if not merged.get('acceptance'):
                 raise ValueError('Active/completed task requires acceptance criteria')
         if not imported and kind == 'task':
+            previous = json.loads(old['data']) if old else {}
+            if not managed and any(name in data and data[name] != previous.get(name) for name in VERIFY_MANAGED):
+                raise ValueError('Verify-cycle fields change only through the verify commands')
+            if status in ('in_progress', 'verifying') and verify_blocked(merged, verify_cap(self)):
+                raise ValueError('Verify cap reached on this task: no further fix/verify cycle without an answered '
+                                 'escalation (verify status / verify clear); ship, cut scope or park are still open')
             position = merged.get('queue_pos')
             if position is not None and (type(position) is not int or position < 1):
                 raise ValueError('queue_pos must be a positive integer or null')
@@ -268,6 +289,10 @@ class Store:
                 'ready_for_dispatch': pending == 0 and files_pending == 0 and unresolved == 0,
                 'task_counts': counts,
                 'active_holds': [self.get(r[0]) for r in self.con.execute("SELECT id FROM records WHERE kind='decision' AND status='active'") if self.get(r[0])['data'].get('type') == 'hold'],
+                # Stated by the coordinator to the user; binding until withdrawn in the same channel.
+                'active_commitments': [{'id': r['id'], 'title': r['title'], 'channel': r['data'].get('channel')}
+                                       for r in (self.get(x[0]) for x in self.con.execute("SELECT id FROM records WHERE kind='decision' AND status='active' ORDER BY created_at,id"))
+                                       if r['data'].get('type') == 'commitment'],
                 'presented_question': [self.get(r[0]) for r in self.con.execute("SELECT id FROM records WHERE kind='question' AND status='presented'")],
                 'active_lanes': [self.get(r[0]) for r in self.con.execute("SELECT id FROM records WHERE kind='lane' AND status='active'")]}
 
