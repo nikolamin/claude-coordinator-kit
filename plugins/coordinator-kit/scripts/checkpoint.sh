@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# The checkpoint hook fails open: without a usable Python compaction proceeds unsaved (the coordinator saves by hand).
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || exit 0
+for coord_python in python3 python; do
+  if command -v "$coord_python" >/dev/null 2>&1 && "$coord_python" -c 'import sys,sqlite3; sys.exit(0 if sys.version_info >= (3,9) else 1)' </dev/null; then
+    "$coord_python" -B "$script_dir/checkpoint.py" "$@" || true
+    exit 0
+  fi
+done
+exit 0

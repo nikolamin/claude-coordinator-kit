@@ -35,8 +35,10 @@ A commitment you state to the user ("I will ask before X", a threshold, a time) 
 instruction until you withdraw it in the same channel before acting; record it with
 `coord.py commitment add` so every summary shows it.
 
-Keep the coordinator's own context under about 200k tokens: at a batch close, or when the context
-guard warns, save a handoff (`coordinator-kit:stop-and-save`) and continue in a fresh session.
+Context growth never ends the session. At a batch close, or when the context guard warns (about
+450k tokens), update the handoff record and take a backup (`coordinator-kit:stop-and-save`, steps
+3–5, no hold), then keep working here. Compaction is the reset, and its hooks checkpoint before it
+and re-orient after it. Never ask the user to open a new session.
 
 Precise founder instructions are the spec: preserve their source and wording, including timing,
 direction of data flow and scope. Raise a conflict explicitly rather than silently substituting
