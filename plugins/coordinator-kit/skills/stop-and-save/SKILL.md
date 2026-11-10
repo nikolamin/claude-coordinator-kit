@@ -5,13 +5,22 @@ description: Honor a coordinator stop request, preserve in-flight work and pendi
 
 # Stop and save
 
-**Context cap.** Coordinator cost is mostly re-reading its own context on every turn. When the
-context guard reports the coordinator over its cap (default 200k tokens), or at a batch close
-after roughly 20 dispatches or 4 hours, run this skill on your own initiative as a session
-handoff: save, tell the user "saved, ready for a fresh session", and continue there through
-bootstrap. Pick a moment with few agents in flight, since running agents report to the session
-that launched them. The coordinator cannot start the fresh session itself; that step is the user's.
-A self-initiated handoff records no hold: authorized work resumes in the new session.
+**Context cap: checkpoint and continue, never a new session.** Coordinator cost is mostly
+re-reading its own context on every turn, but the user must not have to open sessions to keep the
+coordinator running. When the context guard reports the coordinator over its checkpoint cap
+(default 450k tokens), or at a batch close after roughly 20 dispatches or 4 hours, checkpoint on
+your own initiative and keep working in the same session: do steps 3–5 below (reconcile results,
+write or update the active `handoff` record, take the backup) without a hold and without stopping
+dispatch, then continue the proactive cycle. The host's compaction is the reset. Before it, the
+PreCompact hook refreshes `handoff-auto-checkpoint` from canonical state, takes a backup and
+commits the designated snapshot. After it, the SessionStart `compact` hook tells you to re-read
+`summary`, the handoffs, the lanes and the presented question. Agents launched before compaction
+still report to this session. Never ask the user to open a new session. Record founder instructions and answers in the database as they arrive, so the transcript
+never holds the only copy, and keep agent briefs and reports small.
+
+The full stop-and-save below, ending in a fresh session through bootstrap, applies only to an
+explicit user stop, or to a host that cannot compact (then say so and save as a session handoff;
+a self-initiated handoff records no hold).
 
 An explicit stop overrides the proactive cycle. Do not ask a next-goal question or dispatch
 new work to clear `sweep --check-idle`; preserve those pending actions in the handoff instead.

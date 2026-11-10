@@ -222,22 +222,37 @@ class GuardHookTests(unittest.TestCase):
         return None if output is None else output['hookSpecificOutput']
 
     def test_coordinator_context_warning_is_thresholded_and_throttled(self):
-        self.assertIsNone(self.context(transcript_path=self.transcript(150000)))
-        first = self.context(transcript_path=self.transcript(150000, 230000, sidechain_last=True))
+        self.assertIsNone(self.context(transcript_path=self.transcript(230000)))  # the old 200k cap is silent now
+        self.assertIsNone(self.context(transcript_path=self.transcript(400000)))
+        first = self.context(transcript_path=self.transcript(400000, 480000, sidechain_last=True))
         self.assertEqual(first['hookEventName'], 'UserPromptSubmit')
-        self.assertIn('230k', first['additionalContext'])
-        self.assertIn('stop-and-save', first['additionalContext'])
-        self.assertIsNone(self.context(transcript_path=self.transcript(240000)))
-        self.assertIn('290k', self.context(transcript_path=self.transcript(290000))['additionalContext'])
-        self.assertIn('210k', self.context(transcript_path=self.transcript(210000))['additionalContext'])
-        self.assertIsNone(self.context(transcript_path=self.transcript(230000), agent_id='agent-1'))
+        self.assertIn('480k', first['additionalContext'])
+        self.assertIsNone(self.context(transcript_path=self.transcript(490000)))
+        self.assertIn('540k', self.context(transcript_path=self.transcript(540000))['additionalContext'])
+        self.assertIn('460k', self.context(transcript_path=self.transcript(460000))['additionalContext'])
+        self.assertIsNone(self.context(transcript_path=self.transcript(480000), agent_id='agent-1'))
         self.assertIsNone(self.context(transcript_path=str(self.base / 'missing.jsonl')))
         self.assertIsNone(self.context())
 
+    def test_context_warning_checkpoints_and_continues_in_the_same_session(self):
+        text = self.context(context_tokens=470000)['additionalContext']
+        self.assertIn('450k checkpoint cap', text)
+        self.assertIn('handoff record', text)
+        self.assertIn('backup', text)
+        self.assertIn('keep going in this session', text)
+        self.assertIn('compaction is the reset', text)
+        self.assertIn('never ask the user to open a new session', text)
+        self.assertIn('briefs', text)
+        self.assertNotIn('fresh session', text)
+        self.assertNotIn('ready for', text)
+
     def test_resume_context_tokens_and_caps_are_configurable(self):
-        self.assertIn('400k', self.context(hook_event_name='SessionStart', context_tokens=400000)['additionalContext'])
+        self.assertIsNone(self.context(hook_event_name='SessionStart', context_tokens=400000))
+        self.assertIn('460k', self.context(hook_event_name='SessionStart', context_tokens=460000)['additionalContext'])
         self.configure({'context': {'coordinator_tokens': 500000}})
-        self.assertIsNone(self.context(session_id='s2', context_tokens=450000))
+        self.assertIsNone(self.context(session_id='s2', context_tokens=480000))
+        self.configure({'context': {'coordinator_tokens': 200000}})
+        self.assertIn('200k checkpoint cap', self.context(session_id='s4', context_tokens=210000)['additionalContext'])
         self.configure({'context': {'mode': 'off'}})
         self.assertIsNone(self.context(session_id='s3', context_tokens=900000))
 

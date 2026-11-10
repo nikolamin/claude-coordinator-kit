@@ -4,6 +4,10 @@ Run this cycle on bootstrap/resume, every incoming request or answer, agent comp
 verification/release result, and watchdog wakeup. Run it again before ending an operating turn
 or waiting. A status reply, saved report or completed batch does not end the operating loop.
 An explicit user stop takes precedence: use stop-and-save without launching another cycle.
+Context size is not a stop. Over the checkpoint cap, update the handoff and backup and keep cycling.
+After a compaction (the SessionStart `compact` note), re-read `summary`, the active handoffs
+(including `handoff-auto-checkpoint`), the active lanes and the presented question, then continue
+this cycle in the same session. Never ask the user to open a new session.
 
 ## Act on both queues
 

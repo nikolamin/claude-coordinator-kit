@@ -53,7 +53,9 @@ DEFAULTS = {
         ],
         'allow': [],
     },
-    'context': {'mode': 'warn', 'coordinator_tokens': 200000, 'agent_tokens': 200000, 'step': 50000},
+    # coordinator_tokens is a checkpoint threshold, not a session end: the session keeps going and the
+    # host's compaction is the reset (the PreCompact hook, scripts/checkpoint.py, also checkpoints).
+    'context': {'mode': 'warn', 'coordinator_tokens': 450000, 'agent_tokens': 200000, 'step': 50000},
 }
 CONTROL = {'&&', '||', ';', '|', '&', '(', ')', '|&', ';;'}
 KEYWORDS = {'do', 'then', 'else', 'elif', 'if', 'while', 'until', '!', '{', '}', 'done', 'fi'}
@@ -257,10 +259,12 @@ def check_context(data, config, root):
     if type(tokens) is int and tokens >= config['coordinator_tokens']:
         if remember(root, str(data.get('session_id') or 'session'), tokens, config['step']):
             notes.append('Coordinator context is about ' + str(tokens // 1000) + 'k tokens, over the '
-                         + str(config['coordinator_tokens'] // 1000) + 'k cap; every further turn re-reads all of it. '
-                         'At the next batch close (few agents in flight) run coordinator-kit:stop-and-save, tell the user '
-                         '"saved, ready for a fresh session", and continue there via bootstrap. Do not start new long '
-                         'threads in this session.')
+                         + str(config['coordinator_tokens'] // 1000) + 'k checkpoint cap; every further turn re-reads '
+                         'all of it. Checkpoint and keep going in this session: write or update the active handoff '
+                         'record and take a backup now (coordinator-kit:stop-and-save steps 3-5, no hold), then continue '
+                         'the proactive cycle here. The host\'s compaction is the reset, and the PreCompact hook '
+                         'checkpoints again before it; never ask the user to open a new session. Keep agent briefs '
+                         'and reports small, and record founder instructions in the database as they arrive.')
     return ' '.join(notes) or None
 
 

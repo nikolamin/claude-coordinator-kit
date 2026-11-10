@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.12.0
+
+Checkpoint and continue instead of opening a fresh session. In 0.10.0 the context guard told a
+coordinator past 200k tokens to run stop-and-save and ask the user to open a fresh session. A
+founder rejected that: the coordinator must run on its own, compacting and continuing rather than
+asking for new sessions. The canonical state already lives in the database, so compaction loses
+nothing once a checkpoint is written first.
+
+- **Context guard.** The coordinator cap is now a checkpoint threshold, default **450k** (was
+  200k). Over it, the warning says: update the handoff record and take a backup (stop-and-save
+  steps 3–5, no hold), then keep working in this session. Compaction is the reset; never ask the
+  user to open a new session; keep briefs small. The warning still repeats after each further
+  50k. The agent cap is unchanged at 200k.
+- **PreCompact hook (`scripts/checkpoint.py`).** It works only from canonical state:
+  - Refreshes the handoff record `handoff-auto-checkpoint`: open tasks, holds, commitments, the
+    presented and queued questions, active lanes with agent ids, the other active handoffs and
+    resume actions.
+  - Writes a consistent backup to `.coordinator/backups/precompact-<stamp>.db`, keeping the newest
+    10, and resets the guard's throttle for the session.
+  - If the active profile sets `persistence.snapshot` (`path`, `repository`, optional `push`),
+    replaces that snapshot and commits only that file. With `push: true` it pushes, but only when
+    every outgoing commit touches the snapshot alone.
+  - Prints instructions for the compaction summary.
+  - Never blocks compaction. Failed steps go to the record's `errors` and are named after
+    compaction.
+  - Turn it off with `{"checkpoint": {"mode": "off"}}` or `COORDINATOR_KIT_CHECKPOINT=off`.
+- **SessionStart after compaction.** With `source: "compact"`, the hook injects: context was
+  compacted; re-read summary, the active handoff, the active lanes (agents launched before
+  compaction still report to this session) and the presented question; continue the proactive
+  cycle; do not tell the user to start a new session. It also names the checkpoint's time and any
+  failed steps. Startup and resume output are unchanged.
+- **Skills and docs.** stop-and-save's context-cap paragraph is now checkpoint-and-continue. A full
+  stop with a fresh session applies only to an explicit user stop or a host that cannot compact.
+  bootstrap, the proactive cycle, the spine template and the guards reference match.
+- **README: early compaction.** A plugin cannot set compaction settings, but a workspace can set
+  `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (or `autoCompactWindow`, or `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`)
+  in its `.claude/settings.json` so that compaction lands just after the checkpoint cap.
+
+Upgrade: install 0.12.0 and reload or restart so the new PreCompact hook loads. A workspace whose
+snapshot must be committed adds `persistence.snapshot` to its profile record. Without it, only the
+local backup is written. An existing spine keeps its old context-cap wording until an explicit
+spine upgrade.
+
 ## 0.11.0
 
 Automatic lane filling. In one measured session a coordinator left thirteen work lanes idle for

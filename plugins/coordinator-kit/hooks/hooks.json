@@ -1,5 +1,5 @@
 {
-  "description": "Migrate legacy coordinator records on startup/resume, guard coordinator dispatches, coordinator self-execution and context size, and record every background agent as an active lane (released on SubagentStop) in established coordinator workspaces.",
+  "description": "Migrate legacy coordinator records on startup/resume, guard coordinator dispatches, coordinator self-execution and context size, record every background agent as an active lane (released on SubagentStop), and checkpoint canonical state before compaction (re-orienting the coordinator after it) in established coordinator workspaces.",
   "hooks": {
     "SessionStart": [
       {
@@ -68,6 +68,17 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh\" context",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/checkpoint.sh\"",
+            "timeout": 120
           }
         ]
       }

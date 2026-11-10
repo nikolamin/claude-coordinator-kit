@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.11.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.12.0** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -69,7 +69,10 @@ duplicate queue positions, closed queued tasks and missing/stale lane ownership.
 task-facing summaries remain in the database. Supported bridge buttons follow the project's
 transport.
 
-Version 0.11.0 adds [automatic lane filling](references/lane-filling.md): a bundled hook records every
+Version 0.12.0 makes a long coordinator session checkpoint and keep going instead of asking the
+user to open a fresh session (see "Context: checkpoint and compaction" below).
+
+Version 0.11.0 added [automatic lane filling](references/lane-filling.md): a bundled hook records every
 background agent dispatch as an active lane with its agent id (shared checkouts do not collide) and
 releases it on SubagentStop; `coord.py idle` and `sweep --available-slots auto` give one ranked pick per
 idle work lane and FREE-SLOTS from the profile's `capacity.max_agents` and host memory; the combined
@@ -88,6 +91,52 @@ or run its sender loop under the existing supervisor. No receiver or service is 
 
 The [required coordinator cycle](references/proactive-cycle.md) runs after replies, agent results
 and wakeups: ask the next question and fill free capacity with eligible work before waiting.
+
+## Context: checkpoint and compaction
+
+A coordinator session runs for as long as the work does. The user never has to open a new session
+because the context grew.
+
+- **Checkpoint cap (default 450k tokens).** The context guard warns once the session passes it,
+  then again after each further 50k. The warning says: update the handoff record, take a backup,
+  keep working here. Change it with `context.coordinator_tokens` in `.coordinator/guards.json`.
+- **Before every compaction** the PreCompact hook refreshes `handoff-auto-checkpoint` from the
+  database (questions, holds, lanes with agent ids, open tasks) and writes a local backup. If the
+  profile sets `persistence.snapshot`, it also commits that snapshot, and pushes it when
+  `"push": true` and the outgoing commits touch only the snapshot. It also tells the summarizer
+  what to keep.
+- **After compaction** the SessionStart `compact` hook tells the same session to re-read
+  `summary`, the handoffs, the lanes and the presented question, and to continue. Agents
+  launched before compaction still report to it.
+
+Details and the snapshot config: [guards](references/guards.md#context-size).
+
+**Making compaction land near the cap.** Claude Code decides when to compact, and a plugin cannot
+change that setting. A workspace can, in its own `.claude/settings.json`; the setting applies to
+every session started in that folder:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "500000"
+  }
+}
+```
+
+- `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (100000–1000000 tokens) sets how full the context gets before
+  auto-compaction. The settings key `autoCompactWindow` does the same, and the env var overrides
+  it.
+- `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (1–100) instead triggers at a percentage of that window. It
+  can only make compaction earlier, never later.
+- With a 500000 window the checkpoint warning comes first (at 450k) and compaction follows, while
+  the handoff is still fresh.
+- These values only take effect on a model whose context window is larger than them. On a
+  200k-context model, compaction happens long before 450k, so the warning never fires and the
+  PreCompact checkpoint does the saving. In that case set `context.coordinator_tokens` below the
+  compaction point if you also want the warning.
+- `env` values in project settings take effect only after the folder is trusted.
+- Source: Claude Code environment-variable and settings reference, code.claude.com/docs (read
+  2026-11-10).
 `sweep --available-slots N --check-idle` exits 2 when follow-up actions still need handling.
 Unknown capacity, missing task definitions and scoped holds require follow-through, not a status
 summary. Explicit stops and real blockers remain valid reasons to wait.

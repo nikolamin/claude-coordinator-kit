@@ -10,7 +10,8 @@ wherever that is reliable. Judgment (risk class, wording of a question) stays in
 | --- | --- | --- |
 | Dispatch has an explicit model and the execution contract (no delegation, step cap, scratch dir, wait recipe) | PreToolUse hook on `Agent`, deny | `scripts/guard.py agent` |
 | The coordinator session runs no investigative commands itself | PreToolUse hook on `Bash`, deny | `scripts/guard.py bash` |
-| Coordinator context cap; oversized agents | UserPromptSubmit, PostToolUse on `Agent`, SessionStart resume: warning only | `scripts/guard.py context` |
+| Coordinator context checkpoint cap; oversized agents | UserPromptSubmit, PostToolUse on `Agent`, SessionStart resume: warning only | `scripts/guard.py context` |
+| Checkpoint canonical state before compaction; re-orient the same session after it | PreCompact hook; SessionStart `source: compact` | `scripts/checkpoint.py`, `scripts/session_start.py` |
 | Two failed verify cycles per task, then one fixed question | CLI refuses the next cycle | `coord.py verify …` |
 | A stated commitment binds until withdrawn in the same channel | CLI record shown in `summary`/`status` | `coord.py commitment …` |
 | Shared sequential resources are assigned at dispatch | CLI allocator | `coord.py slot …` |
@@ -50,7 +51,8 @@ Optional. Missing file means the defaults. Sections merge key by key; named maps
     "deny_commands": {"kubectl": "cluster inspection"},
     "deny_git": ["log", "show", "diff", "fetch", "rev-list", "blame", "reflog", "grep", "bisect"]
   },
-  "context": {"mode": "warn", "coordinator_tokens": 200000, "agent_tokens": 200000, "step": 50000}
+  "context": {"mode": "warn", "coordinator_tokens": 450000, "agent_tokens": 200000, "step": 50000},
+  "checkpoint": {"mode": "on"}
 }
 ```
 
@@ -63,6 +65,9 @@ Optional. Missing file means the defaults. Sections merge key by key; named maps
 - `allow` (regex on the whole command) is checked first. Adding one is a project decision to
   record, not a way around a single denial.
 - `wrappers`: command prefixes to look through (add a local proxy command here).
+- `checkpoint`: `{"mode": "off"}` disables the PreCompact checkpoint (or set
+  `COORDINATOR_KIT_CHECKPOINT=off`). It is not one of the guards, so `COORDINATOR_KIT_GUARDS=off`
+  leaves it on.
 - Environment `COORDINATOR_KIT_GUARDS=off` disables every guard for that process tree.
 - To remove the hooks entirely, disable the plugin's hooks with the host's own setting; bootstrap
   still runs the migration by command.
@@ -91,9 +96,38 @@ stays silent. On resume it uses the documented `context_tokens` field instead. A
 call it reads the documented `tool_response.totalTokens` (the subagent's final request) when the
 host returns it; a background launch returns no such number.
 
-The warning repeats only after the context grows by another `step` tokens. A hook cannot start a
-fresh session: the coordinator saves a handoff with `coordinator-kit:stop-and-save` and the user
-starts the new session.
+The warning repeats only after the context grows by another `step` tokens. `coordinator_tokens`
+is a checkpoint threshold, not the end of the session. The warning tells the coordinator to update
+the handoff record, take a backup and keep working here. The host's compaction is the reset, and
+the user never has to open a new session. A hook cannot start a compaction; it can only prepare
+for one and re-orient the session afterwards:
+
+- **PreCompact** (`scripts/checkpoint.py`, manual and automatic compaction). It works only from the
+  database. It refreshes the handoff record `handoff-auto-checkpoint` (open tasks, holds,
+  commitments, the presented and queued questions, active lanes with agent ids, the other active
+  handoffs, resume actions). It writes a consistent backup to
+  `.coordinator/backups/precompact-<stamp>.db` (keeping the newest 10). It clears this session's
+  warning throttle. Its stdout becomes instructions for the compaction summary: keep the role, the
+  handoff, question and lane ids, and every founder instruction not yet in the database. If the
+  active profile has `persistence.snapshot`, the hook also replaces that snapshot with a consistent
+  copy and commits only that file:
+
+  ```json
+  {"persistence": {"snapshot": {"path": ".coordinator-bridge/snapshots/coord.db",
+                                "repository": ".coordinator-bridge", "push": true}}}
+  ```
+
+  Both paths are workspace-relative, and `repository` must be the top of a git checkout.
+  `"push": true` pushes only when every outgoing commit touches the snapshot file alone, so other
+  work is never pushed. A failed step never blocks compaction; it is listed in the record's
+  `errors` and in the summary instructions.
+- **SessionStart, `source: compact`** (`scripts/session_start.py`). It adds: context was compacted;
+  re-read `summary`, the active handoffs, the active lanes (agents launched before compaction still
+  report to this session) and the presented question; continue the proactive cycle; do not tell
+  the user to start a new session. It also names the checkpoint's time and any failed steps.
+
+The host decides when to compact. The plugin cannot change that, but the workspace can; see the
+README section "Context: checkpoint and compaction".
 
 ## Verified against the hooks reference, and assumed
 
@@ -105,7 +139,11 @@ and `model`; Bash carries `command`; hooks also run inside subagents and their i
 `permissionDecisionReason` blocks a call; `additionalContext` is supported on `PreToolUse`,
 `PostToolUse`, `UserPromptSubmit` and `SessionStart`; a hook that exits non-zero (other than 2) or
 times out does not block the call; `SessionStart` on resume can carry `context_tokens`; the
-`Agent` tool response carries `totalTokens`.
+`Agent` tool response carries `totalTokens`. On compaction (read 2026-11-10): `PreCompact` receives
+`trigger` (`manual`/`auto`). On exit 0 its stdout becomes instructions for the compaction summary.
+Exit 2 or `"decision": "block"` would block compaction, which `checkpoint.py` never does.
+`SessionStart` runs after a compaction with `source: "compact"`, and its output is added to the
+compacted context. No hook can start a compaction.
 
 Assumed, not documented: the transcript line layout described above; that a main session in a
 coordinator workspace is the coordinator; that Codex marks worker sessions with `agent_id` as
@@ -114,5 +152,5 @@ the `Agent` matcher may never fire there; the CLI commands work on both hosts.
 
 Not hook-enforceable, left to instructions: choosing the risk class, deciding what "the same
 feature" spans, ending a turn while a background run is live (a `SubagentStop` hook could block a
-stop, but it cannot tell a finished agent from a waiting one without guessing), and starting the
-fresh session after a save.
+stop, but it cannot tell a finished agent from a waiting one without guessing), and starting a
+compaction (the host decides when; hooks only checkpoint before it and re-orient after it).
