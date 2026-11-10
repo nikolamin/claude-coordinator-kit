@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.11.0
+
+Automatic lane filling. In one measured session a coordinator left thirteen work lanes idle for
+hours. Three things combined: dispatched agents were not recorded as lanes with an agent id, so the
+idle check counted zero running agents; the idle alarm named lanes but gave no pick and no
+free-slot count; and no rule said that an idle wake requires a dispatch. Details:
+[lane filling](references/lane-filling.md).
+
+- **Autolane hook (PostToolUse on `Agent`, SubagentStop).** Every background agent dispatch from
+  the main session gets an active lane with `agent_id`, transcript path, model and dispatch time.
+  - It attaches to the coordinator's own claim for the same task when one has no agent id yet.
+  - Otherwise it creates a `shared_checkout` lane, whose unique resource is the agent rather than
+    the checkout, so agents sharing a trunk checkout never collide.
+  - SubagentStop releases every lane of that agent.
+  - The hook parses dict, content-block and text tool responses, skips synchronous and nested
+    agents, and fails open. A failure is recorded in `.coordinator/autolane-health.json` and
+    reported until a later run succeeds; it is never silent.
+- **Brief marker lines.** `coord.py brief-contract --task ID --lane NAME [--checkout PATH]` prints
+  the `Task:`, `Lane:` and `Checkout:` lines the hook links agents by.
+- **`coord.py idle`.** For each idle work lane (task `data.lane`), it gives one ranked pick: P0
+  first; last-resort work (weekly or test-failure tasks, `last_resort: true` or a
+  `last_resort_prefixes` id) last; then queue order. It also gives `FREE-SLOTS` = profile
+  `capacity.max_agents` minus running agents, 0 under `capacity.min_free_memory_pct` host free
+  memory (macOS `memory_pressure`, Linux `/proc/meminfo`).
+  - Quiet agents (transcript silent past `quiet_minutes`) and stale claims without an agent id do
+    not hold a lane; stale claims are reported as unattached.
+  - `idle block|unblock LANE --reason` records why a lane cannot start, with an expiry. `'*'`
+    applies it to all lanes.
+  - `--lines` prints watch lines; `--check` exits 2 when action is due.
+- **`sweep --available-slots auto`.** Takes FREE-SLOTS and its dispatch candidates from the idle
+  picks, and adds `lane_hook_failing` / `attach_or_release_lane` items, so `--check-idle` stays
+  at exit 2 until each pick is dispatched or blocked.
+- **Combined watch.** `scripts/watch.py` reports `IDLE_LANES`, `LANE_HOOK_FAILING` and
+  `LANE_UNATTACHED` by default; set `"idle": false` in `watch.json` to turn this off.
+- **Rule.** An idle wake means dispatching each pick up to FREE-SLOTS, or recording that lane's
+  blocker; never re-arm with neither. This rule is in proactive-cycle, watchdogs, execute-loop and
+  the spine template.
+
+Upgrade notes:
+
+- Schema stays 1; no data migration. The lane fields `shared_checkout`, `agent_id`, `lane` and
+  `auto_lane`, the task fields `lane` and `last_resort`, and the profile `capacity` block are all
+  additive.
+- The hook becomes active at the first fresh session after the update, in every workspace that
+  has `.coordinator/coord.db`. To turn it off, add `{"autolane": {"mode": "off"}}` to
+  `.coordinator/guards.json`. Codex has no matching events, so record `agent_id` on lanes by hand
+  there.
+- Set `capacity.max_agents` in the workspace profile; the default is 4. Give tasks a `lane` to get
+  one pick per work stream; tasks without one fill leftover slots from the `unassigned` pool.
+- If the project has its own lane-registration hook or idle alarm, retire it once this version is
+  installed. Running both records every agent twice: once under the local id and once as
+  `lane-agent-<id>`. The kit hook skips an agent that already has an active lane, so whichever
+  runs first wins. Merge the spine template's new idle-wake bullet as a reviewed change.
+
 ## 0.10.0
 
 Process fixes from one measured multi-day coordinator session, moved from prose into enforcement

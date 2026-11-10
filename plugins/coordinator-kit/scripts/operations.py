@@ -126,7 +126,8 @@ def status_view(st, limit=3):
             'note': 'Active tasks come from recorded lanes, not live process checks. Next tasks need authorization, scoped holds, live ownership and capacity.'}
 
 
-def sweep(st, at=None, stale_hours=6, available_slots=None):
+def sweep(st, at=None, stale_hours=6, available_slots=None, capacity=None):
+    """capacity: an `idle` view (sweep --available-slots auto); its picks replace queue order."""
     current = timestamp(at if at is not None else now())
     if current is None:
         raise ValueError('sweep --now requires a timezone-aware ISO timestamp')
@@ -215,9 +216,21 @@ def sweep(st, at=None, stale_hours=6, available_slots=None):
     pending = pending_tasks(tasks, questions, state)
     if pending and available_slots is None:
         items.append({'kind': 'check_capacity', 'tasks': [row['id'] for row in pending],
-                      'text': 'Check native workers/resources now, then rerun with observed available-slots; unknown is not full.'})
+                      'text': 'Check native workers/resources now, then rerun with observed available-slots '
+                              '(or --available-slots auto); unknown is not full.'})
+    candidates, lanes = pending[:available_slots or 0], {}
+    if capacity is not None:
+        candidates = [tasks[pick['task']] for pick in capacity['dispatch'] if pick['task'] in tasks]
+        lanes = {pick['task']: pick['lane'] for pick in capacity['dispatch']}
+        if capacity['hook_health']:
+            items.append({'kind': 'lane_hook_failing', 'health': capacity['hook_health'],
+                          'text': 'The autolane hook is failing, so dispatched agents are not recorded and lanes look idle. '
+                                  'Check live agents natively before dispatching, record their lanes, and fix the hook.'})
+        for lane in capacity['unattached_lanes']:
+            items.append({'kind': 'attach_or_release_lane', 'lane': lane['lane_record'], 'task': lane['task'],
+                          'text': 'Active lane without agent_id past the claim window: attach the live agent id or release it.'})
     if available_slots:
-        for row in pending[:available_slots]:
+        for row in candidates:
             if state['active_holds']:
                 items.append({'kind': 'review_dispatch_scope', 'task': row['id'],
                               'text': 'Check each hold against this task; dispatch unaffected authorized work or record the actual blocker.'})
@@ -227,8 +240,15 @@ def sweep(st, at=None, stale_hours=6, available_slots=None):
             else:
                 items.append({'kind': 'dispatch_candidate', 'task': row['id'],
                               'text': 'Confirm authorization and live resource ownership, claim a lane and dispatch now.'})
+            if row['id'] in lanes:
+                items[-1]['lane'] = lanes[row['id']]
     # Holds alone are informational. Missing actions must be completed or their real blocker
     # recorded before waiting; this is not permission to override the blocker or a stop request.
     required = [item for item in items if item['kind'] != 'review_holds']
-    return {'at': current.isoformat(), 'items': items, 'read_only': True,
-            'idle_ready': not required, 'required_action_count': len(required)}
+    result = {'at': current.isoformat(), 'items': items, 'read_only': True,
+              'idle_ready': not required, 'required_action_count': len(required)}
+    if capacity is not None:
+        result['capacity'] = {key: capacity[key] for key in ('free_slots', 'running_agents', 'max_agents', 'memory_free_pct',
+                                                            'memory_gated', 'busy_lanes', 'blocked_lanes')}
+        result['capacity']['idle_lanes'] = [pick['lane'] for pick in capacity['idle_lanes']]
+    return result

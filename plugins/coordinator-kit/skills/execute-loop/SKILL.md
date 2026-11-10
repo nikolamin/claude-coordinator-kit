@@ -27,7 +27,11 @@ publish: use the recorded trigger map, never infer permission from a branch or h
    findings, not invitations to invent a change. Correct stale records at their source.
 2. Claim a lane before dispatch. Record task/agent id, repository and checkout, branch, owned
    paths, external resources, stage, model, start time, expected duration, `deadline` and report
-   path. Give the agent a bounded brief using `coordinator-kit:agent-brief-hygiene`.
+   path. Give the agent a bounded brief using `coordinator-kit:agent-brief-hygiene`, opening with
+   its `Task:` and `Lane:` lines (`coord.py brief-contract --task ID --lane NAME`). The bundled
+   autolane hook then attaches the background agent's id to that claim (or records a
+   shared-checkout lane when there is none) and releases it on SubagentStop; record `agent_id`
+   yourself where the host has no such hook ([lane filling](../../references/lane-filling.md)).
    **Dispatch every part of one feature in the same turn.** When a request spans repositories or
    components (server, clients, docs), fix the shared contract first (field names, types,
    defaults, endpoints) and put it verbatim in every brief, then dispatch all parts together. A

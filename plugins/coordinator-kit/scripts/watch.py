@@ -6,10 +6,12 @@ Run it once in the background instead of one monitor per topic re-armed on a tim
     python3 watch.py --root WORKSPACE            # blocks; prints the first actionable event, exits 0
     python3 watch.py --root WORKSPACE --once     # single pass (for a scheduler or a test)
 
-Built in: active lanes whose recorded `deadline` (timezone-aware ISO time) has passed.
-Project checks come from WORKSPACE/.coordinator/watch.json:
+Built in: active lanes whose recorded `deadline` (timezone-aware ISO time) has passed, and idle
+work lanes (`coord.py idle`): a pick to dispatch into a free slot, a failing autolane hook, or an
+active lane without agent id. Set "idle": false to drop the idle check. Project checks come from
+WORKSPACE/.coordinator/watch.json:
 
-    {"interval_seconds": 60, "repeat_after_seconds": 1800,
+    {"interval_seconds": 60, "repeat_after_seconds": 1800, "idle": true,
      "checks": [{"name": "inbox", "command": "python3 tools/inbox.py pending", "timeout": 20}]}
 
 A check command prints a line ONLY when the coordinator must act and prints nothing otherwise
@@ -27,6 +29,7 @@ import subprocess
 import sys
 import time
 
+import idle
 from storage import Store, atomic_write, inside
 
 
@@ -53,6 +56,27 @@ def overdue(root, at):
             yield ('AGENT_OVERDUE lane=' + row['id'] + ' task=' + str(row['data'].get('task')) + ' agent=' +
                    str(row['data'].get('agent')) + ' deadline=' + deadline.isoformat() +
                    ' (check native status first; overdue is not dead)')
+
+
+def idle_events(root, at):
+    """Stable lines (no memory reading in them), so an unchanged idle state is not re-reported early."""
+    st = Store(root, read_only=True)
+    try:
+        st.con.execute('BEGIN')
+        view = idle.idle_view(st, at.isoformat())
+        st.con.rollback()
+    finally:
+        st.close()
+    if view['hook_health']:
+        yield ('LANE_HOOK_FAILING since ' + str(view['hook_health']['failing_since']) +
+               ' (dispatched agents are not recorded; coord.py idle has the error)')
+    if view['unattached_lanes']:
+        yield ('LANE_UNATTACHED ' + ','.join(e['lane_record'] for e in view['unattached_lanes']) +
+               ' (active lane without agent_id: attach the agent id or release it)')
+    if view['dispatch']:
+        yield ('IDLE_LANES free=' + str(view['free_slots']) + ' picks=' +
+               ','.join(p['lane'] + ':' + p['task'] for p in view['dispatch']) +
+               ' (coord.py idle; dispatch each pick now or record coord.py idle block LANE --reason)')
 
 
 def run_checks(root, config, failures):
@@ -113,7 +137,10 @@ def main(argv=None):
         while True:
             config = load(a.root)
             at = datetime.datetime.now(datetime.timezone.utc)
-            events = list(overdue(a.root, at)) + list(run_checks(a.root, config, failures))
+            events = list(overdue(a.root, at))
+            if config.get('idle', True) is not False:
+                events += list(idle_events(a.root, at))
+            events += list(run_checks(a.root, config, failures))
             events = fresh(a.root, events, at, config.get('repeat_after_seconds', 1800))
             if events:
                 print('\n'.join(events), flush=True)

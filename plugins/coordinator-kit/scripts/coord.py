@@ -10,6 +10,7 @@ from storage import KINDS, Store, atomic_write, digest, dumps, inside, now
 from migrate import ensure
 from operations import status_view, sweep
 import discipline
+import idle
 
 
 def parser():
@@ -42,9 +43,20 @@ def parser():
     status.add_argument('--limit', type=int, default=3, help='Maximum tasks per displayed group (1-20)')
     scan = sub.add_parser('sweep', help='Read-only reminders for missed questions, releases and stale work')
     scan.add_argument('--stale-hours', type=float, default=6)
-    scan.add_argument('--available-slots', type=int, help='Freshly checked worker capacity; omit if unknown')
+    scan.add_argument('--available-slots', type=slots_value,
+                      help="Freshly checked worker capacity, or 'auto' for the idle-lane picks and FREE-SLOTS of `idle`; omit if unknown")
     scan.add_argument('--now', help='Timezone-aware ISO timestamp for offline replay; defaults to the real clock')
     scan.add_argument('--check-idle', action='store_true', help='Exit 2 when recorded follow-up actions remain; still emit JSON')
+    lanes = sub.add_parser('idle', help='Idle work lanes, one ranked pick each, and FREE-SLOTS; block/unblock a lane with its reason')
+    lanes.add_argument('operation', nargs='?', choices=('show', 'block', 'unblock'), default='show')
+    lanes.add_argument('lane', nargs='?', help="Work lane name, 'unassigned', or '*' for every lane (block/unblock)")
+    lanes.add_argument('--reason', help='Concrete blocker: dependency, user decision, access, hold or capacity')
+    lanes.add_argument('--hours', type=float, help='Blocker lifetime (default: profile capacity.blocker_hours or 4)')
+    lanes.add_argument('--max-agents', type=int, help='Override profile capacity.max_agents')
+    lanes.add_argument('--mem-free-pct', type=int, help='Use this free-memory reading instead of the host (replay/tests)')
+    lanes.add_argument('--now', help='Timezone-aware ISO timestamp for offline replay; defaults to the real clock')
+    lanes.add_argument('--lines', action='store_true', help='Print only the IDLE-LANES lines, and only when action is required (watch checks)')
+    lanes.add_argument('--check', action='store_true', help='Exit 2 when a pick should be dispatched now or the lane hook is failing')
     search = sub.add_parser('search'); search.add_argument('query'); search.add_argument('--limit', type=int, default=30)
     review = sub.add_parser('review').add_subparsers(dest='operation', required=True)
     review.add_parser('list')
@@ -79,6 +91,9 @@ def parser():
     item = slots.add_parser('list'); item.add_argument('series')
     contract = sub.add_parser('brief-contract', help='Print the execution contract to paste into every agent brief')
     contract.add_argument('--scratch', required=True, help='Task-owned directory under .coordinator-scratch/')
+    contract.add_argument('--task', help='Task id: adds the `Task:` marker line the autolane hook links by')
+    contract.add_argument('--lane', help='Work lane: adds the `Lane:` marker line')
+    contract.add_argument('--checkout', help='Workspace-relative checkout the agent works in: adds `Checkout:`')
     contract.add_argument('--steps', type=int, default=80); contract.add_argument('--context', type=int, default=200, help='Thousand tokens')
     source = sub.add_parser('source').add_subparsers(dest='operation', required=True)
     source.add_parser('list')
@@ -86,6 +101,15 @@ def parser():
     backup = sub.add_parser('backup'); backup.add_argument('output')
     render = sub.add_parser('render'); render.add_argument('--output')
     return p
+
+
+def slots_value(value):
+    if value == 'auto':
+        return value
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected a number of slots or 'auto'")
 
 
 def read_data(st, filename):
@@ -110,6 +134,7 @@ def render(st):
 def execute(st, a):
     cmd, op = a.command, getattr(a, 'operation', None)
     if a.actor == 'agent' and not (cmd in ('summary', 'status', 'sweep', 'check', 'search') or
+            (cmd == 'idle' and op == 'show') or
             (cmd in KINDS and op in ('show', 'list')) or (cmd in ('review', 'source') and op in ('show', 'list')) or cmd == 'event' or
             (cmd == 'verify' and op == 'status') or (cmd in ('commitment', 'slot') and op == 'list')):
         raise ValueError('Agent mode permits reads and append-only events, not coordination transitions')
@@ -157,10 +182,22 @@ def execute(st, a):
             return handler(st, a)
     if cmd == 'summary':
         return st.summary()
-    if cmd in ('status', 'sweep'):
+    if cmd == 'idle' and op != 'show':
+        if not a.lane:
+            raise ValueError('idle ' + op + ' needs the lane name')
+        with st.transaction():
+            return idle.block(st, a.lane, a.reason, a.hours, a.actor, clear=op == 'unblock')
+    if cmd in ('status', 'sweep', 'idle'):
         st.con.execute('BEGIN')
         try:
-            return status_view(st, a.limit) if cmd == 'status' else sweep(st, a.now, a.stale_hours, a.available_slots)
+            if cmd == 'status':
+                return status_view(st, a.limit)
+            if cmd == 'idle':
+                return idle.idle_view(st, a.now, a.max_agents, False if a.mem_free_pct is None else a.mem_free_pct)
+            if a.available_slots == 'auto':
+                view = idle.idle_view(st, a.now)
+                return sweep(st, a.now, a.stale_hours, view['free_slots'], capacity=view)
+            return sweep(st, a.now, a.stale_hours, a.available_slots)
         finally:
             st.con.rollback()
     if cmd == 'search':
@@ -232,7 +269,7 @@ def main(argv=None):
             if a.actor != 'coordinator': raise ValueError('Only coordinator mode may migrate')
             result = ensure(a.root, a.init)
         elif a.command == 'brief-contract':
-            result = discipline.brief_contract(a.scratch, a.steps, a.context)
+            result = discipline.brief_contract(a.scratch, a.steps, a.context, a.task, a.lane, a.checkout)
         else:
             op = getattr(a, 'operation', None)
             writes_db = ((a.command in KINDS and op in ('put', 'supersede')) or
@@ -240,11 +277,18 @@ def main(argv=None):
                          (a.command == 'review' and op == 'resolve') or
                          (a.command == 'verify' and op in ('fail', 'pass', 'clear')) or
                          (a.command == 'commitment' and op in ('add', 'withdraw', 'fulfil')) or
-                         (a.command == 'slot' and op == 'claim'))
+                         (a.command == 'slot' and op == 'claim') or
+                         (a.command == 'idle' and op in ('block', 'unblock')))
             st = Store(a.root, read_only=not writes_db)
             result = execute(st, a)
-        print(result if isinstance(result, str) else dumps(result))
+        if a.command == 'idle' and getattr(a, 'lines', False) and isinstance(result, dict) and 'lines' in result:
+            if result['action_required']:
+                print('\n'.join(result['lines']))
+        else:
+            print(result if isinstance(result, str) else dumps(result))
         if a.command == 'sweep' and a.check_idle and not result['idle_ready']:
+            return 2
+        if a.command == 'idle' and a.check and isinstance(result, dict) and result.get('action_required'):
             return 2
         return 0
     except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
