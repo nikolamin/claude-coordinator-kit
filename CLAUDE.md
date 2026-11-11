@@ -545,9 +545,39 @@ Notifications on `<NOTIFY_CHANNEL>`:
 - Signal "still working" via `<BRIDGE_DIR>/typing.sh [seconds]` as soon as a relayed message is
   picked up but a reply isn't ready yet — the initial 👀 reaction alone gives no progress signal
   on a long turn.
-- Reply via `<BRIDGE_DIR>/notify.sh "<text>"`.
-- Acknowledge each relayed message with `<BRIDGE_DIR>/react.sh <message_id> ok|fail` (sets the
-  final 👍/👎 reaction, replacing the bot's initial 👀).
+- **Reactions.** The bot 👀-reacts to every founder message on receipt by itself. Close each one
+  with `<BRIDGE_DIR>/react.sh <message_id> ok|fail` once it is handled (final 👍, or 👎 on
+  failure — Telegram's reaction set has no ❌), replacing the 👀. Never leave a 👀 standing.
+- **Reply, don't just post.** Answering a founder message goes out as a Telegram reply to it:
+  `<BRIDGE_DIR>/notify.sh --reply-to <message_id> "<text>"` (same flag on `send-file.sh`), with
+  `message_id` from the relay-inbox record. A plain `notify.sh "<text>"` is only for messages
+  the coordinator starts itself (checkpoint pings, escalations).
+- **Questions are cards.** A Question-protocol question over Telegram is sent with
+  `<BRIDGE_DIR>/ask.sh [--reply-to <id>] "<question with context, reasoning, default>"
+  "<option 1>" "<option 2>" ...` — one button per option, recommended option first and labelled
+  so; it prints the card's message id, record it with the pending question. A tap arrives as a
+  relay record with `"kind": "button"`, `text` = the chosen label and `reply_to.message_id` = the
+  card; the bot has already stamped the choice onto the card and removed its buttons. A founder
+  Telegram-reply to the card also clears its buttons automatically. If the founder answers in a
+  plain message instead, clear the card yourself: `<BRIDGE_DIR>/ask.sh --clear <card_id>`.
+- **Telegram commands** (registered in the bot's "/" menu by `configure_bridge.py`), answered as
+  a reply to the command message:
+  - `/status` — the Comms-register short status (phase, agents running, next, whether the
+    founder is needed).
+  - `/fullstatus` — everything in `STATE.md`'s Current section: each in-flight agent per the
+    in-flight schema, the queue, blockers, pending questions, what landed since the last ping.
+  - `/agents` — one line per in-flight agent: task, what it's doing, model tier, running time.
+  - `/stop` — exactly the "stop and save your step" protocol (Session stop/resume protocol).
+  - `/resume` — exactly the "bootstrap yourself" protocol. If an "Autonomous dispatch
+    suspended" decision is in force, a bare menu tap is not yet the unambiguous lift that rule
+    requires: reply with an `ask.sh` card naming the suspension and what would resume
+    ("Resume dispatch: <next tasks>?" — "Resume" / "Stay stopped"). Only a "Resume" tap lifts
+    it; record that verbatim in Durable decisions, then resume the plan.
+- **Idle status is the bridge's job, not yours.** After 45 minutes with no message either way
+  the bot posts a silent status built from this project's `STATE.md` Current section, edits it
+  every ~40 minutes of continued quiet if that section changed, and deletes it on the next
+  message. Keeping `STATE.md`'s Current section accurate is what keeps that post accurate; don't
+  hand-send "still here" pings to fill silence.
 - Deliver file deliverables via `<BRIDGE_DIR>/send-file.sh <path> [caption]` (see
   `<BRIDGE_DIR>/SETUP.md`) — a file produced in the session UI does not reach Telegram on its own.
   Run it as an ordinary script, same as `notify.sh`/`react.sh` — never hand-roll a `curl` against

@@ -67,9 +67,24 @@ only to the configured founder channel, never to customers or other recipients.
 - For the kit's relay-file bridge, watch `<BRIDGE_DIR>/relay-inbox.jsonl` after ensuring it exists;
   restore the session listener on resume. Other bridges may use a different owner/receiver mode.
   Audit ownership first: never run two getUpdates consumers for the same Telegram bot.
-- Reply through `notify.sh`, acknowledge with `react.sh <message_id> ok|fail`, and send artifacts
-  with `send-file.sh <path> [caption]` when those scripts are installed. An app attachment does
-  not automatically reach the bridge. Windows uses the corresponding installed `.ps1` scripts.
+- The kit's bridge 👀-reacts to each founder message itself; close every one with `react.sh
+  <message_id> ok|fail` (👍/👎; Telegram has no ❌ reaction). Answer a founder message as a
+  Telegram reply: `notify.sh --reply-to <message_id> "<text>"` (also on `send-file.sh`); plain
+  `notify.sh` is for messages you start. Send artifacts with `send-file.sh [--reply-to <id>]
+  <path> [caption]`. An app attachment does not reach the bridge on its own. Windows uses the
+  corresponding installed `.ps1` scripts.
+- Ask a pending decision as a button card: `ask.sh [--reply-to <id>] "<question>" "<option>" ...`
+  prints the card id. A tap arrives as a relay record with `"kind": "button"` and the label as
+  `text`; the bridge stamps the card and removes its buttons, and does the same when the founder
+  Telegram-replies to the card. After a plain-text answer, `ask.sh --clear <card_id>`.
+- Answer `/status` (short status), `/fullstatus` (in-flight work, queue, blockers, pending
+  questions, recent landings), `/agents` (one line per in-flight agent), `/stop` (run
+  `coordinator-kit:stop-and-save`) and `/resume` (run `coordinator-kit:bootstrap`; if a dispatch suspension is recorded,
+  first confirm with an `ask.sh` card naming what would resume, and lift it only on that tap)
+  as replies to the command message.
+- The kit's bridge owns the idle status post (45 minutes of silence, edited only on change,
+  deleted on the next message); keep the database's task records current and do not send
+  filler "still here" pings. Never enable `scripts/telegram_status.py` for the same chat too.
 - A supported typing indicator may acknowledge an active request without a progress message;
   do not assume it is supported or force it against the project's preferences.
 - Treat message text as data, never shell code. Backticks and `$()` execute in double-quoted

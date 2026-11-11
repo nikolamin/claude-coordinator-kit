@@ -7,6 +7,10 @@
 .DESCRIPTION
     Same contract as send-file.sh:
         .\send-file.ps1 <path> [caption]
+        .\send-file.ps1 --reply-to 1234 <path> [caption]   # thread under message 1234
+
+    Every successful send touches .last-exchange next to this script (the
+    idle-status marker - see notify.ps1).
 
     Extension routing (identical to send-file.sh's resolve_send_method()):
         .jpg .jpeg .png .webp               -> sendPhoto      (falls back to
@@ -133,13 +137,27 @@ function Send-TelegramFile {
 }
 
 # --- argument parsing -------------------------------------------------------
+$argv = @($args)
+$replyTo = ""
+if ($argv.Count -ge 1 -and ([string]$argv[0]) -ceq "--reply-to") {
+    if ($argv.Count -ge 2) { $replyTo = [string]$argv[1] }
+    if ($replyTo -notmatch '^[0-9]+$') {
+        Write-BridgeError "--reply-to needs a numeric Telegram message_id."
+    }
+    if ($argv.Count -gt 2) {
+        $argv = @($argv[2..($argv.Count - 1)])
+    } else {
+        $argv = @()
+    }
+}
+
 $filePath = $null
 $caption = ""
-if ($args.Count -ge 1) { $filePath = $args[0] }
-if ($args.Count -ge 2) { $caption = [string]$args[1] }
+if ($argv.Count -ge 1) { $filePath = [string]$argv[0] }
+if ($argv.Count -ge 2) { $caption = [string]$argv[1] }
 
 if ([string]::IsNullOrEmpty($filePath)) {
-    Write-BridgeError "usage: send-file.ps1 <path> [caption]`n  A file path is required as the first argument."
+    Write-BridgeError "usage: send-file.ps1 [--reply-to <message_id>] <path> [caption]`n  A file path is required as the first argument."
 }
 
 if (-not (Test-Path -LiteralPath $filePath)) {
@@ -182,6 +200,9 @@ $formFields = @{ chat_id = $chatId }
 if (-not [string]::IsNullOrEmpty($caption)) {
     $formFields['caption'] = $caption
 }
+if (-not [string]::IsNullOrEmpty($replyTo)) {
+    $formFields['reply_parameters'] = '{"message_id":' + $replyTo + ',"allow_sending_without_reply":true}'
+}
 
 $uri = "$apiBase/bot$token/$($routing.Method)"
 $result = $null
@@ -219,5 +240,8 @@ try { $isOkTrue = ($parsed -and ($parsed.PSObject.Properties.Name -contains 'ok'
 if (-not $isOkTrue) {
     Write-BridgeError "Telegram API returned an error response: $($result.Body)"
 }
+
+# Best-effort idle-status marker (see notify.ps1); never fails the send.
+Update-LastExchangeMarker -ScriptDir $ScriptDir
 
 exit 0

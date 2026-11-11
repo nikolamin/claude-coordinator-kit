@@ -88,11 +88,31 @@ import requests
 
 import telegram_common
 
+try:
+    import idle_status
+except ImportError:  # a partially-updated install must keep relaying, just without idle status
+    idle_status = None
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 ENV_FILE = SCRIPT_DIR / ".env"
 LOG_FILE = SCRIPT_DIR / "bot.log"
 OFFSET_FILE = SCRIPT_DIR / ".offset.json"
 RELAY_INBOX_FILE = SCRIPT_DIR / "relay-inbox.jsonl"
+# Touched (mtime = timestamp) on every message exchanged with the founder in
+# either direction - read by idle_status.py. See telegram_common.mark_exchange().
+EXCHANGE_FILE = SCRIPT_DIR / ".last-exchange"
+IDLE_STATE_FILE = SCRIPT_DIR / "idle-status.json"
+# Question cards (ask.py) already answered by a button press - the keyboard
+# Telegram echoes back with a callback is a snapshot from press time, so two
+# quick taps (or two group members) would otherwise both be relayed.
+ANSWERED_CARDS_FILE = SCRIPT_DIR / "answered-cards.json"
+ANSWERED_CARDS_KEEP = 200
+# Bot API update types this bridge consumes. Passed explicitly because
+# getUpdates' allowed_updates setting persists server-side: an earlier client
+# that narrowed it would otherwise silently swallow button presses.
+ALLOWED_UPDATES = ["message", "edited_message", "callback_query"]
+# Prefix of the callback_data ask.py puts on each option button.
+CALLBACK_OPTION_PREFIX = "opt:"
 # Auto-managed runtime state (gitignored, like .offset.json): bot's own
 # id/username (via getMe) plus any auto-discovered group chats. See "Group
 # chat support" in SETUP.md. Absent until the first successful getMe() call.
@@ -153,6 +173,9 @@ _PRODUCTION_STATE_PATHS = frozenset(
         BRIDGE_CONFIG_FILE,
         SEEN_MEMBERS_FILE,
         MEDIA_INBOX_DIR,
+        EXCHANGE_FILE,
+        IDLE_STATE_FILE,
+        ANSWERED_CARDS_FILE,
     )
 )
 
@@ -237,28 +260,8 @@ logging.basicConfig(
 log = logging.getLogger("claude-telegram-bridge")
 
 
-def parse_env_file(path: Path) -> dict:
-    """Tiny manual .env parser: KEY=VALUE per line, '#' comments, no deps."""
-    values = {}
-    if not path.exists():
-        return values
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip()
-        # Strip inline comments that follow a '#' preceded by whitespace.
-        if " #" in value:
-            value = value.split(" #", 1)[0].strip()
-        # Strip matching surrounding quotes, if present.
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-            value = value[1:-1]
-        values[key] = value
-    return values
+# Shared with ask.py; kept under this name for existing callers/tests.
+parse_env_file = telegram_common.parse_env_file
 
 
 def load_config() -> dict:
@@ -582,7 +585,7 @@ class TelegramClient:
         return data.get("result", {})
 
     def get_updates(self, offset=None, timeout=POLL_TIMEOUT):
-        params = {"timeout": timeout}
+        params = {"timeout": timeout, "allowed_updates": json.dumps(ALLOWED_UPDATES)}
         if offset is not None:
             params["offset"] = offset
         resp = requests.get(
@@ -613,6 +616,10 @@ class TelegramClient:
         resp.raise_for_status()
         return resp.json()
 
+    def api(self, method, payload):
+        """Generic Bot API call; returns the decoded body, ok or not."""
+        return telegram_common.api_call(self.token, method, payload)
+
     def send_chat_action(self, chat_id, action="typing"):
         resp = requests.post(
             f"{self.base_url}/sendChatAction",
@@ -635,6 +642,152 @@ def safe_set_reaction(client: TelegramClient, chat_id, message_id, emoji):
             message_id,
             telegram_common.redact_secrets(exc),
         )
+
+
+def note_exchange() -> None:
+    """A message was just exchanged with the founder: reset the idle clock
+    (and get any posted idle-status message deleted on the next tick)."""
+    guard_production_write(EXCHANGE_FILE, "EXCHANGE_FILE")
+    telegram_common.mark_exchange(EXCHANGE_FILE)
+
+
+def clear_card_buttons(client: TelegramClient, chat_id, message_id) -> None:
+    """Best-effort: remove the inline keyboard from one of the bot's own
+    messages (a question card from ask.py). Harmless on a message that has
+    no keyboard - Telegram answers "message is not modified", ignored."""
+    try:
+        resp = client.api("editMessageReplyMarkup", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "reply_markup": {"inline_keyboard": []},
+        })
+    except Exception as exc:
+        log.warning("Could not clear buttons on message_id=%s: %s", message_id, telegram_common.redact_secrets(exc))
+        return
+    if not resp.get("ok") and "not modified" not in str(resp.get("description", "")).lower():
+        log.info("Clearing buttons on message_id=%s refused: %s", message_id, resp.get("description"))
+
+
+def find_option_label(markup, callback_data):
+    """Return (index, label) of the inline button whose callback_data matches,
+    or None. Pure helper: the card's own keyboard (echoed back by Telegram in
+    the callback_query's message) is the only source of truth, so bot.py
+    keeps no per-card state and a card whose buttons were already cleared
+    yields None."""
+    if not isinstance(markup, dict):
+        return None
+    for row in markup.get("inline_keyboard") or []:
+        for button in row or []:
+            if isinstance(button, dict) and button.get("callback_data") == callback_data:
+                data = str(callback_data)
+                index = None
+                if data.startswith(CALLBACK_OPTION_PREFIX):
+                    try:
+                        index = int(data[len(CALLBACK_OPTION_PREFIX):])
+                    except ValueError:
+                        index = None
+                return index, button.get("text", "")
+    return None
+
+
+def is_authorized_callback(callback: dict, founder_chat_id, allowlist: set) -> bool:
+    """Same trust boundary as typed messages: the founder's own DM, or a
+    group press by the founder or an allowlisted member."""
+    message = callback.get("message") or {}
+    chat = message.get("chat") or {}
+    sender = callback.get("from") or {}
+    if chat.get("type") == "private":
+        return str(chat.get("id")) == str(founder_chat_id) and str(sender.get("id")) == str(founder_chat_id)
+    if chat.get("type") in ("group", "supergroup"):
+        sender_id = str(sender.get("id"))
+        return sender_id == str(founder_chat_id) or sender_id in {str(x) for x in allowlist}
+    return False
+
+
+def load_answered_cards() -> list:
+    try:
+        data = json.loads(ANSWERED_CARDS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [str(x) for x in data] if isinstance(data, list) else []
+
+
+def save_answered_cards(keys: list) -> None:
+    guard_production_write(ANSWERED_CARDS_FILE, "ANSWERED_CARDS_FILE")
+    tmp = ANSWERED_CARDS_FILE.with_name(ANSWERED_CARDS_FILE.name + ".tmp")
+    tmp.write_text(json.dumps(keys[-ANSWERED_CARDS_KEEP:]), encoding="utf-8")
+    tmp.replace(ANSWERED_CARDS_FILE)
+
+
+def handle_callback_query(client: TelegramClient, config: dict, callback: dict, allowlist: set) -> None:
+    """A question-card button was tapped (see ask.py): acknowledge it, strip
+    the buttons, stamp the choice onto the card, and relay the choice into
+    relay-inbox.jsonl like a typed answer that replies to the card."""
+    callback_id = callback.get("id")
+    message = callback.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    card_id = message.get("message_id")
+    sender = callback.get("from") or {}
+
+    def answer(text):
+        try:
+            client.api("answerCallbackQuery", {"callback_query_id": callback_id, "text": text})
+        except Exception as exc:
+            log.warning("answerCallbackQuery failed: %s", telegram_common.redact_secrets(exc))
+
+    if not is_authorized_callback(callback, config["chat_id"], allowlist):
+        log.warning("Ignoring button press from unauthorized sender %s in chat %s.", sender.get("id"), chat_id)
+        answer("Not authorized.")
+        return
+    if not config.get("relay_mode"):
+        answer("Buttons need RELAY_MODE=1 on the bridge.")
+        return
+
+    found = find_option_label(message.get("reply_markup"), callback.get("data"))
+    card_key = f"{chat_id}:{card_id}"
+    answered = load_answered_cards()
+    if found is None or card_key in answered:
+        answer("This question was already answered.")
+        if found is not None:
+            clear_card_buttons(client, chat_id, card_id)
+        return
+    index, label = found
+    from_name = telegram_common.sender_display_name(sender)
+    question = message.get("text") or ""
+
+    record = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "chat_id": chat_id,
+        "message_id": card_id,
+        "text": label,
+        "kind": "button",
+        "button": {"index": index, "label": label},
+        "chat_type": chat.get("type", ""),
+        "from_id": sender.get("id"),
+        "from_name": from_name,
+        "is_reply_to_bot": True,
+        "mentioned": False,
+        "reply_to": {"message_id": card_id, "text_prefix": question[:REPLY_TEXT_PREFIX_CHARS]},
+    }
+    # Durable first: relay and remember the answer, then tell the founder it
+    # was accepted - never the other way round.
+    guard_production_write(RELAY_INBOX_FILE, "RELAY_INBOX_FILE")
+    with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    save_answered_cards(answered + [card_key])
+    note_exchange()
+    log.info("[relay] queued button choice card=%s from=%s choice=%r", card_id, from_name, truncate(label))
+
+    answer(f"Got it: {label}"[:200])
+    stamped = f"{question}\n\n✅ {label}" if chat.get("type") == "private" else f"{question}\n\n✅ {from_name}: {label}"
+    try:
+        resp = client.api("editMessageText", {"chat_id": chat_id, "message_id": card_id, "text": stamped[:4096]})
+        if not resp.get("ok"):
+            clear_card_buttons(client, chat_id, card_id)
+    except Exception as exc:
+        log.warning("Could not stamp card %s: %s", card_id, telegram_common.redact_secrets(exc))
+        clear_card_buttons(client, chat_id, card_id)
 
 
 class TypingIndicator:
@@ -761,6 +914,7 @@ def relay_message(client: TelegramClient, message_id, decision: dict, text: str,
     guard_production_write(RELAY_INBOX_FILE, "RELAY_INBOX_FILE")
     with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    note_exchange()
     log.info(
         "[relay] queued message_id=%s chat_type=%s from=%s incoming=%r",
         message_id, decision.get("chat_type", ""), decision.get("from_name", ""), truncate(text),
@@ -1093,6 +1247,7 @@ def relay_media(client: TelegramClient, message_id, decision: dict, media: dict,
     guard_production_write(RELAY_INBOX_FILE, "RELAY_INBOX_FILE")
     with RELAY_INBOX_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    note_exchange()
     log.info(
         "[relay-media] queued message_id=%s kind=%s path=%s size=%s",
         message_id, kind, dest_path, media.get("size"),
@@ -1109,6 +1264,7 @@ def handle_message(client: TelegramClient, config: dict, decision: dict, message
         return
 
     safe_set_reaction(client, chat_id, message_id, REACTION_SEEN)
+    note_exchange()
 
     ok = True
     try:
@@ -1234,6 +1390,14 @@ def poll_once(client: TelegramClient, config: dict, bridge_config: dict, allowli
         # never causes this same update to be reprocessed on next launch.
         save_offset(offset)
 
+        callback = update.get("callback_query")
+        if callback:
+            try:
+                handle_callback_query(client, config, callback, allowlist)
+            except Exception as exc:
+                log.error("Error handling button press: %s", telegram_common.redact_secrets(exc))
+            continue
+
         message = update.get("message") or update.get("edited_message")
         if not message:
             continue
@@ -1295,6 +1459,21 @@ def poll_once(client: TelegramClient, config: dict, bridge_config: dict, allowli
         if chat_type in ("group", "supergroup"):
             bridge_config = activate_group(bridge_config, chat_id, chat.get("title", ""))
 
+        # A Telegram reply to one of the bot's own messages answers it: if
+        # that message is a question card (ask.py), take its buttons away so
+        # it can't be answered twice. Stateless and unconditional (whether a
+        # quoted message's reply_markup is echoed back isn't something to
+        # rely on) - a message without buttons yields a harmless "not
+        # modified".
+        replied = message.get("reply_to_message") or {}
+        if (
+            config.get("relay_mode")
+            and replied.get("message_id") is not None
+            and bridge_config.get("bot_id") is not None
+            and str((replied.get("from") or {}).get("id")) == str(bridge_config.get("bot_id"))
+        ):
+            clear_card_buttons(client, chat_id, replied["message_id"])
+
         # Media handling (voice/audio/video/video_note/photo/document) is
         # RELAY_MODE only: the classic standalone `claude -p` CLI path has
         # no way to hand a file to a text-only CLI argument, so outside
@@ -1355,6 +1534,30 @@ def poll_once(client: TelegramClient, config: dict, bridge_config: dict, allowli
     return 0
 
 
+def run_idle_status(client: TelegramClient, config: dict) -> None:
+    """One idle-status tick per poll cycle. Posts only in RELAY_MODE (the
+    status reports on a live coordinator session); outside it, only cleans up
+    an earlier post. Isolated: an idle-status failure is logged and never
+    changes the poll cycle's exit code, and a missing idle_status.py (a
+    partially-updated install) just skips it."""
+    if idle_status is None:
+        return
+    try:
+        settings = idle_status.load_settings(parse_env_file(ENV_FILE))
+        if not config.get("relay_mode"):
+            # Relay switched off: post nothing new, but still clean up a post
+            # left over from when it was on.
+            if not IDLE_STATE_FILE.exists():
+                return
+            settings["enabled"] = False
+        action = idle_status.tick(client.api, config["chat_id"], settings,
+                                  state_path=IDLE_STATE_FILE, exchange_path=EXCHANGE_FILE)
+        if action not in ("waiting", "quiet_not_long_enough", "disabled", "unchanged", "backoff"):
+            log.info("idle-status: %s", action)
+    except Exception as exc:
+        log.error("idle-status tick failed: %s", telegram_common.redact_secrets(exc))
+
+
 def main() -> int:
     config = load_config()
     client = TelegramClient(config["token"])
@@ -1373,6 +1576,7 @@ def main() -> int:
     except Exception as exc:  # never let an unexpected error crash without logging
         log.error("Unexpected error during poll cycle: %s", telegram_common.redact_secrets(exc))
         exit_code = 1
+    run_idle_status(client, config)
     log.info("Poll cycle complete, exit_code=%s", exit_code)
     return exit_code
 

@@ -33,6 +33,12 @@ from unittest import mock
 import daily_report as dr
 import telegram_common as tc
 
+# A successful send touches the idle-status exchange marker; keep that out of
+# the real bridge directory for the whole module.
+import tempfile as _tempfile  # noqa: E402
+_EXCHANGE_DIR = _tempfile.mkdtemp()
+dr.EXCHANGE_FILE = Path(_EXCHANGE_DIR) / ".last-exchange"
+
 # Same rationale as elsewhere: silence the root logger for this test
 # module's duration so it never writes into the real daily_report.log
 # next to daily_report.py.

@@ -14,7 +14,9 @@ Only stdlib + `requests` are used, matching the rest of this module.
 
 import json
 import logging
+import os
 import re
+import time
 from pathlib import Path
 
 import requests
@@ -82,6 +84,74 @@ def send_message(token: str, chat_id, text: str, timeout: int = 30):
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def parse_env_file(path: Path) -> dict:
+    """Tiny manual .env parser: KEY=VALUE per line, '#' comments, no deps."""
+    values = {}
+    if not path.exists():
+        return values
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        # Strip inline comments that follow a '#' preceded by whitespace.
+        if " #" in value:
+            value = value.split(" #", 1)[0].strip()
+        # Strip matching surrounding quotes, if present.
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+def api_call(token: str, method: str, payload: dict, timeout: int = 30) -> dict:
+    """POST a JSON payload to a Bot API method and return the decoded body.
+
+    Unlike send_message(), a Telegram-level rejection (HTTP 400/403 with
+    {"ok": false, "description": ...}) is RETURNED, not raised, so callers
+    can branch on the description ("message is not modified", "message to
+    delete not found", ...). Network failures and undecodable bodies still
+    raise - pass any caught exception through redact_secrets() before
+    logging it, since its str() can embed the token-bearing URL.
+    """
+    resp = requests.post(
+        f"https://api.telegram.org/bot{token}/{method}",
+        json=payload,
+        timeout=timeout,
+    )
+    try:
+        data = resp.json()
+    except ValueError:
+        resp.raise_for_status()
+        raise
+    if not isinstance(data, dict):
+        raise ValueError(f"{method}: unexpected Telegram response shape")
+    return data
+
+
+def mark_exchange(path) -> None:
+    """Record "a message was just exchanged with the founder" by touching
+    the bridge's `.last-exchange` marker (its mtime is the timestamp).
+
+    Read by idle_status.py to decide when the conversation has gone quiet
+    and when a posted idle-status message has to be deleted. Called by
+    bot.py for every relayed inbound message/button press and by every
+    outbound sender script (notify/ask/send-file) after Telegram accepted
+    the send. Best-effort: a failure here must never fail the send itself.
+    """
+    try:
+        path = Path(path)
+        path.touch()
+        now = time.time()
+        os.utime(path, (now, now))
+    except OSError as exc:
+        log.warning("Could not update exchange marker %s: %s", path, exc)
 
 
 def download_file(token: str, file_path: str, dest_path, timeout: int = 60) -> Path:
@@ -230,7 +300,8 @@ def _extract_entity_text(text: str, entity: dict) -> str:
 
 
 def is_bot_mentioned(text: str, entities, bot_username) -> bool:
-    """True if `entities` contains an @mention of `bot_username`."""
+    """True if `entities` contains an @mention of `bot_username`, or a
+    command addressed to it (`/cmd@bot_username`)."""
     if not bot_username:
         return False
     text = text or ""
@@ -239,6 +310,10 @@ def is_bot_mentioned(text: str, entities, bot_username) -> bool:
         etype = entity.get("type")
         if etype == "mention":
             if _extract_entity_text(text, entity).lower() == target:
+                return True
+        elif etype == "bot_command":
+            # "/status@MyBot" - what Telegram's command menu sends in a group.
+            if _extract_entity_text(text, entity).lower().endswith(target):
                 return True
         elif etype == "text_mention":
             # Only applies to users without a @username, so practically

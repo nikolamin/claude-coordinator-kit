@@ -53,7 +53,9 @@ call, check capacity and dispatch independent ready work; then ask in the same t
 waiting for those agents to finish. Status messages follow `coordinator-kit:comms-register`.
 
 For an existing bridge with supported option buttons, use its documented question command
-when both sender and active receiver support callbacks. Keep typed replies available. Save
+when both sender and active receiver support callbacks (the kit's bridge: `ask.sh`, which
+prints the card's message id; option n is callback `opt:<n>` and arrives as a `"kind":
+"button"` relay record carrying the label). Keep typed replies available. Save
 the actual send result, stable question id, message id and exact token-to-label mapping;
 exit 0 alone may mean "not configured" and is not delivery evidence. Validate the sender,
 question/message identity and selected option before applying a button response as a typed

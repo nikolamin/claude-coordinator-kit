@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.13.0
+
+Every Telegram founder feature now reaches every install and every update. The bridge had the
+👀 reaction and a command-menu script, but an update never touched `.env` and nothing ran the
+menu script, so an updated bridge lacked what a fresh one had, and several features did not
+exist at all.
+
+- **Bridge** (`telegram-bridge/`):
+  - `configure_bridge.py` is new and idempotent. It appends missing `.env` feature keys and never
+    rewrites an existing value. Values it writes are single-quoted, because `notify.sh` sources
+    `.env`. It merges each project's status source, registers the command menu, and has a
+    `--check` readiness report. The install and update procedures and plugin bootstrap all run it.
+  - `notify.sh` / `send-file.sh` (and the `.ps1` twins) take `--reply-to <message_id>`, so an
+    answer is threaded under the founder's message.
+  - `ask.sh` / `ask.py` / `ask.ps1` are new and send a question as a card with one button per
+    option. `bot.py` handles the tap: it checks the sender, answers the callback, stamps
+    "✅ choice" on the card, removes the buttons and relays a `"kind": "button"` record. A
+    founder's Telegram-reply to a card clears its buttons too, and `ask.sh --clear` covers
+    plain-text answers. `getUpdates` now requests `callback_query` explicitly. Answered cards
+    are remembered, so a second tap or a second group member can't answer twice. The choice is
+    recorded before the tap is acknowledged.
+  - `idle_status.py` is new. After 45 minutes with no message either way it posts a silent
+    status. While it stays quiet it re-checks every 40 minutes and edits the post only if the
+    status changed. It deletes the post on the next message and rotates it before Telegram's
+    48-hour deletion limit. The status comes from STATE.md's Current section and/or a status
+    command such as `coord.py status` (`STATUS_COMMANDS`, one per project). The senders, the
+    bot and the daily digest touch `.last-exchange`. The comparison tolerates 1-second mtimes.
+    A missing `idle_status.py` (a half-applied update) no longer stops `bot.py` from relaying.
+  - `register-commands.sh` / `.ps1` now ship `/status /fullstatus /agents /stop /resume`
+    instead of an empty menu.
+  - The failure reaction stays 👎: Telegram's reaction set has no ❌.
+  - In a group, `/status@Bot` from the menu now counts as addressing the bot.
+- **Update procedure:** the bridge update loop now installs files that are new in the kit
+  version instead of skipping them. Skipping them would have left an updated `bot.py` importing a
+  module that wasn't there.
+- `/resume` while a dispatch suspension is recorded asks for confirmation with a card before
+  it lifts the suspension.
+- **Coordinator rules:** `CLAUDE.md`, the memory seed, `comms-register`, `question-protocol` and
+  `bootstrap` say to reply with `--reply-to`, ask through cards, answer the five commands, and
+  leave idle status to the bridge.
+- **Tests:** `test_founder_ux.py` (48 tests) includes a randomized idle-status state-machine
+  sweep, mutation-checked. `test_register_commands.py` was updated for the shipped menu. The
+  PowerShell changes are reviewed but not executed, because `pwsh` was unavailable.
+
 ## 0.12.0
 
 Checkpoint and continue instead of opening a fresh session. In 0.10.0 the context guard told a

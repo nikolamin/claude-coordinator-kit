@@ -1,5 +1,9 @@
 # Telegram idle-status updater
 
+> **Using the kit's own `telegram-bridge/`?** It has this built in (`idle_status.py`, 45-minute
+> default, enabled by `configure_bridge.py`; see the bridge's SETUP.md section (n)). Use this
+> component only with a different bridge, and never both for the same chat.
+
 Use the bundled `scripts/telegram_status.py` when a project requests an automatic Telegram
 status post. It sends a silent post after 30 minutes without an exchange, edits the same post
 every 30 minutes, and deletes it after the next recorded exchange. Both intervals are configurable.

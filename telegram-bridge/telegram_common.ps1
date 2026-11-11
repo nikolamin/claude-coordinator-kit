@@ -195,6 +195,26 @@ function Assert-BridgeConfigured {
     return $envVars
 }
 
+function Update-LastExchangeMarker {
+    <#
+    .SYNOPSIS
+        Best-effort touch of .last-exchange next to the calling script
+        (create if missing, else set LastWriteTime to now) - how bot.py's
+        idle-status post knows the conversation is no longer quiet. Mirrors
+        the .sh twins' `touch "$SCRIPT_DIR/.last-exchange" 2>/dev/null ||
+        true`: never throws, never fails an accepted send.
+    #>
+    param([Parameter(Mandatory = $true)][string]$ScriptDir)
+    try {
+        $marker = Join-Path $ScriptDir ".last-exchange"
+        if (Test-Path -LiteralPath $marker -PathType Leaf) {
+            (Get-Item -LiteralPath $marker -Force).LastWriteTime = Get-Date
+        } else {
+            New-Item -ItemType File -Path $marker -Force -ErrorAction Stop | Out-Null
+        }
+    } catch { }
+}
+
 function Invoke-TelegramForm {
     <#
     .SYNOPSIS

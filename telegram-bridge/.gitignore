@@ -14,6 +14,16 @@ env/
 .last_report.tmp
 relay-inbox.jsonl
 
+# Idle status post (idle_status.py): the silence clock (mtime only) and the
+# currently posted status message's id/hash.
+.last-exchange
+idle-status.json
+idle-status.json.tmp
+# Question cards already answered by a button press (bot.py dedupe).
+answered-cards.json
+answered-cards.json.tmp
+.env.tmp
+
 # Group chat support: auto-managed runtime state (bot identity + discovered
 # groups; every non-bot group sender ever observed). NOT allowed-members.json
 # below - that one is hand-edited config, intentionally not gitignored.

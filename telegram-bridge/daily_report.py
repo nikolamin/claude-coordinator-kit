@@ -75,6 +75,7 @@ from pathlib import Path
 import telegram_common
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+EXCHANGE_FILE = SCRIPT_DIR / ".last-exchange"
 ENV_FILE = SCRIPT_DIR / ".env"
 LOG_FILE = SCRIPT_DIR / "daily_report.log"
 LAST_REPORT_FILE = SCRIPT_DIR / ".last_report"
@@ -405,6 +406,9 @@ def main(argv=None) -> int:
     if not sent_ok:
         log.error("Failed to send daily digest; NOT advancing last-report marker.")
         return 1
+    # A digest is a bot message too: it ends a quiet spell, so the idle status
+    # post (idle_status.py) is deleted on the next poll cycle.
+    telegram_common.mark_exchange(EXCHANGE_FILE)
 
     try:
         head_commit = get_head_commit(default_cwd)

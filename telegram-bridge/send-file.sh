@@ -18,6 +18,7 @@
 #
 # Usage:
 #   ./send-file.sh <path> [caption]
+#   ./send-file.sh --reply-to 1234 <path> [caption]   # thread under message 1234
 #
 # This replaces the hand-rolled `curl .../sendDocument` recipe SETUP.md used
 # to document for file delivery - that recipe meant the coordinator itself
@@ -95,11 +96,21 @@ resolve_send_method() {
 # `source`d for testing (see the file header's "Testing hook" note).
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
+REPLY_TO=""
+if [[ "${1:-}" == "--reply-to" ]]; then
+  REPLY_TO="${2:-}"
+  if [[ ! "$REPLY_TO" =~ ^[0-9]+$ ]]; then
+    echo "Error: --reply-to needs a numeric Telegram message_id." >&2
+    exit 1
+  fi
+  shift 2
+fi
+
 FILE_PATH="${1:-}"
 CAPTION="${2:-}"
 
 if [[ -z "$FILE_PATH" ]]; then
-  echo "Error: usage: $(basename "$0") <path> [caption]" >&2
+  echo "Error: usage: $(basename "$0") [--reply-to <message_id>] <path> [caption]" >&2
   echo "  A file path is required as the first argument." >&2
   exit 1
 fi
@@ -172,6 +183,9 @@ CURL_ARGS=(--silent --show-error --fail --max-time 300
 if [[ -n "$CAPTION" ]]; then
   CURL_ARGS+=(--form-string "caption=${CAPTION}")
 fi
+if [[ -n "$REPLY_TO" ]]; then
+  CURL_ARGS+=(--form-string "reply_parameters={\"message_id\":${REPLY_TO},\"allow_sending_without_reply\":true}")
+fi
 CURL_ARGS+=(-F "${FIELD}=@\"${FILE_PATH}\"")
 
 RESPONSE="$(curl "${CURL_ARGS[@]}" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${METHOD}")" || {
@@ -185,6 +199,9 @@ if ! grep -q '"ok":true' <<< "$RESPONSE"; then
   echo "Error: Telegram API returned an error response: $RESPONSE" >&2
   exit 1
 fi
+
+# Best-effort idle-status marker (see notify.sh); never fails the send.
+touch "$SCRIPT_DIR/.last-exchange" 2>/dev/null || true
 
 exit 0
 

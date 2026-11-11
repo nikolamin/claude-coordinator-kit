@@ -28,13 +28,16 @@ below is the fully-manual path, for a human running it themselves with no agent 
 | File | Purpose |
 |---|---|
 | `bot.py` | Runs one Telegram long-poll cycle, relays messages, exits. Relaunched forever by the OS service (below). Also handles the optional group-chat gating, media downloads, and reply-threading metadata — see (h)/(i)/(f). |
-| `notify.sh` | Send a one-off Telegram message from any shell/hook: `./notify.sh "message"` (or `./notify.sh --group "message"` — see (h)). |
+| `notify.sh` | Send a one-off Telegram message from any shell/hook: `./notify.sh "message"` (or `--group` — see (h); `--reply-to <message_id>` threads it as a reply — see (n)). |
 | `react.sh` | Set a reaction on a relayed message: `./react.sh <message_id> <result>` (or `./react.sh --chat <chat_id> <message_id> <result>` — see (h)). `<result>` is `ok`/`fail` (the final 👍/👎, unchanged) or one of the extra words in (j) — `done`/`check`/`thumbup`, `down`/`thumbdown`/`x`, `seen`/`working`, `thinking`; an unrecognized ASCII word fails locally, and any other literal emoji is passed straight through. |
-| `send-file.sh` | Deliver a file to Telegram, picking `sendPhoto`/`sendAnimation`/`sendVideo`/`sendDocument` from its extension: `./send-file.sh <path> [caption]` — see (j). |
+| `send-file.sh` | Deliver a file to Telegram, picking `sendPhoto`/`sendAnimation`/`sendVideo`/`sendDocument` from its extension: `./send-file.sh [--reply-to <id>] <path> [caption]` — see (j). |
 | `typing.sh` | Post (or keep alive) a "typing…" indicator: `./typing.sh [seconds]` — see (j). |
-| `register-commands.sh` | Publish the bot's `/command` menu to Telegram (additive + idempotent): `./register-commands.sh` (or `--list` to read it back). Ships with an empty command list — see (m). |
+| `register-commands.sh` | Publish the bot's `/command` menu to Telegram (additive + idempotent): `./register-commands.sh` (or `--list` to read it back). Ships the coordinator menu (`/status /fullstatus /agents /stop /resume`) — see (m). |
+| `ask.sh` / `ask.py` | Send a question as a card with one button per option, or `--clear <card_id>` its buttons — see (n). |
+| `idle_status.py` | The 45-minute idle status post, run by `bot.py` each poll cycle — see (n). |
+| `configure_bridge.py` | Idempotently switches on every founder feature for a project (`.env` keys, status source, command menu); run on install and every update — see (n). |
 | `telegram_common.py` | Shared helper module (message chunking, group-chat gating, file download) used by `bot.py` and `daily_report.py`. Required — `bot.py` imports it. |
-| `notify.ps1`, `react.ps1`, `typing.ps1`, `send-file.ps1`, `register-commands.ps1`, `process-media.ps1` | **Windows** PowerShell ports of the `.sh` scripts above — identical contract/usage, invoked with `powershell -ExecutionPolicy Bypass -File <script>.ps1 ...` (or `pwsh -File ...`) instead of `./<script>.sh ...`. Written for Windows PowerShell 5.1 and PowerShell 7+; exercised under PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host. See "Windows (Task Scheduler)" under (e). |
+| `notify.ps1`, `react.ps1`, `typing.ps1`, `send-file.ps1`, `register-commands.ps1`, `ask.ps1`, `process-media.ps1` | **Windows** PowerShell ports of the `.sh` scripts above — identical contract/usage, invoked with `powershell -ExecutionPolicy Bypass -File <script>.ps1 ...` (or `pwsh -File ...`) instead of `./<script>.sh ...`. Written for Windows PowerShell 5.1 and PowerShell 7+; exercised under PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host. See "Windows (Task Scheduler)" under (e). |
 | `telegram_common.ps1` | Shared helper module for the `.ps1` scripts above (`.env` parsing, Telegram HTTP-call plumbing, credential redaction) — the PowerShell counterpart to `telegram_common.py`. Dot-sourced automatically; nothing to run directly. |
 | `install-windows-task.ps1` | **Windows only.** Registers `bot.py` and (optionally) `daily_report.py` as Windows Task Scheduler tasks — the Windows equivalent of loading the launchd `.plist`/systemd `.service`+`.timer` templates below. `-Uninstall` removes them. See "Windows (Task Scheduler)" under (e). |
 | `get_chat_id.py` | Optional helper to print your chat id from recent bot updates (alternative to the curl one-liner in step (a)). |
@@ -42,7 +45,7 @@ below is the fully-manual path, for a human running it themselves with no agent 
 | `process-media.sh` | Optional. Local transcription/frame-extraction for media downloaded by `bot.py` — see (i). |
 | `email_monitor.py` | Optional. Polls an IMAP inbox on a schedule and surfaces new mail the same way relay mode surfaces Telegram messages — see (l). |
 | `EMAIL-MONITOR.md` | Full setup walkthrough for `email_monitor.py` — see (l). |
-| `test_bot.py`, `test_filter.py`, `test_daily_report.py`, `test_send_file.py`, `test_react.py`, `test_typing.py`, `test_register_commands.py` | Unit tests for `bot.py`/`telegram_common.py` gating logic, `daily_report.py`'s significance gate, `send-file.sh`'s extension routing and unconfigured-bridge exit, `react.sh`'s word→emoji vocabulary, `typing.sh`'s unconfigured-bridge exit, and `register-commands.sh`'s additive merge, idempotency and empty-list no-op. Run with `python3 -m unittest discover` (or `python3 test_bot.py`, etc.) from this directory — stdlib `unittest`, no extra install needed. `python3 -m pytest` also works as an alternative runner *if* `pytest` is already installed (`pip install pytest`) — it isn't a project dependency, so don't rely on it being present by default. |
+| `test_bot.py`, `test_filter.py`, `test_daily_report.py`, `test_send_file.py`, `test_react.py`, `test_typing.py`, `test_register_commands.py`, `test_founder_ux.py` | Unit tests for `bot.py`/`telegram_common.py` gating logic, `daily_report.py`'s significance gate, `send-file.sh`'s extension routing and unconfigured-bridge exit, `react.sh`'s word→emoji vocabulary, `typing.sh`'s unconfigured-bridge exit, and `register-commands.sh`'s additive merge, idempotency and empty-list no-op. Run with `python3 -m unittest discover` (or `python3 test_bot.py`, etc.) from this directory — stdlib `unittest`, no extra install needed. `python3 -m pytest` also works as an alternative runner *if* `pytest` is already installed (`pip install pytest`) — it isn't a project dependency, so don't rely on it being present by default. |
 | `.env.example` | Template for your `.env` — copy and fill in. |
 | `.gitignore` | Keeps `.env`, logs, and runtime state files out of version control. |
 | `com.example.claude-telegram-bridge.plist.template` | macOS launchd template for the always-on bot loop. |
@@ -144,6 +147,10 @@ Then set:
 - `CLAUDE_DEFAULT_CWD` — a project directory. Only used in **classic mode** (see (f)) as the
   `cwd` for the headless `claude -p` subprocess; harmless to leave set even in relay mode.
 - `RELAY_MODE=1` — recommended default for a coordinator setup (see (f) for why).
+
+Then run `python3 configure_bridge.py --status-file <project>/docs/coordination/STATE.md` (see
+(n)) — it adds the idle-status keys and registers the command menu, without touching the values
+above.
 
 `.env` is never committed — see "Security" below.
 
@@ -391,7 +398,9 @@ At the start of a coordinator session (or as soon as the bridge is confirmed ins
    turn. `typing.sh <seconds>` keeps the indicator alive in the background for a turn expected to
    run long; `typing.sh` with no argument sends one ping (Telegram auto-expires it after ~5s).
    **Windows:** `powershell -ExecutionPolicy Bypass -File <BRIDGE_DIR>\typing.ps1 [seconds]`.
-4. **Reply** with `notify.sh "<reply text>"` — resolves `.env` relative to its own script location,
+4. **Reply** with `notify.sh --reply-to <message_id> "<reply text>"` so the answer is threaded
+   under the founder's message (plain `notify.sh "<text>"` is for messages the coordinator
+   starts itself). Ask a question as a button card with `ask.sh` — see (n). `notify.sh` resolves `.env` relative to its own script location,
    so it works regardless of the coordinator's own working directory. **Never put a backtick in
    the message text.** `notify.sh "..."` is still a shell command line, so a backtick-wrapped
    command inside the double-quoted string triggers bash command substitution and can *execute*
@@ -404,7 +413,8 @@ At the start of a coordinator session (or as soon as the bridge is confirmed ins
    characters. A message body passed to `notify.ps1` must never contain a backtick or an
    unintended `$` — describe commands in prose, or reference a scratch file's path instead, exactly
    as the bash guidance above already recommends.
-5. **Acknowledge** with `react.sh <message_id> ok` (👍) or `react.sh <message_id> fail` (👎) once
+5. **Acknowledge** with `react.sh <message_id> ok` (👍) or `react.sh <message_id> fail` (👎 —
+   Telegram only accepts reactions from a fixed emoji set, and ❌ is not in it) once
    the message is fully handled — this replaces the bot's initial 👀 with a final status the
    founder can see at a glance without opening the chat. (`react.sh` also accepts a few more words —
    `done`/`check`/`thumbup`, `down`/`thumbdown`/`x`, `seen`/`working`, `thinking` — see (j); `ok`/
@@ -788,26 +798,20 @@ follows the same rules as the other standalone scripts (`.env` sourced from next
 token never printed — see (j) and **Security**). `register-commands.ps1` follows the identical
 merge/idempotency/token-hygiene contract.
 
-**The kit ships this menu empty, on purpose.** Which commands are worth publishing is a per-project
-question, so the `COMMANDS` array at the top of the script contains only a commented sample line.
-With it empty the script is a safe no-op: it reports the currently registered menu and changes
-nothing. To add a command, uncomment the sample (or write your own) as one `"name|description"`
-line and re-run:
+**The kit ships the coordinator menu**: `/status`, `/fullstatus`, `/agents`, `/stop` and
+`/resume`, which every coordinator answers (the kit's `CLAUDE.md` defines each). `configure_bridge.py`
+(see (n)) registers it on install and on every update. A project adds its own commands as further
+`"name|description"` lines after the five defaults and re-runs the script:
 
 ```bash
 COMMANDS=(
+  "status|Short status: ..."            # ...the five shipped defaults...
   "standup|Post today's status to the coordinator session"
 )
 ```
 
 On Windows, the equivalent list lives in `register-commands.ps1`'s `$Commands` array, same
-`"name|description"` string convention:
-
-```powershell
-$Commands = @(
-    "standup|Post today's status to the coordinator session"
-)
-```
+`"name|description"` string convention.
 
 Telegram's own rules apply to each entry: the name is 1–32 chars of lowercase `a-z`, `0-9` and
 underscores; the description is 1–256 chars. A command whose description you change is updated in
@@ -821,6 +825,63 @@ shortcut for text that triggers a project-local Claude Code skill).
 Because the menu is stored by Telegram against the bot token, a token rotation or a fresh bot
 (step (a)) starts with an empty menu — re-run `./register-commands.sh` (or `register-commands.ps1`
 on Windows) after either.
+
+## (n) Founder features: reactions, threaded replies, question cards, idle status
+
+Everything a founder sees on the phone, and how it is switched on. **Run `configure_bridge.py`
+once per project on install and again on every kit update** — it is idempotent, never rewrites
+an existing `.env` value, and is what keeps an updated bridge from lacking a feature that only
+a fresh install used to set up:
+
+```bash
+python3 configure_bridge.py --status-file /abs/path/to/project/docs/coordination/STATE.md
+# plugin installs: status comes from the coordinator database instead
+python3 configure_bridge.py --status-command "python3 /abs/plugin/scripts/coord.py --root /abs/project status"
+python3 configure_bridge.py --check     # readiness report, changes nothing
+```
+
+Run it with the bridge's own interpreter (`venv/bin/python3` if (b) created a venv; it imports
+`requests`). It adds any missing `RELAY_MODE=1` and idle-status keys to `.env` (an explicit `RELAY_MODE=0` is
+reported, not overridden), records the project's status source (one entry per project; a plugin path that moved on
+upgrade replaces the older entry for the same `--root`; `--remove-status-file` drops a project
+that no longer exists), and registers the command menu
+(see (m)). Values it writes are single-quoted because `notify.sh` sources `.env` in bash.
+
+| Feature | Who does it | How |
+|---|---|---|
+| 👀 on every founder message | `bot.py`, automatically | on receipt, relay mode |
+| 👍 / 👎 when handled | coordinator | `react.sh <message_id> ok\|fail` |
+| Answer as a reply | coordinator | `notify.sh --reply-to <message_id> "..."`, `send-file.sh --reply-to <id> <path>` |
+| Question as button card | coordinator | `ask.sh [--reply-to <id>] "question" "option 1" "option 2" ...` (prints the card id) |
+| Card cleared on tap | `bot.py`, automatically | stamps "✅ choice" on the card, removes buttons, relays a `"kind": "button"` record |
+| Card cleared on reply | `bot.py`, automatically | a Telegram reply to the card removes its buttons |
+| Card cleared on plain answer | coordinator | `ask.sh --clear <card_id>` |
+| Idle status post | `bot.py`, automatically | after 45 min quiet; edited every ~40 min only if changed; deleted on the next message |
+| Command menu | `configure_bridge.py` | `/status /fullstatus /agents /stop /resume` |
+
+**Button records.** A tap is relayed as
+`{"kind": "button", "text": "<label>", "button": {"index": n, "label": "..."}, "message_id": <card>, "reply_to": {"message_id": <card>, ...}, ...}`
+alongside the usual sender fields. Taps are authorized exactly like typed messages (founder DM,
+or the founder/allowlisted member in a group); anyone else gets "Not authorized." and nothing
+is relayed. A second tap on an already-answered card is not relayed: `bot.py` remembers answered cards in
+`answered-cards.json`, since the keyboard Telegram echoes with each tap is a snapshot. In a group
+the menu sends `/status@YourBot`, which counts as addressing the bot.
+
+**Idle status.** "Quiet" means no message in either direction: a founder message or tap, or
+anything sent by `notify`/`ask`/`send-file` (each touches `.last-exchange`). Typing indicators,
+reactions and the status post itself don't count. A daily digest (k) does count. The post is
+built from each `STATUS_COMMANDS` entry's output and/or each `STATUS_FILES` entry (a `STATE.md` contributes only its `## Current`
+section), is sent without a notification sound (`IDLE_STATUS_SILENT=1`), and is rotated before
+Telegram's 48-hour deletion limit. A failed send backs off for 5 minutes. State lives in
+`idle-status.json`; delete that file only if you have already deleted the post by hand.
+Tune with `IDLE_STATUS_AFTER_MINUTES` / `IDLE_STATUS_REFRESH_MINUTES`, or turn off with
+`IDLE_STATUS_ENABLED=0` (the next poll cycle deletes an outstanding post). Don't also enable the
+coordinator plugin's own `telegram_status.py` for the same chat: that would post twice.
+
+**Windows:** `ask.ps1` passes arguments to Python natively; under Windows PowerShell 5.1 a literal
+`"` inside a question or option can be split or altered, so prefer PowerShell 7 (`pwsh`) or avoid
+double quotes in card text. None of the `.ps1` changes for these features have been run on
+Windows yet.
 
 ## Security
 

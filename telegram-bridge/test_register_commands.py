@@ -165,26 +165,43 @@ class RegisterCommandsTestCase(unittest.TestCase):
             return result, curl_log.read_text(), sets
 
 
-class EmptyCommandListTests(RegisterCommandsTestCase):
-    """The kit's shipped state: COMMANDS is all comments."""
+COORDINATOR_COMMANDS = ["status", "fullstatus", "agents", "stop", "resume"]
 
-    def test_shipped_script_with_no_commands_is_a_clean_no_op(self):
-        result, _, sets = self.run_script(existing=[{"command": "existing", "description": "kept"}])
+
+class EmptyCommandListTests(RegisterCommandsTestCase):
+    """A project that cleared the array: COMMANDS is all comments."""
+
+    def test_script_with_no_commands_is_a_clean_no_op(self):
+        result, _, sets = self.run_script(commands=[], existing=[{"command": "existing", "description": "kept"}])
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("nothing to register", result.stdout)
         self.assertEqual([], sets, "an empty list must never issue a setMyCommands write")
 
     def test_empty_array_does_not_trip_set_u(self):
         """bash 3.2 + `set -u` + "${EMPTY[@]}" is an unbound variable error.
-        The guard exists precisely so the shipped script does not die there.
+        The guard exists precisely so the script does not die there.
         """
-        result, _, _ = self.run_script(existing=[])
+        result, _, _ = self.run_script(commands=[], existing=[])
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertNotIn("unbound variable", result.stderr)
 
     def test_empty_list_still_reports_the_current_menu(self):
-        result, _, _ = self.run_script(existing=[{"command": "existing", "description": "kept"}])
+        result, _, _ = self.run_script(commands=[], existing=[{"command": "existing", "description": "kept"}])
         self.assertIn("existing", result.stdout, "the caller must still see what is registered")
+
+
+class ShippedDefaultMenuTests(RegisterCommandsTestCase):
+    """The kit's shipped state: the five coordinator commands."""
+
+    def test_shipped_script_registers_the_coordinator_menu(self):
+        result, _, sets = self.run_script(existing=[])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(COORDINATOR_COMMANDS, [c["command"] for c in sets[-1]])
+
+    def test_shipped_menu_keeps_a_project_command_registered_elsewhere(self):
+        result, _, sets = self.run_script(existing=[{"command": "personas", "description": "kept"}])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["personas"] + COORDINATOR_COMMANDS, [c["command"] for c in sets[-1]])
 
 
 class AdditiveMergeTests(RegisterCommandsTestCase):
@@ -304,11 +321,24 @@ class ShippedFileTests(unittest.TestCase):
     def test_script_is_executable(self):
         self.assertTrue(os.access(REGISTER_SH, os.X_OK), "register-commands.sh must ship executable")
 
-    def test_shipped_commands_array_is_empty(self):
-        """The kit is project-agnostic: no project's commands ship in it."""
+    def test_shipped_commands_are_exactly_the_coordinator_menu(self):
+        """The kit ships the coordinator menu and nothing project-specific."""
         body = re.search(r"COMMANDS=\(\n(.*?)\n\)", REGISTER_SH.read_text(), re.S).group(1)
         live = [ln for ln in body.splitlines() if ln.strip() and not ln.strip().startswith("#")]
-        self.assertEqual([], live, f"the shipped COMMANDS array must be all comments, found: {live}")
+        names = [ln.strip().strip('"').split("|", 1)[0] for ln in live]
+        self.assertEqual(COORDINATOR_COMMANDS, names)
+        for ln in live:
+            name, desc = ln.strip().strip('"').split("|", 1)
+            self.assertRegex(name, r"^[a-z0-9_]{1,32}$")
+            self.assertTrue(1 <= len(desc) <= 256)
+
+    def test_powershell_twin_ships_the_same_menu(self):
+        ps1 = (REGISTER_SH.parent / "register-commands.ps1").read_text()
+        body = re.search(r"COMMANDS=\(\n(.*?)\n\)", REGISTER_SH.read_text(), re.S).group(1)
+        for ln in body.splitlines():
+            entry = ln.strip()
+            if entry and not entry.startswith("#"):
+                self.assertIn(entry.strip('"'), ps1, "register-commands.ps1 must ship the same entries")
 
     def test_no_credentials_are_committed_in_the_script(self):
         text = REGISTER_SH.read_text()

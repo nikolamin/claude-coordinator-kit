@@ -1,6 +1,6 @@
 # Coordinator Kit plugin
 
-Version **0.12.0** packages the coordinator workflow for **Claude Code and Codex** as a project
+Version **0.13.0** packages the coordinator workflow for **Claude Code and Codex** as a project
 spine and **15 shared on-demand skills**, including the **ux-audit command**.
 Each workspace supplies its own model mapping, repository topology, release authority,
 notification and persistence policies. The separate root file-copy templates,
@@ -68,6 +68,11 @@ groups active lanes by task and preserves question channel/owner information; `s
 duplicate queue positions, closed queued tasks and missing/stale lane ownership. Optional
 task-facing summaries remain in the database. Supported bridge buttons follow the project's
 transport.
+
+Version 0.13.0 makes every founder-facing Telegram feature reach every install and update of
+the kit's bridge: threaded replies, question cards with buttons, a 45-minute idle status post
+and the `/status /fullstatus /agents /stop /resume` menu, all switched on by the bridge's
+idempotent `configure_bridge.py` (see the bridge's SETUP.md section (n)).
 
 Version 0.12.0 makes a long coordinator session checkpoint and keep going instead of asking the
 user to open a fresh session (see "Context: checkpoint and compaction" below).

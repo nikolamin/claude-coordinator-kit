@@ -14,10 +14,11 @@
 # so a registered command is just a typing shortcut for text the live
 # coordinator session was already going to receive.
 #
-# THE KIT SHIPS AN EMPTY MENU. The COMMANDS array below is deliberately all
-# comments: which commands make sense is a per-project question, so each
-# project fills in its own (see the sample line). With the array empty this
-# script is a safe no-op that only reports the currently registered menu.
+# THE KIT SHIPS THE COORDINATOR MENU: /status, /fullstatus, /agents, /stop
+# and /resume - the commands every coordinator project answers (see the
+# kit's CLAUDE.md "Telegram commands"). A project may add its own lines to
+# the COMMANDS array below; the install and update procedures both run this
+# script, so a fresh or updated bridge always has at least these five.
 #
 # IDEMPOTENT AND ADDITIVE: reads the existing menu via getMyCommands first
 # and merges, so re-running never drops a command some other setup step
@@ -43,16 +44,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Telegram rules: name is lowercase a-z, 0-9 and underscores, 1-32 chars;
 # description is 1-256 chars. Add a line here to add a command to the menu.
 #
-# Empty by default - this is the per-project slot. Uncomment the sample below
-# (or write your own) to publish a menu; a command only needs to exist here to
-# show up in the phone's "/" list, because relay mode hands the text straight
-# to the live coordinator session and nothing else has to know about it.
-#
-# Sample (from the project this bridge was extracted from - a command that
-# relays to a coordinator session running a project-local Claude Code skill):
-#   "personas|Run a persona beta-test round on this project"
+# The five coordinator commands below are the kit default; add per-project
+# lines after them. Relay mode hands the text straight to the live
+# coordinator session, so a command only needs to exist here to show up in
+# the phone's "/" list.
 # ---------------------------------------------------------------------------
 COMMANDS=(
+  "status|Short status: phase, agents running, what is next, whether you are needed"
+  "fullstatus|Full status: in-flight agents, queue, blockers, recent landings"
+  "agents|List in-flight agents with task, model and running time"
+  "stop|Stop dispatching and save state (same as stop and save your step)"
+  "resume|Resume work (same as bootstrap yourself; lifts a stop)"
   # "yourcommand|What your project's coordinator does when it sees this"
 )
 

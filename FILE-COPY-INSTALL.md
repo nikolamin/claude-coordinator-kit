@@ -118,7 +118,11 @@ all later coordinator work; never stop to ask permission for a commit or push.
      `<BRIDGE_DIR>` (the absolute path recorded in `kit-version.md`'s bridge line, and in
      `CLAUDE.md`'s Comms register) — update by named file only, within that directory, never a
      directory-level copy, which would destroy `.env`, the allowlist, and every piece of
-     gitignored runtime state in one pass.
+     gitignored runtime state in one pass. After the files are in place, always run
+     `python3 <BRIDGE_DIR>/configure_bridge.py` with this project's status source (same flags as
+     install step 4e) and then `--check`: `.env` is NEVER TOUCH for a copy, so this script is the
+     only way a new feature's settings and the command menu reach an existing bridge. Show me the
+     `--check` output; a `WARN` line means the update is not finished.
    - Rewrite `docs/coordination/kit-version.md` with the fresh clone's commit SHA and today's date,
      carrying forward any `## Notes` entries already there, and add a new `## Notes` entry of your
      own summarizing this update — REPLACEd files, any divergence and how you reconciled it, what
@@ -197,6 +201,15 @@ all later coordinator work; never stop to ask permission for a commit or push.
         the detected name/id with me, and write it into `TELEGRAM_CHAT_ID` in `.env`.
      d. Continue with the rest of `telegram-bridge/SETUP.md` top to bottom (Python dependency, OS
         service install) — skip any `.env` setup it describes if (b) already found one in place.
+     e. Switch on the founder features for this project — run, from the bridge directory and with
+        the bridge's own interpreter (`venv/bin/python3` if step d made a venv),
+        `python3 configure_bridge.py --status-file <absolute project path>/docs/coordination/STATE.md`
+        (plugin installs: `--status-command "python3 <plugin>/scripts/coord.py --root <absolute
+        project path> status"` instead). Do this even when (b) found an existing `.env`: it is
+        idempotent, never changes an existing value, and is what adds relay mode, the 45-minute
+        idle status post and the `/status /fullstatus /agents /stop /resume` menu. Then run
+        `python3 configure_bridge.py --check` and show me its lines; any `WARN` is a gap to fix or
+        to tell me about, not to skip.
      If I instead chose a different mechanism in step 3b that needs a credential (e.g. a Slack
      webhook URL), apply the same pattern: ask for it in chat, write it into a gitignored config
      location yourself, never ask me to hand-edit a file.
@@ -297,7 +310,10 @@ install prompt above.
    path you chose; you need it in step 6 and, if you seed memory, step 8 too, plus throughout
    `telegram-bridge/SETUP.md`. If `<BRIDGE_DIR>` already has a configured `.env` (e.g. this machine
    already runs the bridge for another project), leave it alone — don't repeat
-   `telegram-bridge/SETUP.md`'s `.env` steps over a live bridge and clobber its token.
+   `telegram-bridge/SETUP.md`'s `.env` steps over a live bridge and clobber its token. Either
+   way, finish with `python3 <BRIDGE_DIR>/configure_bridge.py --status-file <this project>/docs/coordination/STATE.md`
+   then `--check` (SETUP.md (n)) — it adds this project's status source and the founder features
+   without touching existing values.
 6. Open the copied `CLAUDE.md` and replace every `<PROJECT>` with the project's actual name, and
    every `<NOTIFY_CHANNEL>` with how you want to be pinged (see below). If you copied the Telegram
    bridge in step 5, also replace every `<BRIDGE_DIR>` in `CLAUDE.md` with the absolute path from

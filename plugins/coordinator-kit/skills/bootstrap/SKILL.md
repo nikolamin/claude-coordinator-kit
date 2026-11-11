@@ -29,7 +29,7 @@ first-run migration supplied by the plugin, not a task to defer or an optional M
    Reconcile imported needs_review records too. Existing SQLite sources also require repointing
    legacy coordinator/bridge integrations; their original DB files are preserved untouched.
 4. Continue only after `summary.ready_for_dispatch` is true, then apply the actual task/hold
-   authorization. Migration readiness is not production permission. Record plugin version 0.12.0
+   authorization. Migration readiness is not production permission. Record plugin version 0.13.0
    and the adopted spine version separately in the workspace profile.
 
 Existing work remains existing even if all old state filenames now contain short pointers.
@@ -46,6 +46,12 @@ For nonstandard source locations, use `.coordinator/migration.json` per the stat
    PROJECT/NOTIFY_CHANNEL/BRIDGE_DIR placeholders and remove unused bridge clauses. Read back
    to confirm all placeholders resolved. Preserve existing instruction files; an explicitly requested
    spine upgrade uses a targeted, authorized diff and a fresh session, never template overwrite.
+   When the notify channel is the kit's Telegram bridge, run on every bootstrap and resume
+   (the plugin path changes on upgrade): `python3 <BRIDGE_DIR>/configure_bridge.py
+   --status-command "python3 <this plugin>/scripts/coord.py --root <workspace> status"`, then
+   `--check`. It is idempotent, never rewrites existing `.env` values, and turns on relay mode,
+   the idle status post and the `/status /fullstatus /agents /stop /resume` menu. Report any
+   `WARN` line instead of claiming the bridge is fully set up.
 3. Populate `profile put workspace --data FILE` using the fields in
    [the profile seed](templates/operating-profile.json), replacing empty values with established
    facts or leaving them explicitly unresolved. Store current phase/goals in profile/task records;

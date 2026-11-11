@@ -7,6 +7,17 @@
     Same contract as notify.sh:
         .\notify.ps1 "some message"            # send to the founder's DM (default)
         .\notify.ps1 --group "some message"    # send to the auto-discovered group chat
+        .\notify.ps1 --reply-to 1234 "some message"  # send as a Telegram reply to message 1234
+
+    --reply-to threads the message under the founder's message it answers
+    (use the relay-inbox.jsonl record's message_id). If that message no
+    longer exists the text is still sent, just unthreaded
+    (allow_sending_without_reply). Flags may come in any order before the
+    message.
+
+    Every successful send touches .last-exchange next to this script, which
+    is how bot.py's idle-status post knows the conversation is no longer
+    quiet.
 
     Reads TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID from a .env file located
     next to this script (NOT the caller's working directory), so it is safe
@@ -44,21 +55,30 @@ if ([string]::IsNullOrEmpty($ScriptDir)) {
 . (Join-Path $ScriptDir "telegram_common.ps1")
 
 # --- argument parsing -------------------------------------------------------
-$argv = $args
+$argv = @($args)
 $target = "dm"
-if ($argv.Count -gt 0 -and $argv[0] -eq "--group") {
-    $target = "group"
-    if ($argv.Count -gt 1) {
-        $argv = $argv[1..($argv.Count - 1)]
+$replyTo = ""
+$argIndex = 0
+while ($argIndex -lt $argv.Count) {
+    $flag = [string]$argv[$argIndex]
+    if ($flag -ceq "--group") {
+        $target = "group"
+        $argIndex += 1
+    } elseif ($flag -ceq "--reply-to") {
+        if ($argIndex + 1 -lt $argv.Count) { $replyTo = [string]$argv[$argIndex + 1] }
+        if ($replyTo -notmatch '^[0-9]+$') {
+            Write-BridgeError "--reply-to needs a numeric Telegram message_id."
+        }
+        $argIndex += 2
     } else {
-        $argv = @()
+        break
     }
 }
 
-if ($argv.Count -lt 1 -or [string]::IsNullOrEmpty($argv[0])) {
-    Write-BridgeError "usage: notify.ps1 [--group] `"<message>`"`n  A non-empty message is required as the first argument."
+if ($argIndex -ge $argv.Count -or [string]::IsNullOrEmpty([string]$argv[$argIndex])) {
+    Write-BridgeError "usage: notify.ps1 [--group] [--reply-to <message_id>] `"<message>`"`n  A non-empty message is required as the first argument."
 }
-$message = $argv[0]
+$message = [string]$argv[$argIndex]
 
 # --- config ------------------------------------------------------------------
 $envVars = Assert-BridgeConfigured -ScriptDir $ScriptDir
@@ -89,9 +109,19 @@ if ($target -eq "group") {
 }
 
 # --- send ----------------------------------------------------------------
-Invoke-TelegramForm -ApiBase $apiBase -Token $token -Method "sendMessage" -Body @{
+$body = @{
     chat_id = $targetChatId
     text    = $message
-} | Out-Null
+}
+if (-not [string]::IsNullOrEmpty($replyTo)) {
+    $body['reply_parameters'] = '{"message_id":' + $replyTo + ',"allow_sending_without_reply":true}'
+}
+
+# Invoke-TelegramForm exits 1 itself on a transport failure or a non-ok
+# body, so reaching the next line means Telegram confirmed the send.
+Invoke-TelegramForm -ApiBase $apiBase -Token $token -Method "sendMessage" -Body $body | Out-Null
+
+# Best-effort: never fail an accepted send over the idle-status marker.
+Update-LastExchangeMarker -ScriptDir $ScriptDir
 
 exit 0

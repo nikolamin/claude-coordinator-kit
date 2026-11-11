@@ -171,15 +171,25 @@ never holds a real secret — but a locally-added variable comment (e.g. documen
 **`telegram-bridge/.gitignore` — REPLACE, diff-verified first (see above).** Kit-owned, lists the
 bridge's own runtime-state exclusions — a locally-added exclusion line is a real local edit too.
 
-**`telegram-bridge/.env` — NEVER TOUCH.** Live bot token, chat id, real config — a template copy
-over it breaks the notify channel on the next poll cycle.
+**`telegram-bridge/.env` — NEVER TOUCH by copy; extended only by `configure_bridge.py`.** Live bot
+token, chat id, real config — a template copy over it breaks the notify channel on the next poll
+cycle. A kit version that adds a bridge feature also adds its settings to `.env.example`, which an
+installed `.env` never receives on its own; that gap is why an updated bridge used to lack
+features a fresh install had. So every bridge update ends by running `python3
+<BRIDGE_DIR>/configure_bridge.py` with the project's status source (`--status-file
+<project>/docs/coordination/STATE.md`, or `--status-command` for a plugin install) and then
+`--check`. It only appends missing keys and merges the status source — it never rewrites an
+existing value or prints a secret — and it re-registers the command menu. Any `WARN` from
+`--check` means the update is not finished.
 
 **`telegram-bridge/allowed-members.json` — NEVER TOUCH.** Hand-edited allowlist, deliberately
 tracked (not gitignored) — not kit-generated content.
 
 **Gitignored bridge runtime state — NEVER TOUCH.** `relay-inbox.jsonl`, `.offset.json` (and
 `.tmp`), `.offset`, `.last_report` (and `.tmp`), `bridge-config.json` (and `.tmp`),
-`seen-members.json` (and `.tmp`), `media-inbox/`, `models/`, `email-inbox.jsonl`,
+`seen-members.json` (and `.tmp`), `.last-exchange`, `idle-status.json` (and `.tmp`),
+`answered-cards.json` (and `.tmp`), `.env.tmp`,
+`media-inbox/`, `models/`, `email-inbox.jsonl`,
 `email-monitor-state.json` (and `.tmp`), any `*.log` — per `telegram-bridge/.gitignore`,
 regenerated automatically, real data if it exists, nothing to install over.
 
@@ -283,12 +293,13 @@ fi
 # never installed there in the first place — every file reports DIVERGED, and the suggested cp would
 # create a phantom in-project copy the bridge never reads.
 BRIDGE_DIR="/absolute/path/to/your/telegram-bridge"   # <-- set this to your real install path first
-if [ -z "${BRIDGE_DIR:-}" ] || [ ! -d "${BRIDGE_DIR}" ]; then
-  echo "BRIDGE_DIR is not set to an existing directory - set it above before running this block. Skipping bridge files." >&2
+if [ -z "${BRIDGE_DIR:-}" ] || [ ! -f "${BRIDGE_DIR}/bot.py" ]; then
+  echo "BRIDGE_DIR is not set to an installed bridge (no bot.py there) - set it above before running this block. Skipping bridge files." >&2
 else
   IGNORE_RE='\.env$|allowed-members\.json$|relay-inbox\.jsonl$|\.offset|\.last_report'
   IGNORE_RE="${IGNORE_RE}"'|bridge-config\.json|seen-members\.json|media-inbox/?$|models/?$'
   IGNORE_RE="${IGNORE_RE}"'|email-inbox\.jsonl|email-monitor-state\.json|\.log$'
+  IGNORE_RE="${IGNORE_RE}"'|\.last-exchange$|idle-status\.json|answered-cards\.json|\.env\.tmp$'
   for f in $(git -C /tmp/coordinator-kit-update ls-tree -r --name-only HEAD -- telegram-bridge/ \
                | grep -v -E "${IGNORE_RE}"); do
     # ${f} is kit-repo-relative, e.g. "telegram-bridge/bot.py" - strip the leading directory to get
@@ -296,7 +307,13 @@ else
     rel="${f#telegram-bridge/}"
     installed="${BRIDGE_DIR}/${rel}"
     if [ ! -f "${installed}" ]; then
-      echo "not yet installed (new in this kit version, or BRIDGE_DIR is wrong): ${rel}"
+      # New in this kit version: nothing installed to diverge from, so install it. Skipping it
+      # would leave an updated bot.py importing a module that isn't there (a crash-looping
+      # bridge). If BRIDGE_DIR were wrong, every file would land here - the guard above refuses
+      # a BRIDGE_DIR that doesn't hold bot.py.
+      mkdir -p "$(dirname "${installed}")"
+      cp "/tmp/coordinator-kit-update/${f}" "${installed}"
+      echo "installed (new in this kit version): ${rel}"
       continue
     fi
     if git -C /tmp/coordinator-kit-update show "${OLD_SHA}:${f}" >/dev/null 2>&1; then
@@ -420,10 +437,10 @@ if (Test-KitFileUnchanged "codex-setup.md" "docs\coordination\codex-setup.md") {
 # never installed there in the first place — every file reports DIVERGED, and the suggested copy
 # would create a phantom in-project copy the bridge never reads.
 $BridgeDir = "C:\absolute\path\to\your\telegram-bridge"   # <-- set this to your real install path first
-if ([string]::IsNullOrEmpty($BridgeDir) -or -not (Test-Path $BridgeDir -PathType Container)) {
-    Write-Warning "BridgeDir is not set to an existing directory - set it above before running this block. Skipping bridge files."
+if ([string]::IsNullOrEmpty($BridgeDir) -or -not (Test-Path (Join-Path $BridgeDir "bot.py") -PathType Leaf)) {
+    Write-Warning "BridgeDir is not set to an installed bridge (no bot.py there) - set it above before running this block. Skipping bridge files."
 } else {
-    $IgnoreRe = '\.env$|allowed-members\.json$|relay-inbox\.jsonl$|\.offset|\.last_report|bridge-config\.json|seen-members\.json|media-inbox/?$|models/?$|email-inbox\.jsonl|email-monitor-state\.json|\.log$'
+    $IgnoreRe = '\.env$|allowed-members\.json$|relay-inbox\.jsonl$|\.offset|\.last_report|bridge-config\.json|seen-members\.json|media-inbox/?$|models/?$|email-inbox\.jsonl|email-monitor-state\.json|\.log$|\.last-exchange$|idle-status\.json|answered-cards\.json|\.env\.tmp$'
     $bridgeFiles = (git -C $KitClone ls-tree -r --name-only HEAD -- telegram-bridge/) -split "`n" |
         Where-Object { $_ -and ($_ -notmatch $IgnoreRe) }
     foreach ($f in $bridgeFiles) {
@@ -432,7 +449,10 @@ if ([string]::IsNullOrEmpty($BridgeDir) -or -not (Test-Path $BridgeDir -PathType
         $rel = $f -replace '^telegram-bridge/', ''
         $installed = Join-Path $BridgeDir ($rel -replace '/', '\')
         if (-not (Test-Path $installed)) {
-            Write-Host "not yet installed (new in this kit version, or BridgeDir is wrong): $rel"
+            # New in this kit version: nothing to diverge from, so install it (see the bash twin).
+            New-Item -ItemType Directory -Force -Path (Split-Path $installed) | Out-Null
+            Copy-Item (Join-Path $KitClone ($f -replace '/', '\')) $installed
+            Write-Host "installed (new in this kit version): $rel"
             continue
         }
         $oldExists = (& git -C $KitClone show "${OldSha}:${f}" 2>$null); $oldOk = ($LASTEXITCODE -eq 0)

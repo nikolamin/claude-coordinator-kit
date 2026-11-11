@@ -8,11 +8,12 @@
         .\register-commands.ps1            # merge the commands below into the bot's menu
         .\register-commands.ps1 --list     # print the currently registered menu, change nothing
 
-    THE KIT SHIPS AN EMPTY MENU. $Commands below is deliberately empty:
-    which commands make sense is a per-project question, so each project
-    fills in its own (see the sample line). With the array empty this
-    script is a safe no-op that only reports the currently registered menu
-    - identical behavior to register-commands.sh's shipped default.
+    THE KIT SHIPS THE COORDINATOR MENU: /status, /fullstatus, /agents,
+    /stop and /resume - the commands every coordinator project answers (see
+    the kit's CLAUDE.md "Telegram commands"). A project may add its own
+    lines to $Commands below; the install and update procedures both run
+    this script, so a fresh or updated bridge always has at least these
+    five - identical to register-commands.sh's shipped default.
 
     IDEMPOTENT AND ADDITIVE: reads the existing menu via getMyCommands
     first and merges, so re-running never drops a command some other setup
@@ -31,7 +32,7 @@
     PowerShell 7 against a stub API, not yet under 5.1 or on a real Windows host.
 
 .EXIT CODES
-    0 on success (including the "nothing to register" no-op path). 1 on
+    0 on success (including the "already up to date" no-op path). 1 on
     any failure (missing .env, missing token, a real Telegram API error) -
     matches register-commands.sh exactly.
 #>
@@ -54,13 +55,17 @@ if ([string]::IsNullOrEmpty($ScriptDir)) {
 # Telegram rules: name is lowercase a-z, 0-9 and underscores, 1-32 chars;
 # description is 1-256 chars.
 #
-# Empty by default - this is the per-project slot. Uncomment the sample
-# below (or write your own) to publish a menu.
-#
-# Sample (matching register-commands.sh's own sample):
-#   "personas|Run a persona beta-test round on this project"
+# The five coordinator commands below are the kit default; add per-project
+# lines after them. Relay mode hands the text straight to the live
+# coordinator session, so a command only needs to exist here to show up in
+# the phone's "/" list.
 # ---------------------------------------------------------------------------
 $Commands = @(
+    "status|Short status: phase, agents running, what is next, whether you are needed"
+    "fullstatus|Full status: in-flight agents, queue, blockers, recent landings"
+    "agents|List in-flight agents with task, model and running time"
+    "stop|Stop dispatching and save state (same as stop and save your step)"
+    "resume|Resume work (same as bootstrap yourself; lifts a stop)"
     # "yourcommand|What your project's coordinator does when it sees this"
 )
 
@@ -124,9 +129,9 @@ if ($listOnly) {
     exit 0
 }
 
-# An empty $Commands array is the shipped default, and it is a legitimate
-# state, not an error - this bridge simply has no commands of its own to
-# publish yet. Mirrors register-commands.sh's own early-exit for an empty
+# An empty $Commands array (a project that removed the kit defaults) is a
+# legitimate state, not an error - this bridge simply has no commands of
+# its own to publish. Mirrors register-commands.sh's own early-exit for an empty
 # COMMANDS array.
 if ($Commands.Count -eq 0) {
     Write-Output "No commands defined in this script's `$Commands array; nothing to register."

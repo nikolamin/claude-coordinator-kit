@@ -31,9 +31,14 @@
 - Telegram bridge (optional) — if the kit's `telegram-bridge/` is installed (typically outside this
   project, at `<BRIDGE_DIR>`, as a machine-level service — see README), its `SETUP.md` documents
   the relay pattern: arm a persistent Monitor on `<BRIDGE_DIR>/relay-inbox.jsonl` at session start
-  (founder messages arrive mid-session), reply via `<BRIDGE_DIR>/notify.sh`, react via
-  `<BRIDGE_DIR>/react.sh`, signal "still working" via `<BRIDGE_DIR>/typing.sh [seconds]` while a
-  reply is being composed, and deliver files via `<BRIDGE_DIR>/send-file.sh <path> [caption]` —
+  (founder messages arrive mid-session), answer a founder message as a Telegram reply
+  (`<BRIDGE_DIR>/notify.sh --reply-to <message_id>`), close the bot's 👀 with
+  `<BRIDGE_DIR>/react.sh <message_id> ok|fail`, ask questions as button cards via
+  `<BRIDGE_DIR>/ask.sh` (clear with `--clear <card_id>` if answered in plain text), answer
+  /status /fullstatus /agents /stop /resume, signal "still working" via
+  `<BRIDGE_DIR>/typing.sh [seconds]` while a reply is being composed, and deliver files via
+  `<BRIDGE_DIR>/send-file.sh [--reply-to <id>] <path> [caption]` — the 45-minute idle status
+  post is the bridge's own job (fed from `STATE.md`'s Current section) —
   never hand-roll a `curl` against the Bot API (session-UI delivery doesn't reach Telegram on its
   own either). Windows: substitute the `.ps1` of the same name, invoked via `powershell
   -ExecutionPolicy Bypass -File`.
